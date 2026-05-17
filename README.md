@@ -2,7 +2,7 @@
 
 DirectIndex is a local, simulation-only financial planning app for tax-aware direct indexing, tax-loss harvesting research, advisor transition proposals, 13F manager research, and retirement income analysis.
 
-It is built for education, modeling, and workflow experimentation. It is not a trading system and does not provide tax, legal, accounting, investment, fiduciary, brokerage, or financial planning advice.
+It is built for education, modeling, and workflow experimentation. It is not a trading system and does not provide tax, legal, accounting, investment, fiduciary, brokerage, or financial planning advice. Plan to add more fields and make it personal finance go to page.
 
 ## Features
 
