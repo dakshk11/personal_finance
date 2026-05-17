@@ -1,0 +1,16 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.pyc
+*.db
+*.db-*
+.pytest_cache/
+.coverage
+node_modules/
+.next/
+dist/
+coverage/
+postgres-data/
+redis-data/
+data-cache/
