@@ -92,6 +92,26 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
 └── README.md
 ```
 
+## Clone or Fork
+
+To run locally from GitHub:
+
+```bash
+git clone https://github.com/dakshk11/personal_finance.git
+cd personal_finance
+cp .env.example .env
+docker compose up --build
+```
+
+Or fork the repository in GitHub first, then clone your fork:
+
+```bash
+git clone https://github.com/<your-username>/personal_finance.git
+cd personal_finance
+cp .env.example .env
+docker compose up --build
+```
+
 ## Quickstart
 
 Requirements:
