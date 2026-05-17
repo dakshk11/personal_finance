@@ -1,6 +1,6 @@
-# DirectIndex
+# personal_finance
 
-DirectIndex is a simulation-only personal finance and advisor workflow platform for tax-aware direct indexing, tax-loss harvesting research, portfolio transition planning, 13F manager research, and retirement income analysis.
+Personalfinance is a simulation-only personal finance and advisor workflow platform for tax-aware direct indexing, tax-loss harvesting research, portfolio transition planning, 13F manager research, and retirement income analysis.
 
 The product is designed to help users understand tradeoffs before taking action: tracking error versus tax-loss value, taxable account transitions versus embedded gains, Roth conversion windows versus future RMD pressure, and retirement spending needs versus portfolio durability.
 
