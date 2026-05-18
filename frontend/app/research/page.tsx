@@ -124,6 +124,7 @@ export default function ResearchPage() {
         </Link>
         <nav className="nav-actions">
           <Link className="link-button" href="/">Home</Link>
+          <Link className="link-button" href="/ideas">Ideas</Link>
           <Link className="link-button" href="/retirement-analyzer">Retirement analyzer</Link>
           <Link className="link-button" href="/advisor">Advisor workspace</Link>
           <Link className="link-button" href="/login">Log in</Link>

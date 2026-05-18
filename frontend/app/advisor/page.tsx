@@ -140,6 +140,7 @@ export default function AdvisorPage() {
         </div>
         <div className="dashboard-actions">
           <Link className="ghost-button" href="/research">Research</Link>
+          <Link className="ghost-button" href="/ideas">Ideas</Link>
           <Link className="ghost-button" href="/retirement-analyzer">Retirement analyzer</Link>
           <Link className="secondary-button" href="/dashboard">Portfolio dashboard</Link>
         </div>

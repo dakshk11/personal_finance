@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, LockKeyhole, RefreshCw, Scale, ShieldCheck, TrendingUp } from "lucide-react";
+import { ArrowRight, BarChart3, BookOpen, LockKeyhole, Scale, ShieldCheck, TrendingUp, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 
@@ -14,6 +14,7 @@ export default function Home() {
         </Link>
         <nav className="nav-actions">
           <Link className="link-button" href="/research">Research</Link>
+          <Link className="link-button" href="/ideas">Ideas</Link>
           <Link className="link-button" href="/retirement-analyzer">Retirement analyzer</Link>
           <Link className="link-button" href="/advisor">Advisor workspace</Link>
           <Link className="link-button" href="/login">Log in</Link>
@@ -23,43 +24,44 @@ export default function Home() {
 
       <section className="hero">
         <div>
-          <p className="eyebrow">Simulation-only direct indexing</p>
-          <h1>Tax-aware index tracking.</h1>
+          <p className="eyebrow">Simulation-only tax-aware planning</p>
+          <h1>Tax-aware planning simulator.</h1>
           <p className="hero-copy">
-            Build simulated direct-index portfolios for XLG, SPY, TOPT, and QTOP, track drift against the index, and review tax-loss harvesting trades before any real-world decision.
+            Model portfolio transitions, retirement income, Roth conversion windows, self-managed investor playbooks, and direct-index tax workflows before any real-world decision.
           </p>
           <div className="hero-actions" style={{ marginTop: 28 }}>
             <Link className="primary-button" href="/signup">Create account <ArrowRight size={16} /></Link>
             <Link className="secondary-button" href="/research">Review methodology</Link>
+            <Link className="secondary-button" href="/ideas">Investor ideas</Link>
             <Link className="secondary-button" href="/retirement-analyzer">Retirement analyzer</Link>
             <Link className="ghost-button" href="/advisor">Open advisor workspace</Link>
           </div>
           <div className="trust-row">
-            <div><strong>1,000</strong><span>annual TLH trade cap</span></div>
-            <div><strong>4 indices</strong><span>XLG, SPY, TOPT, QTOP</span></div>
-            <div><strong>2024/2025</strong><span>actual-history backtests</span></div>
+            <div><strong>6 modules</strong><span>portfolio, retirement, ideas, advisor, research, 13F</span></div>
+            <div><strong>8 playbooks</strong><span>self-managed investor ideas</span></div>
+            <div><strong>Saved inputs</strong><span>retirement analyzer state after login</span></div>
           </div>
         </div>
 
-        <div className="product-preview" aria-label="Dashboard preview">
+        <div className="product-preview" aria-label="Planning simulator preview">
           <div className="preview-header">
             <div>
-              <strong>XLG direct index</strong>
-              <div style={{ color: "var(--muted)", fontSize: ".9rem", marginTop: 3 }}>Tracking and tax-loss harvest review</div>
+              <strong>Planning command center</strong>
+              <div style={{ color: "var(--muted)", fontSize: ".9rem", marginTop: 3 }}>Portfolio, retirement, Roth, and investor idea review</div>
             </div>
             <span className="status-pill"><ShieldCheck size={14} /> Simulated</span>
           </div>
           <div className="metric-strip">
-            <div className="metric"><span>Tracking score</span><strong>98.4</strong></div>
-            <div className="metric"><span>Harvested losses</span><strong>$8,920</strong></div>
-            <div className="metric"><span>Trade cap left</span><strong>714</strong></div>
+            <div className="metric"><span>Retirement confidence</span><strong>98%</strong></div>
+            <div className="metric"><span>Roth window</span><strong>Partial</strong></div>
+            <div className="metric"><span>Ideas library</span><strong>8 tabs</strong></div>
           </div>
           <div className="preview-chart">
             {bars.map((height, index) => <i key={index} style={{ height }} />)}
           </div>
           <div className="preview-table">
-            <div className="preview-row"><strong>SELL</strong><span>NVDA</span><span>$1,240 loss</span><span className="risk-pill">Wash clear</span></div>
-            <div className="preview-row"><strong>BUY</strong><span>AVGO</span><span>Replacement</span><span className="reason-pill">Tracking</span></div>
+            <div className="preview-row"><strong>PLAN</strong><span>Tax-aware withdrawals</span><span>Funding mix</span><span className="status-pill">Modeled</span></div>
+            <div className="preview-row"><strong>REVIEW</strong><span>Roth conversion</span><span>Brokerage tax funding</span><span className="reason-pill">Explainable</span></div>
           </div>
         </div>
       </section>
@@ -70,25 +72,26 @@ export default function Home() {
 
       <section className="section-band">
         <div className="section-title">
-          <h2>Built for index tracking discipline.</h2>
-          <p>Advisor proposals, portfolio construction, trade review, tax-lot accounting, and daily data caching live behind secure authentication and a modular backend.</p>
+          <h2>Built for tax-aware planning decisions.</h2>
+          <p>Portfolio construction, retirement cash flow, advisor transition proposals, investor ideas, methodology, and daily data caching live behind secure authentication and a modular backend.</p>
         </div>
         <div className="feature-grid">
-          <article className="feature-card"><LockKeyhole size={24} /><h3>Backend-only credentials</h3><p>Passwords are hashed with Argon2id and sessions use HTTP-only cookies.</p></article>
-          <article className="feature-card"><RefreshCw size={24} /><h3>Daily cached data</h3><p>Holdings and prices are cached with source dates and coverage warnings.</p></article>
-          <article className="feature-card"><Scale size={24} /><h3>Wash-sale controls</h3><p>Exact tickers and user-defined equivalent groups are blocked inside the 30-day window.</p></article>
+          <article className="feature-card"><LockKeyhole size={24} /><h3>Secure user workspace</h3><p>Passwords are hashed with Argon2id, sessions use HTTP-only cookies, and retirement inputs can reload after login.</p></article>
+          <article className="feature-card"><WalletCards size={24} /><h3>Retirement cash flow</h3><p>Account mix, state taxes, Natural Retirement Spending Smile, Roth conversions, and withdrawal sequencing stay visible.</p></article>
+          <article className="feature-card"><BookOpen size={24} /><h3>Investor playbooks</h3><p>Ideas tabs organize sector ETF TLH, asset location, TIPS ladders, charitable giving, buckets, and rebalance bands.</p></article>
           <article className="feature-card"><BarChart3 size={24} /><h3>Advisor proposals</h3><p>Transition plans show tax impact, drift, active share, assumptions, and frozen audit snapshots.</p></article>
         </div>
       </section>
 
       <section className="section-band">
         <div className="section-title">
-          <h2>Trade lists stay reviewable.</h2>
-          <p>Tax-loss harvesting output is capped at 1,000 trades per calendar year per portfolio, keeping recommendations operationally manageable.</p>
+          <h2>Every output stays reviewable.</h2>
+          <p>Direct-index trades, Roth conversion amounts, retirement shortfalls, bucket guidance, and investor ideas are framed as review artifacts, not instructions to act.</p>
         </div>
         <div className="feature-grid">
-          <article className="feature-card"><TrendingUp size={24} /><h3>Prioritized by tax impact</h3><p>When candidates exceed the cap, the app keeps the strongest tax-loss opportunities first.</p></article>
-          <article className="feature-card"><ShieldCheck size={24} /><h3>Warnings stay visible</h3><p>Dropped trades, skipped loss value, and ambiguous replacement notes are shown in the dashboard.</p></article>
+          <article className="feature-card"><TrendingUp size={24} /><h3>Tax impact explained</h3><p>TLH output, taxable transitions, Roth conversion taxes, and charitable giving ideas show the assumptions behind the result.</p></article>
+          <article className="feature-card"><Scale size={24} /><h3>Guardrails stay explicit</h3><p>Wash-sale blocks, spending floors, legacy reserves, withdrawal gaps, and rebalance bands stay visible for review.</p></article>
+          <article className="feature-card"><ShieldCheck size={24} /><h3>Simulation-first language</h3><p>Legal disclaimers and warnings reinforce that outputs are hypothetical planning artifacts, not tax or investment advice.</p></article>
         </div>
       </section>
     </main>

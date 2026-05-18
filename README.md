@@ -15,6 +15,7 @@ The product is designed to help users understand tradeoffs before taking action:
 | Portfolio Dashboard | Build simulated direct-index portfolios, compare models, run backtests, review tax-loss harvesting candidates, and manage exclusions. |
 | Advisor Workspace | Import a taxable legacy account, define transition constraints, produce proposal-ready transition plans, and export CSV recommendations. |
 | Retirement Analyzer | Model retirement income, spending, tax-aware withdrawal order, Roth conversions, cash/bond/growth buckets, state taxes, and shortfall risk. |
+| Ideas Workspace | Review self-managed investor playbooks for sector ETF TLH, asset location, retirement buckets, TIPS ladders, charitable giving, Roth windows, and rebalancing bands. |
 | Research Center | Explain the methodology, tax-loss harvesting assumptions, wash-sale safeguards, model design, and source references in plain language. |
 | 13F Research | Search investment managers, watch filings, download holdings, and simulate copycat performance from SEC 13F data. |
 
@@ -44,6 +45,12 @@ The research page explains the methodology behind the product so users can under
 
 <img src="docs/screenshots/research.jpg" alt="Research and methodology page" width="900">
 
+### Ideas Workspace
+
+The ideas workspace organizes self-managed investor concepts into reviewable tabs. Current playbooks include sector ETF tax-loss harvesting, core plus TLH sleeves, asset location, retirement buckets, TIPS ladders, charitable giving with DAF/QCD workflows, Roth conversion windows, and threshold-based rebalancing.
+
+<img src="docs/screenshots/ideas.jpg" alt="Self-managed investor ideas workspace" width="900">
+
 For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_GUIDE.md).
 
 ## Core Capabilities
@@ -59,6 +66,13 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
 - Portfolio import workflow for holdings and tax lots.
 - Advisor transition proposals with gain budgets, tracking constraints, active-share constraints, client exclusions, household wash-sale notes, and CSV export.
 - SEC 13F workflow for manager search, watch creation, filing refresh, holdings download, and copycat performance simulation.
+- Self-managed investor ideas workspace with:
+  - Sector ETF tax-loss harvesting sleeve and replacement ETF examples
+  - Asset location review across taxable, tax-deferred, Roth, and HSA-style accounts
+  - Retirement cash, bond, and growth bucket planning
+  - TIPS ladder income-floor planning
+  - Charitable giving stack for appreciated securities, donor-advised funds, and QCD review
+  - Roth conversion and threshold-based rebalancing playbooks
 - Retirement planning workflow with:
   - Taxable, tax-deferred, Roth/HSA, and cash account inputs
   - Saved user inputs after login

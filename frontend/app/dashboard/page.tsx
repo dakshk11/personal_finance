@@ -445,6 +445,7 @@ export default function DashboardPage() {
         </div>
         <div className="dashboard-actions">
           <Link className="ghost-button" href="/research">Research</Link>
+          <Link className="ghost-button" href="/ideas">Ideas</Link>
           <Link className="ghost-button" href="/advisor">Advisor</Link>
           <Link className="ghost-button" href="/retirement-analyzer">Retirement analyzer</Link>
           <button className="secondary-button" onClick={syncData} disabled={loading === "sync"}><DownloadCloud size={16} /> {loading === "sync" ? "Syncing" : "Sync data"}</button>

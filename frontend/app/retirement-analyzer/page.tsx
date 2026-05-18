@@ -540,6 +540,7 @@ export default function RetirementAnalyzerPage() {
         <div className="dashboard-actions">
           <span className={saveStatusClass}>{saveStatus}</span>
           <Link className="ghost-button" href="/research">Research</Link>
+          <Link className="ghost-button" href="/ideas">Ideas</Link>
           <Link className="ghost-button" href="/advisor">Advisor</Link>
           <Link className="secondary-button" href="/dashboard">Portfolio dashboard</Link>
         </div>
