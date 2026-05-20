@@ -1992,12 +1992,12 @@ select {
 }
 
 .retirement-year-table {
-  min-width: 1360px;
+  min-width: 1900px;
 }
 
 .retirement-year-row {
   display: grid;
-  grid-template-columns: 64px 140px 90px 125px 135px 135px 110px 110px 115px 95px 95px;
+  grid-template-columns: 74px 56px 138px 126px 120px 120px 112px 132px 104px 104px 118px 108px 108px 88px 96px 138px;
   gap: 12px;
   align-items: center;
   padding: 11px 16px;

@@ -85,10 +85,12 @@ type ProjectionRow = {
   investmentReturn: number;
   portfolioReturnRate: number;
   spending: number;
+  grossStableIncome: number;
   stableIncome: number;
   withdrawalNeed: number;
   grossWithdrawals: number;
   taxes: number;
+  federalTaxes: number;
   rothConversion: number;
   rmd: number;
   taxableWithdrawal: number;
@@ -100,6 +102,7 @@ type ProjectionRow = {
   rothBalance: number;
   cashBalance: number;
   stateTaxes: number;
+  effectiveTaxRate: number;
   shortfall: number;
 };
 
@@ -1121,33 +1124,42 @@ export default function RetirementAnalyzerPage() {
 
           <section className="dashboard-panel">
             <div className="table-header" style={{ marginBottom: 14 }}>
-              <h2>First retirement years</h2>
-              <span className="reason-pill">{firstRetirementWindow.length} annual rows</span>
+              <h2>Detailed retirement cash flow</h2>
+              <div className="inline-actions">
+                <span className="reason-pill">{firstRetirementWindow.length} annual rows</span>
+                <span className="status-pill">Effective federal + state tax</span>
+              </div>
             </div>
             <div className="table-wrap">
               <div className="retirement-year-table">
                 <div className="retirement-year-row header">
-                  <span>Age</span><span>Portfolio</span><span>Return</span><span>Spend</span><span>Stable income</span><span>Withdrawals</span><span>Taxes</span><span>State tax</span><span>Roth conv.</span><span>Gap</span><span>Status</span>
+                  <span>Year</span><span>Age</span><span>Beg. port.</span><span>Gross income</span><span>Spend</span><span>Net funded</span><span>Taxable</span><span>Pre-tax / RMD</span><span>Roth</span><span>Cash</span><span>Roth conv.</span><span>Fed tax</span><span>State tax</span><span>Eff. tax</span><span>Gap</span><span>End port.</span>
                 </div>
                 {firstRetirementWindow.map((row) => (
                   <div className="retirement-year-row" key={`${row.year}-${row.age}`}>
+                    <span>{row.year}</span>
                     <span>{row.age}</span>
-                    <strong>{currency(row.endingPortfolio)}</strong>
-                    <span>{percent(row.portfolioReturnRate)}</span>
+                    <strong>{currency(row.beginningPortfolio)}</strong>
+                    <span>{currency(row.grossStableIncome)}</span>
                     <span>{currency(row.spending)}</span>
-                    <span>{currency(row.stableIncome)}</span>
-                    <span>{currency(row.grossWithdrawals)}</span>
-                    <span>{currency(row.taxes)}</span>
-                    <span>{currency(row.stateTaxes)}</span>
+                    <span>{currency(Math.max(0, row.spending - (row.shortfall > MATERIAL_SHORTFALL_DOLLARS ? row.shortfall : 0)))}</span>
+                    <span>{currency(row.taxableWithdrawal)}</span>
+                    <span>{currency(row.taxDeferredWithdrawal)}</span>
+                    <span>{currency(row.rothWithdrawal)}</span>
+                    <span>{currency(row.cashWithdrawal)}</span>
                     <span>{currency(row.rothConversion)}</span>
+                    <span>{currency(row.federalTaxes)}</span>
+                    <span>{currency(row.stateTaxes)}</span>
+                    <span>{percent(row.effectiveTaxRate)}</span>
                     <span>{currency(row.shortfall > MATERIAL_SHORTFALL_DOLLARS ? row.shortfall : 0)}</span>
-                    <span className={row.shortfall > MATERIAL_SHORTFALL_DOLLARS ? "risk-pill" : "status-pill"}>
-                      {row.shortfall > MATERIAL_SHORTFALL_DOLLARS ? "Shortfall" : "Funded"}
-                    </span>
+                    <strong>{currency(row.endingPortfolio)}</strong>
                   </div>
                 ))}
               </div>
             </div>
+            <p className="outcome-note">
+              Effective tax rate is total federal plus state tax divided by gross retirement cash flow for the year: pension/Social Security before tax, account withdrawals, RMDs, and any Roth conversion. The tax-aware scenario pulls from taxable, cash, pre-tax, and Roth accounts in the modeled order that keeps Roth dollars reserved and uses RMDs when required.
+            </p>
           </section>
 
           <section className="feature-map-grid">
@@ -1294,10 +1306,12 @@ function projectRetirement(inputs: ProjectionInputs, name: ScenarioName): Strate
     const portfolioReturnRate = returnBase > 0 ? investmentReturn / returnBase : 0;
 
     let spending = 0;
+    let grossStableIncome = 0;
     let stableIncome = 0;
     let withdrawalNeed = 0;
     let grossWithdrawals = 0;
     let taxes = 0;
+    let federalTaxes = 0;
     let rothConversion = 0;
     let rmd = 0;
     let taxableWithdrawal = 0;
@@ -1313,16 +1327,18 @@ function projectRetirement(inputs: ProjectionInputs, name: ScenarioName): Strate
       spending = retirementSpendingForYear(safeInputs, retirementYear);
       const pensionIncome = safeInputs.pensionAnnual * inflationMultiplier;
       let socialSecurityIncome = 0;
-      stableIncome = pensionIncome;
+      grossStableIncome = pensionIncome;
       if (age >= safeInputs.socialSecurityAge) {
         socialSecurityIncome = safeInputs.socialSecurityAnnual * socialSecurityMultiplier;
-        stableIncome += socialSecurityIncome;
+        grossStableIncome += socialSecurityIncome;
       }
       const federalOrdinaryRate = ordinaryTaxRate(safeInputs, name, age);
       const stateOrdinaryRate = stateOrdinaryTaxRate(safeInputs);
+      const stableIncomeFederalTax = federalTaxOnStableIncome(safeInputs, pensionIncome, socialSecurityIncome, federalOrdinaryRate);
       const stableIncomeStateTax = stateTaxOnStableIncome(safeInputs, pensionIncome, socialSecurityIncome, stateOrdinaryRate);
-      stableIncome = Math.max(0, stableIncome - stableIncomeStateTax);
-      taxes += stableIncomeStateTax;
+      stableIncome = Math.max(0, grossStableIncome - stableIncomeFederalTax - stableIncomeStateTax);
+      taxes += stableIncomeFederalTax + stableIncomeStateTax;
+      federalTaxes += stableIncomeFederalTax;
       stateTaxes += stableIncomeStateTax;
       withdrawalNeed = Math.max(0, spending - stableIncome);
 
@@ -1336,8 +1352,10 @@ function projectRetirement(inputs: ProjectionInputs, name: ScenarioName): Strate
         balances.taxDeferred -= rmd;
         const rmdTax = rmd * ordinaryRate;
         const rmdStateTax = rmd * stateOrdinaryRate;
+        const rmdFederalTax = Math.max(0, rmdTax - rmdStateTax);
         const rmdAfterTax = Math.max(0, rmd - rmdTax);
         taxes += rmdTax;
+        federalTaxes += rmdFederalTax;
         stateTaxes += rmdStateTax;
         grossWithdrawals += rmd;
         taxDeferredWithdrawal += rmd;
@@ -1365,6 +1383,7 @@ function projectRetirement(inputs: ProjectionInputs, name: ScenarioName): Strate
       balances.cash = withdrawalResult.balances.cash;
       grossWithdrawals += withdrawalResult.gross;
       taxes += withdrawalResult.taxes;
+      federalTaxes += withdrawalResult.federalTaxes;
       stateTaxes += withdrawalResult.stateTaxes;
       taxableWithdrawal += withdrawalResult.byAccount.taxable;
       taxDeferredWithdrawal += withdrawalResult.byAccount.taxDeferred;
@@ -1379,10 +1398,12 @@ function projectRetirement(inputs: ProjectionInputs, name: ScenarioName): Strate
         rothConversion = Math.min(balances.taxDeferred, conversionDecision.amount * inflationMultiplier);
         const conversionTax = rothConversion * ordinaryRate;
         const conversionStateTax = rothConversion * stateOrdinaryRate;
+        const conversionFederalTax = Math.max(0, conversionTax - conversionStateTax);
         balances.taxDeferred -= rothConversion;
         balances.roth += Math.max(0, rothConversion - conversionTax);
         rothConversions += rothConversion;
         taxes += conversionTax;
+        federalTaxes += conversionFederalTax;
         stateTaxes += conversionStateTax;
       }
 
@@ -1393,6 +1414,7 @@ function projectRetirement(inputs: ProjectionInputs, name: ScenarioName): Strate
     }
 
     totalTaxes += taxes;
+    const grossCashFlowForTaxRate = grossStableIncome + grossWithdrawals + rothConversion;
     rows.push({
       year,
       age,
@@ -1403,10 +1425,12 @@ function projectRetirement(inputs: ProjectionInputs, name: ScenarioName): Strate
       investmentReturn,
       portfolioReturnRate,
       spending,
+      grossStableIncome,
       stableIncome,
       withdrawalNeed,
       grossWithdrawals,
       taxes,
+      federalTaxes,
       rothConversion,
       rmd,
       taxableWithdrawal,
@@ -1418,6 +1442,7 @@ function projectRetirement(inputs: ProjectionInputs, name: ScenarioName): Strate
       rothBalance: balances.roth,
       cashBalance: balances.cash,
       stateTaxes,
+      effectiveTaxRate: grossCashFlowForTaxRate > 0 ? taxes / grossCashFlowForTaxRate : 0,
       shortfall
     });
   }
@@ -1544,6 +1569,7 @@ function withdrawForSpending(
   let remainingNeed = Math.max(0, need);
   let gross = 0;
   let taxes = 0;
+  let federalTaxes = 0;
   let stateTaxes = 0;
 
   for (const account of order) {
@@ -1554,11 +1580,13 @@ function withdrawForSpending(
     const withdrawal = Math.min(nextBalances[account], grossNeeded);
     const tax = withdrawal * taxRate;
     const stateTax = withdrawal * stateTaxRate;
+    const federalTax = Math.max(0, tax - stateTax);
     const afterTax = Math.max(0, withdrawal - tax);
     nextBalances[account] -= withdrawal;
     byAccount[account] += withdrawal;
     gross += withdrawal;
     taxes += tax;
+    federalTaxes += federalTax;
     stateTaxes += stateTax;
     remainingNeed -= afterTax;
   }
@@ -1568,6 +1596,7 @@ function withdrawForSpending(
     byAccount,
     gross,
     taxes,
+    federalTaxes,
     stateTaxes,
     shortfall: Math.max(0, remainingNeed)
   };
@@ -1610,6 +1639,11 @@ function stateTaxOnStableIncome(inputs: ProjectionInputs, pensionIncome: number,
   const taxablePension = pensionIncome * (inputs.statePensionTaxablePct / 100);
   const taxableSocialSecurity = socialSecurityIncome * (inputs.stateSocialSecurityTaxablePct / 100);
   return (taxablePension + taxableSocialSecurity) * stateOrdinaryRate;
+}
+
+function federalTaxOnStableIncome(_: ProjectionInputs, pensionIncome: number, socialSecurityIncome: number, federalOrdinaryRate: number) {
+  const taxableSocialSecurity = socialSecurityIncome * 0.85;
+  return (pensionIncome + taxableSocialSecurity) * federalOrdinaryRate;
 }
 
 function rmdDivisor(age: number) {
