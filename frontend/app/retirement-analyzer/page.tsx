@@ -22,6 +22,7 @@ import { apiFetch, currency, percent } from "@/lib/api";
 type AccountKey = "taxable" | "taxDeferred" | "roth" | "cash";
 type ScenarioName = "default" | "taxAware";
 type SpendingModel = "inflationAdjusted" | "retirementSmile";
+type EstatePlanStatus = "yes" | "inProgress" | "no";
 
 type AccountInput = {
   balance: number;
@@ -64,12 +65,21 @@ type ProjectionInputs = {
   postRetirementReturn: number;
   retirementTaxRate: number;
   currentTaxRate: number;
+  currentEffectiveTaxRate: number;
   capitalGainsRate: number;
   rothConversionBudget: number;
   rothConversionStartAge: number;
+  rothConversionScenarioPct: number;
   marketShock: number;
   cashBucketYears: number;
   bondBucketYears: number;
+  cashFlowRowCount: number;
+  lifeEvents: string;
+  estatePlanStatus: EstatePlanStatus;
+  plannedKidsGiftAnnual: number;
+  giftRecipientCount: number;
+  giftDonorCount: number;
+  annualGiftExclusion: number;
   accounts: AccountInputs;
 };
 
@@ -221,6 +231,46 @@ type PreRetirementIncomeAnalysis = {
   availableAfterContributions: number;
 };
 
+type RothConversionSensitivityRow = {
+  conversionPct: number;
+  totalConversion: number;
+  annualConversion: number;
+  totalTaxCost: number;
+  annualBrokerageTaxNeed: number;
+  estimatedTaxSavings: number;
+  futureTaxSavings: number;
+  remainingTaxDeferred: number;
+  selected: boolean;
+};
+
+type RothConversionSensitivityAnalysis = {
+  selectedPct: number;
+  currentEffectiveTaxRate: number;
+  conversionTaxRate: number;
+  futurePreTaxRate: number;
+  comparisonRate: number;
+  projectedTaxDeferredAtStart: number;
+  conversionStartAge: number;
+  windowYears: number;
+  selectedScenario: RothConversionSensitivityRow;
+  scenarios: RothConversionSensitivityRow[];
+  explanation: string;
+};
+
+type FamilyEstateAnalysis = {
+  lifeEventsSummary: string;
+  estatePlanLabel: string;
+  estatePlanStatus: string;
+  annualExclusionRoom: number;
+  plannedKidsGiftAnnual: number;
+  annualGiftOverage: number;
+  recipientCount: number;
+  donorCount: number;
+  annualGiftExclusion: number;
+  giftStatus: string;
+  giftNote: string;
+};
+
 const accountMeta: Array<{ key: AccountKey; label: string; shortLabel: string; helper: string }> = [
   { key: "taxable", label: "Taxable brokerage", shortLabel: "Taxable", helper: "Brokerage, joint, trust, concentrated stock" },
   { key: "taxDeferred", label: "Tax-deferred", shortLabel: "Pre-tax", helper: "401(k), 403(b), traditional IRA" },
@@ -291,11 +341,14 @@ const defaultAccounts: AccountInputs = {
 
 const currentYear = 2026;
 const MATERIAL_SHORTFALL_DOLLARS = 1;
+const DEFAULT_CASH_FLOW_ROW_COUNT = 36;
+const MAX_CASH_FLOW_ROW_COUNT = 80;
+const DEFAULT_ANNUAL_GIFT_EXCLUSION = 19000;
 
 export default function RetirementAnalyzerPage() {
   const [currentAge, setCurrentAge] = useState(52);
   const [retirementAge, setRetirementAge] = useState(65);
-  const [lifeExpectancy, setLifeExpectancy] = useState(94);
+  const [lifeExpectancy, setLifeExpectancy] = useState(100);
   const [currentIncome, setCurrentIncome] = useState(240000);
   const [retirementSpending, setRetirementSpending] = useState(165000);
   const [essentialSpending, setEssentialSpending] = useState(98000);
@@ -318,13 +371,22 @@ export default function RetirementAnalyzerPage() {
   const [preRetirementReturn, setPreRetirementReturn] = useState(6.2);
   const [postRetirementReturn, setPostRetirementReturn] = useState(4.8);
   const [currentTaxRate, setCurrentTaxRate] = useState(32);
+  const [currentEffectiveTaxRate, setCurrentEffectiveTaxRate] = useState(28);
   const [retirementTaxRate, setRetirementTaxRate] = useState(24);
   const [capitalGainsRate, setCapitalGainsRate] = useState(18);
   const [rothConversionBudget, setRothConversionBudget] = useState(36000);
   const [rothConversionStartAge, setRothConversionStartAge] = useState(59.5);
+  const [rothConversionScenarioPct, setRothConversionScenarioPct] = useState(15);
   const [marketShock, setMarketShock] = useState(-16);
   const [cashBucketYears, setCashBucketYears] = useState(2);
   const [bondBucketYears, setBondBucketYears] = useState(5);
+  const [cashFlowRowCount, setCashFlowRowCount] = useState(DEFAULT_CASH_FLOW_ROW_COUNT);
+  const [lifeEvents, setLifeEvents] = useState("");
+  const [estatePlanStatus, setEstatePlanStatus] = useState<EstatePlanStatus>("no");
+  const [plannedKidsGiftAnnual, setPlannedKidsGiftAnnual] = useState(0);
+  const [giftRecipientCount, setGiftRecipientCount] = useState(2);
+  const [giftDonorCount, setGiftDonorCount] = useState(1);
+  const [annualGiftExclusion, setAnnualGiftExclusion] = useState(DEFAULT_ANNUAL_GIFT_EXCLUSION);
   const [accounts, setAccounts] = useState<AccountInputs>(defaultAccounts);
 
   const inputs = useMemo<ProjectionInputs>(() => ({
@@ -351,29 +413,46 @@ export default function RetirementAnalyzerPage() {
     postRetirementReturn,
     retirementTaxRate,
     currentTaxRate,
+    currentEffectiveTaxRate,
     capitalGainsRate,
     rothConversionBudget,
     rothConversionStartAge,
+    rothConversionScenarioPct,
     marketShock,
     cashBucketYears,
     bondBucketYears,
+    cashFlowRowCount: normalizeCashFlowRowCount(cashFlowRowCount),
+    lifeEvents,
+    estatePlanStatus,
+    plannedKidsGiftAnnual,
+    giftRecipientCount,
+    giftDonorCount,
+    annualGiftExclusion,
     accounts
   }), [
     accounts,
+    annualGiftExclusion,
     bondBucketYears,
+    cashFlowRowCount,
     capitalGainsRate,
     cashBucketYears,
     currentAge,
+    currentEffectiveTaxRate,
     currentIncome,
     currentTaxRate,
     currentState,
     currentStateTaxRate,
     essentialSpending,
+    estatePlanStatus,
+    giftDonorCount,
+    giftRecipientCount,
     inflationRate,
     legacyGoal,
     lifeExpectancy,
+    lifeEvents,
     marketShock,
     pensionAnnual,
+    plannedKidsGiftAnnual,
     postRetirementReturn,
     preRetirementReturn,
     retirementAge,
@@ -382,6 +461,7 @@ export default function RetirementAnalyzerPage() {
     retirementStateTaxRate,
     retirementTaxRate,
     rothConversionBudget,
+    rothConversionScenarioPct,
     rothConversionStartAge,
     socialSecurityAge,
     socialSecurityAnnual,
@@ -437,7 +517,10 @@ export default function RetirementAnalyzerPage() {
 
   const { defaultResult, taxAwareResult } = projection;
   const firstRetirementYear = taxAwareResult.rows.find((row) => row.age >= retirementAge);
-  const firstRetirementWindow = taxAwareResult.rows.filter((row) => row.age >= retirementAge).slice(0, 12);
+  const requestedCashFlowRows = inputs.cashFlowRowCount;
+  const retirementCashFlowRows = taxAwareResult.rows.filter((row) => row.age >= retirementAge);
+  const firstRetirementWindow = retirementCashFlowRows.slice(0, requestedCashFlowRows);
+  const cashFlowRowsLimitedByHorizon = firstRetirementWindow.length < requestedCashFlowRows;
   const preRetirementIncome = useMemo(() => buildPreRetirementIncomeAnalysis(inputs), [inputs]);
   const chartRows = taxAwareResult.rows
     .filter((row) => row.age === currentAge || row.age >= retirementAge || row.age % 2 === 0)
@@ -479,6 +562,8 @@ export default function RetirementAnalyzerPage() {
   const retirementStateLabel = stateLabel(retirementState);
   const spendingSmileMilestones = useMemo(() => buildSpendingSmileMilestones(inputs), [inputs]);
   const rothConversionAnalysis = useMemo(() => buildRothConversionAnalysis(inputs, taxAwareResult), [inputs, taxAwareResult]);
+  const rothConversionSensitivity = useMemo(() => buildRothConversionSensitivity(inputs, rothConversionAnalysis), [inputs, rothConversionAnalysis]);
+  const familyEstateAnalysis = useMemo(() => buildFamilyEstateAnalysis(inputs), [inputs]);
   const volatilityGuidance = useMemo(() => buildVolatilityGuidance(inputs, taxAwareResult), [inputs, taxAwareResult]);
   const retirementReturnAnalysis = useMemo(() => buildRetirementReturnAnalysis(inputs, taxAwareResult), [inputs, taxAwareResult]);
   const saveStatusClass = saveStatus.includes("failed") || saveStatus.includes("unavailable") ? "risk-pill" : autosaveEnabled ? "status-pill" : "reason-pill";
@@ -516,13 +601,22 @@ export default function RetirementAnalyzerPage() {
     setPreRetirementReturn(numberFromSaved(saved.preRetirementReturn, preRetirementReturn));
     setPostRetirementReturn(numberFromSaved(saved.postRetirementReturn, postRetirementReturn));
     setCurrentTaxRate(numberFromSaved(saved.currentTaxRate, currentTaxRate));
+    setCurrentEffectiveTaxRate(numberFromSaved(saved.currentEffectiveTaxRate, currentEffectiveTaxRate));
     setRetirementTaxRate(numberFromSaved(saved.retirementTaxRate, retirementTaxRate));
     setCapitalGainsRate(numberFromSaved(saved.capitalGainsRate, capitalGainsRate));
     setRothConversionBudget(numberFromSaved(saved.rothConversionBudget, rothConversionBudget));
     setRothConversionStartAge(numberFromSaved(saved.rothConversionStartAge, rothConversionStartAge));
+    setRothConversionScenarioPct(numberFromSaved(saved.rothConversionScenarioPct, rothConversionScenarioPct));
     setMarketShock(numberFromSaved(saved.marketShock, marketShock));
     setCashBucketYears(numberFromSaved(saved.cashBucketYears, cashBucketYears));
     setBondBucketYears(numberFromSaved(saved.bondBucketYears, bondBucketYears));
+    setCashFlowRowCount(normalizeCashFlowRowCount(numberFromSaved(saved.cashFlowRowCount, cashFlowRowCount)));
+    setLifeEvents(stringFromSaved(saved.lifeEvents, lifeEvents));
+    setEstatePlanStatus(estatePlanStatusFromSaved(saved.estatePlanStatus, estatePlanStatus));
+    setPlannedKidsGiftAnnual(numberFromSaved(saved.plannedKidsGiftAnnual, plannedKidsGiftAnnual));
+    setGiftRecipientCount(numberFromSaved(saved.giftRecipientCount, giftRecipientCount));
+    setGiftDonorCount(numberFromSaved(saved.giftDonorCount, giftDonorCount));
+    setAnnualGiftExclusion(numberFromSaved(saved.annualGiftExclusion, annualGiftExclusion));
     if (saved.accounts) {
       setAccounts((current) => ({
         taxable: mergeSavedAccount(current.taxable, saved.accounts?.taxable),
@@ -543,6 +637,7 @@ export default function RetirementAnalyzerPage() {
         <div className="dashboard-actions">
           <span className={saveStatusClass}>{saveStatus}</span>
           <Link className="ghost-button" href="/research">Research</Link>
+          <Link className="ghost-button" href="/portfolio">Portfolio analyzer</Link>
           <Link className="ghost-button" href="/ideas">Ideas</Link>
           <Link className="ghost-button" href="/advisor">Advisor</Link>
           <Link className="secondary-button" href="/dashboard">Portfolio dashboard</Link>
@@ -687,6 +782,17 @@ export default function RetirementAnalyzerPage() {
                 suffix="%"
                 tooltip="Federal ordinary income tax rate applied to current income before retirement. The calculator assumes current income stays flat and subtracts this tax plus current-state tax to estimate pre-retirement after-tax income."
               />
+              <NumberField
+                id="current-effective-tax"
+                label="Current effective tax"
+                value={currentEffectiveTaxRate}
+                onChange={setCurrentEffectiveTaxRate}
+                min={0}
+                max={60}
+                step={0.1}
+                suffix="%"
+                tooltip="Your all-in average effective tax rate today after deductions and credits. The Roth conversion sandbox uses this as one comparison rate for estimating whether paying conversion tax now may save tax later."
+              />
               <NumberField id="retirement-tax" label="Federal retirement tax" value={retirementTaxRate} onChange={setRetirementTaxRate} min={0} max={50} step={1} suffix="%" />
               <NumberField id="capital-gains-tax" label="Federal cap gains tax" value={capitalGainsRate} onChange={setCapitalGainsRate} min={0} max={35} step={1} suffix="%" />
               <NumberField id="roth-conversion" label="Roth conversion" value={rothConversionBudget} onChange={setRothConversionBudget} min={0} step={2500} prefix="$" />
@@ -761,6 +867,68 @@ export default function RetirementAnalyzerPage() {
             </div>
             <p className="fine-print">
               State rates and taxable income shares are user-entered assumptions. Current state tax is used before retirement; retirement state tax is used for pension, Social Security, withdrawals, and Roth conversions after retirement.
+            </p>
+          </section>
+
+          <section className="dashboard-panel">
+            <div className="panel-header">
+              <h2>Family and estate</h2>
+              <ShieldCheck size={18} />
+            </div>
+            <div className="form-stack">
+              <div className="field">
+                <label htmlFor="life-events">Life events to plan for</label>
+                <textarea
+                  id="life-events"
+                  value={lifeEvents}
+                  onChange={(event) => setLifeEvents(event.target.value)}
+                  placeholder="Relocation, home sale, inheritance, healthcare, business sale, college help, family support"
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="estate-plan-status">Do you have an estate plan?</label>
+                <select id="estate-plan-status" value={estatePlanStatus} onChange={(event) => setEstatePlanStatus(event.target.value as EstatePlanStatus)}>
+                  <option value="yes">Yes, documents are in place</option>
+                  <option value="inProgress">In progress</option>
+                  <option value="no">No / not sure</option>
+                </select>
+              </div>
+              <NumberField
+                id="kids-gift-annual"
+                label="Annual gifts to kids"
+                value={plannedKidsGiftAnnual}
+                onChange={setPlannedKidsGiftAnnual}
+                min={0}
+                step={1000}
+                prefix="$"
+                tooltip="Total annual amount you want to give to children or other recipients. The planner compares this with the annual gift-tax exclusion room you enter below."
+              />
+              <div className="retirement-input-grid">
+                <NumberField id="gift-recipients" label="Kids / recipients" value={giftRecipientCount} onChange={setGiftRecipientCount} min={1} max={20} step={1} />
+                <NumberField
+                  id="gift-donors"
+                  label="Donors"
+                  value={giftDonorCount}
+                  onChange={setGiftDonorCount}
+                  min={1}
+                  max={2}
+                  step={1}
+                  tooltip="Use 1 for one donor. Use 2 only if spouse gift-splitting or separate spouse gifts are part of the plan and should be reviewed with a tax professional."
+                />
+              </div>
+              <NumberField
+                id="annual-gift-exclusion"
+                label="Annual gift exclusion"
+                value={annualGiftExclusion}
+                onChange={setAnnualGiftExclusion}
+                min={0}
+                step={1000}
+                prefix="$"
+                tooltip="User-editable annual exclusion per recipient. IRS guidance lists $19,000 for 2026; keep this updated for the year you are modeling."
+              />
+            </div>
+            <p className="fine-print">
+              Gifting output estimates annual-exclusion room only. Gifts above that amount may require gift-tax reporting or lifetime exemption review; the app does not provide legal or tax advice.
             </p>
           </section>
         </aside>
@@ -990,6 +1158,102 @@ export default function RetirementAnalyzerPage() {
 
           <section className="dashboard-panel">
             <div className="panel-header">
+              <h2>Roth conversion tax-savings sandbox</h2>
+              <div className="inline-actions">
+                <span className="reason-pill">Current effective {percent(rothConversionSensitivity.currentEffectiveTaxRate)}</span>
+                <span className="reason-pill">Conversion tax {percent(rothConversionSensitivity.conversionTaxRate)}</span>
+                <span className="reason-pill">Future pre-tax {percent(rothConversionSensitivity.futurePreTaxRate)}</span>
+              </div>
+            </div>
+            <div className="conversion-sandbox-grid">
+              <div className="conversion-sandbox-control">
+                <NumberField
+                  id="roth-conversion-scenario-pct"
+                  label="Convert % of pre-tax balance"
+                  value={rothConversionScenarioPct}
+                  onChange={setRothConversionScenarioPct}
+                  min={0}
+                  max={100}
+                  step={1}
+                  suffix="%"
+                  tooltip="Scenario percent of projected tax-deferred balance at the conversion start age to convert across the available pre-RMD window. This is a planning sandbox separate from the annual conversion cap above."
+                />
+                <p>
+                  Selected scenario converts {currency(rothConversionSensitivity.selectedScenario.totalConversion)} total, or {currency(rothConversionSensitivity.selectedScenario.annualConversion)} per year, across {formatYearCount(rothConversionSensitivity.windowYears)} modeled years.
+                </p>
+              </div>
+              <div className="conversion-sandbox-metrics">
+                <div>
+                  <span>Tax from brokerage</span>
+                  <strong>{currency(rothConversionSensitivity.selectedScenario.annualBrokerageTaxNeed)} / yr</strong>
+                </div>
+                <div>
+                  <span>Estimated savings vs current effective</span>
+                  <strong>{currency(rothConversionSensitivity.selectedScenario.estimatedTaxSavings)}</strong>
+                </div>
+                <div>
+                  <span>Tax-deferred left after scenario</span>
+                  <strong>{currency(rothConversionSensitivity.selectedScenario.remainingTaxDeferred)}</strong>
+                </div>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <div className="conversion-scenario-table">
+                <div className="conversion-scenario-row header">
+                  <span>Convert</span><span>Annual conversion</span><span>Tax from brokerage</span><span>Total tax cost</span><span>Est. savings</span><span>Pre-tax left</span>
+                </div>
+                {rothConversionSensitivity.scenarios.map((scenario) => (
+                  <div className={`conversion-scenario-row${scenario.selected ? " selected" : ""}`} key={scenario.conversionPct}>
+                    <span>{percent(scenario.conversionPct / 100)}</span>
+                    <strong>{currency(scenario.annualConversion)}</strong>
+                    <span>{currency(scenario.annualBrokerageTaxNeed)} / yr</span>
+                    <span>{currency(scenario.totalTaxCost)}</span>
+                    <strong className={scenario.estimatedTaxSavings >= 0 ? "positive-money" : "negative-money"}>{currency(scenario.estimatedTaxSavings)}</strong>
+                    <span>{currency(scenario.remainingTaxDeferred)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <details className="analysis-disclosure research-note">
+              <summary><span>How tax savings are estimated</span><strong>{percent(rothConversionSensitivity.comparisonRate)} comparison rate</strong></summary>
+              <p>{rothConversionSensitivity.explanation}</p>
+            </details>
+          </section>
+
+          <section className="dashboard-panel">
+            <div className="panel-header">
+              <h2>Life events, gifting, and estate plan prompts</h2>
+              <div className="inline-actions">
+                <span className="reason-pill">{familyEstateAnalysis.estatePlanLabel}</span>
+                <span className={familyEstateAnalysis.annualGiftOverage > 0 ? "risk-pill" : "status-pill"}>{familyEstateAnalysis.giftStatus}</span>
+              </div>
+            </div>
+            <div className="family-planning-grid">
+              <article className="family-plan-card">
+                <span>Life events</span>
+                <strong>{familyEstateAnalysis.lifeEventsSummary}</strong>
+                <p>Use this to flag retirement moves, home sales, family support, healthcare events, business liquidity, inheritance, or education funding that should change the cash-flow plan.</p>
+              </article>
+              <article className="family-plan-card">
+                <span>Annual exclusion room</span>
+                <strong>{currency(familyEstateAnalysis.annualExclusionRoom)}</strong>
+                <p>{familyEstateAnalysis.recipientCount} recipient(s) x {familyEstateAnalysis.donorCount} donor(s) x {currency(familyEstateAnalysis.annualGiftExclusion)} annual exclusion assumption.</p>
+              </article>
+              <article className="family-plan-card">
+                <span>Gift amount to review</span>
+                <strong>{currency(familyEstateAnalysis.annualGiftOverage)}</strong>
+                <p>{familyEstateAnalysis.giftNote}</p>
+              </article>
+              <article className="family-plan-card">
+                <span>Estate plan</span>
+                <strong>{familyEstateAnalysis.estatePlanStatus}</strong>
+                <p>Check wills, revocable trust, beneficiary designations, durable power of attorney, healthcare directive, guardianship needs, and state estate-tax exposure with qualified professionals.</p>
+              </article>
+            </div>
+          </section>
+
+          <section className="dashboard-panel">
+            <div className="panel-header">
               <h2>Retirement-year return output</h2>
               <div className="inline-actions">
                 <span className="reason-pill">Assumption {percent(retirementReturnAnalysis.normalReturnAssumption)}</span>
@@ -1126,7 +1390,21 @@ export default function RetirementAnalyzerPage() {
             <div className="table-header" style={{ marginBottom: 14 }}>
               <h2>Detailed retirement cash flow</h2>
               <div className="inline-actions">
-                <span className="reason-pill">{firstRetirementWindow.length} annual rows</span>
+                <label className="inline-field cash-flow-row-field" htmlFor="cash-flow-row-count">
+                  <span>Rows</span>
+                  <input
+                    id="cash-flow-row-count"
+                    type="number"
+                    min={1}
+                    max={MAX_CASH_FLOW_ROW_COUNT}
+                    step={1}
+                    value={cashFlowRowCount}
+                    onChange={(event) => setCashFlowRowCount(Number(event.target.value))}
+                  />
+                </label>
+                <span className="reason-pill">
+                  {cashFlowRowsLimitedByHorizon ? `${firstRetirementWindow.length} of ${requestedCashFlowRows} rows` : `${firstRetirementWindow.length} annual rows`}
+                </span>
                 <span className="status-pill">Effective federal + state tax</span>
               </div>
             </div>
@@ -1158,7 +1436,7 @@ export default function RetirementAnalyzerPage() {
               </div>
             </div>
             <p className="outcome-note">
-              Effective tax rate is total federal plus state tax divided by gross retirement cash flow for the year: pension/Social Security before tax, account withdrawals, RMDs, and any Roth conversion. The tax-aware scenario pulls from taxable, cash, pre-tax, and Roth accounts in the modeled order that keeps Roth dollars reserved and uses RMDs when required.
+              Effective tax rate is total federal plus state tax divided by gross retirement cash flow for the year: pension/Social Security before tax, account withdrawals, RMDs, and any Roth conversion. The tax-aware scenario pulls from taxable, cash, pre-tax, and Roth accounts in the modeled order that keeps Roth dollars reserved and uses RMDs when required. Requested rows are limited by the plan-through age.
             </p>
           </section>
 
@@ -1247,8 +1525,20 @@ function numberFromSaved(value: unknown, fallback: number) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function stringFromSaved(value: unknown, fallback: string) {
+  return typeof value === "string" ? value : fallback;
+}
+
+function normalizeCashFlowRowCount(value: number) {
+  return clamp(Math.round(value), 1, MAX_CASH_FLOW_ROW_COUNT);
+}
+
 function stateFromSaved(value: unknown, fallback: string) {
   return typeof value === "string" && stateOptions.some((state) => state.value === value) ? value : fallback;
+}
+
+function estatePlanStatusFromSaved(value: unknown, fallback: EstatePlanStatus): EstatePlanStatus {
+  return value === "yes" || value === "inProgress" || value === "no" ? value : fallback;
 }
 
 function mergeSavedAccount(current: AccountInput, saved?: Partial<AccountInput>): AccountInput {
@@ -1509,6 +1799,7 @@ function normalizeInputs(inputs: ProjectionInputs): ProjectionInputs {
     preRetirementReturn: clamp(inputs.preRetirementReturn, -20, 20),
     postRetirementReturn: clamp(inputs.postRetirementReturn, -20, 20),
     currentTaxRate: clamp(inputs.currentTaxRate, 0, 50),
+    currentEffectiveTaxRate: clamp(inputs.currentEffectiveTaxRate, 0, 60),
     retirementTaxRate: clamp(inputs.retirementTaxRate, 0, 50),
     capitalGainsRate: clamp(inputs.capitalGainsRate, 0, 35),
     retirementStateTaxRate: clamp(inputs.retirementStateTaxRate, 0, 20),
@@ -1517,9 +1808,17 @@ function normalizeInputs(inputs: ProjectionInputs): ProjectionInputs {
     statePensionTaxablePct: clamp(inputs.statePensionTaxablePct, 0, 100),
     rothConversionBudget: Math.max(0, inputs.rothConversionBudget),
     rothConversionStartAge: clamp(inputs.rothConversionStartAge, 59.5, 85),
+    rothConversionScenarioPct: clamp(inputs.rothConversionScenarioPct, 0, 100),
     marketShock: clamp(inputs.marketShock, -60, 20),
     cashBucketYears: clamp(inputs.cashBucketYears, 0, 5),
     bondBucketYears: clamp(inputs.bondBucketYears, 0, 12),
+    cashFlowRowCount: normalizeCashFlowRowCount(inputs.cashFlowRowCount),
+    lifeEvents: inputs.lifeEvents.trim().slice(0, 700),
+    estatePlanStatus: estatePlanStatusFromSaved(inputs.estatePlanStatus, "no"),
+    plannedKidsGiftAnnual: Math.max(0, inputs.plannedKidsGiftAnnual),
+    giftRecipientCount: clamp(Math.round(inputs.giftRecipientCount), 1, 20),
+    giftDonorCount: clamp(Math.round(inputs.giftDonorCount), 1, 2),
+    annualGiftExclusion: Math.max(0, inputs.annualGiftExclusion),
     accounts: {
       taxable: normalizeAccount(inputs.accounts.taxable),
       taxDeferred: normalizeAccount(inputs.accounts.taxDeferred),
@@ -1920,6 +2219,112 @@ function buildRothConversionAnalysis(inputs: ProjectionInputs, result: StrategyR
     futurePreTaxRate,
     conversionTaxRate,
     rmdPressurePremium
+  };
+}
+
+function buildRothConversionSensitivity(inputs: ProjectionInputs, conversion: RothConversionAnalysis): RothConversionSensitivityAnalysis {
+  const safeInputs = normalizeInputs(inputs);
+  const selectedPct = safeInputs.rothConversionScenarioPct;
+  const projectedTaxDeferredAtStart = Math.max(0, conversion.projectedTaxDeferredAtStart);
+  const windowYears = Math.max(1, conversion.windowYears || Math.max(1, rothConversionEndAge() - conversion.conversionStartAge));
+  const currentEffectiveTaxRate = clamp(safeInputs.currentEffectiveTaxRate / 100, 0, 0.95);
+  const conversionTaxRate = clamp(conversion.effectiveConversionTaxRate, 0, 0.95);
+  const futurePreTaxRate = clamp(conversion.futurePreTaxRate, 0, 0.95);
+  const comparisonRate = clamp(Math.max(currentEffectiveTaxRate, futurePreTaxRate), 0, 0.95);
+  const percentageOptions = Array.from(new Set([0, 5, 10, 15, 20, 25, 30, selectedPct]))
+    .filter((value) => Number.isFinite(value) && value >= 0 && value <= 100)
+    .sort((a, b) => a - b);
+  const scenarios = percentageOptions.map((conversionPct) => {
+    const totalConversion = projectedTaxDeferredAtStart * (conversionPct / 100);
+    const annualConversion = totalConversion / windowYears;
+    const totalTaxCost = totalConversion * conversionTaxRate;
+    const annualBrokerageTaxNeed = totalTaxCost / windowYears;
+    const estimatedTaxSavings = totalConversion * (currentEffectiveTaxRate - conversionTaxRate);
+    const futureTaxSavings = totalConversion * (comparisonRate - conversionTaxRate);
+    const remainingTaxDeferred = Math.max(0, projectedTaxDeferredAtStart - totalConversion);
+
+    return {
+      conversionPct,
+      totalConversion,
+      annualConversion,
+      totalTaxCost,
+      annualBrokerageTaxNeed,
+      estimatedTaxSavings,
+      futureTaxSavings,
+      remainingTaxDeferred,
+      selected: conversionPct === selectedPct
+    };
+  });
+  const selectedScenario = scenarios.find((scenario) => scenario.selected) ?? {
+    conversionPct: selectedPct,
+    totalConversion: projectedTaxDeferredAtStart * (selectedPct / 100),
+    annualConversion: (projectedTaxDeferredAtStart * (selectedPct / 100)) / windowYears,
+    totalTaxCost: projectedTaxDeferredAtStart * (selectedPct / 100) * conversionTaxRate,
+    annualBrokerageTaxNeed: projectedTaxDeferredAtStart * (selectedPct / 100) * conversionTaxRate / windowYears,
+    estimatedTaxSavings: projectedTaxDeferredAtStart * (selectedPct / 100) * (currentEffectiveTaxRate - conversionTaxRate),
+    futureTaxSavings: projectedTaxDeferredAtStart * (selectedPct / 100) * (comparisonRate - conversionTaxRate),
+    remainingTaxDeferred: Math.max(0, projectedTaxDeferredAtStart * (1 - selectedPct / 100)),
+    selected: true
+  };
+  const savingsCopy = currentEffectiveTaxRate >= conversionTaxRate
+    ? `The entered current effective rate is higher than the modeled conversion tax rate by ${percent(currentEffectiveTaxRate - conversionTaxRate)}, so the sandbox shows a positive savings estimate versus that current-rate benchmark.`
+    : `The entered current effective rate is lower than the modeled conversion tax rate by ${percent(conversionTaxRate - currentEffectiveTaxRate)}, so the sandbox shows a negative savings estimate versus that current-rate benchmark.`;
+
+  return {
+    selectedPct,
+    currentEffectiveTaxRate,
+    conversionTaxRate,
+    futurePreTaxRate,
+    comparisonRate,
+    projectedTaxDeferredAtStart,
+    conversionStartAge: conversion.conversionStartAge,
+    windowYears,
+    selectedScenario,
+    scenarios,
+    explanation: `Each row converts the listed percentage of the projected tax-deferred balance at age ${formatAge(conversion.conversionStartAge)} across ${formatYearCount(windowYears)} years. Tax from brokerage uses the modeled federal plus state conversion tax rate of ${percent(conversionTaxRate)}. Estimated savings compares the entered current effective tax rate of ${percent(currentEffectiveTaxRate)} with the conversion tax rate; it is not a tax filing result. The comparison rate shown here is ${percent(comparisonRate)}, the higher of current effective tax and projected future pre-tax withdrawal/RMD tax. ${savingsCopy}`
+  };
+}
+
+function buildFamilyEstateAnalysis(inputs: ProjectionInputs): FamilyEstateAnalysis {
+  const safeInputs = normalizeInputs(inputs);
+  const annualExclusionRoom = safeInputs.annualGiftExclusion * safeInputs.giftRecipientCount * safeInputs.giftDonorCount;
+  const annualGiftOverage = Math.max(0, safeInputs.plannedKidsGiftAnnual - annualExclusionRoom);
+  const estatePlanLabel = safeInputs.estatePlanStatus === "yes"
+    ? "Estate plan in place"
+    : safeInputs.estatePlanStatus === "inProgress"
+      ? "Estate plan in progress"
+      : "Estate plan needed";
+  const estatePlanStatus = safeInputs.estatePlanStatus === "yes"
+    ? "Review and keep current"
+    : safeInputs.estatePlanStatus === "inProgress"
+      ? "Finish documents and beneficiary checks"
+      : "Ask attorney or estate professional";
+  const giftStatus = safeInputs.plannedKidsGiftAnnual <= 0
+    ? "No gift goal entered"
+    : annualGiftOverage > 0
+      ? "Gift amount to review"
+      : "Within annual exclusion room";
+  const giftNote = safeInputs.plannedKidsGiftAnnual <= 0
+    ? "Enter an annual gift goal if you want the retirement cash-flow plan to reserve money for children or other recipients."
+    : annualGiftOverage > 0
+      ? `${currency(annualGiftOverage)} is above the entered annual exclusion room. That does not automatically mean gift tax is due, but it may require Form 709 or lifetime exemption planning.`
+      : `The planned ${currency(safeInputs.plannedKidsGiftAnnual)} annual gift fits within the entered annual exclusion room under these assumptions.`;
+  const lifeEventsSummary = safeInputs.lifeEvents
+    ? safeInputs.lifeEvents
+    : "No life events entered";
+
+  return {
+    lifeEventsSummary,
+    estatePlanLabel,
+    estatePlanStatus,
+    annualExclusionRoom,
+    plannedKidsGiftAnnual: safeInputs.plannedKidsGiftAnnual,
+    annualGiftOverage,
+    recipientCount: safeInputs.giftRecipientCount,
+    donorCount: safeInputs.giftDonorCount,
+    annualGiftExclusion: safeInputs.annualGiftExclusion,
+    giftStatus,
+    giftNote
   };
 }
 

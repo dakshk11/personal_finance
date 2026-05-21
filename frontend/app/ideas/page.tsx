@@ -394,6 +394,7 @@ export default function IdeasPage() {
         <nav className="nav-actions">
           <Link className="link-button" href="/">Home</Link>
           <Link className="link-button" href="/research">Research</Link>
+          <Link className="link-button" href="/portfolio">Portfolio</Link>
           <Link className="link-button" href="/retirement-analyzer">Retirement analyzer</Link>
           <Link className="link-button" href="/advisor">Advisor workspace</Link>
           <Link className="link-button" href="/login">Log in</Link>
@@ -534,6 +535,7 @@ export default function IdeasPage() {
                 </p>
                 <div className="idea-actions">
                   <Link className="secondary-button" href="/dashboard">Dashboard</Link>
+                  <Link className="secondary-button" href="/portfolio">Portfolio analyzer</Link>
                   <Link className="ghost-button" href="/retirement-analyzer">Retirement analyzer</Link>
                 </div>
               </section>

@@ -10,21 +10,22 @@ DirectIndex helps users and advisors answer practical planning questions before 
 
 - If I directly index an ETF or index, how much tracking drift might I accept?
 - Which tax-loss harvesting model produces useful losses without creating operational noise?
+- Which existing holdings have large embedded gains, high concentration, or valuation signals that deserve review?
 - How should I transition a taxable legacy account without ignoring embedded gains?
 - What does a retirement plan look like after state taxes, account type, Roth conversion windows, and spending changes?
 - How can users understand the research and assumptions behind the model before trusting the output?
 
 ## First Impression
 
-The landing page positions the product around tax-aware index tracking and makes clear that the product is simulation-only.
+The landing page positions the product as a broader tax-aware portfolio, retirement, and self-managed investor planning platform and makes clear that the product is simulation-only.
 
 <img src="screenshots/home.jpg" alt="DirectIndex landing page" width="900">
 
 What to point out in a demo:
 
-- The primary workflow is not generic budgeting. It is tax-aware portfolio and retirement planning.
+- The primary workflow is not generic budgeting. It is tax-aware portfolio, taxable transition, and retirement planning.
 - The UI makes the simulation status visible.
-- The main navigation exposes the product modules immediately: Research, Retirement Analyzer, Advisor Workspace, Login, and Signup.
+- The main navigation exposes the product modules immediately: Portfolio Analyzer, Research, Retirement Analyzer, Advisor Workspace, Login, and Signup.
 
 ## Portfolio Dashboard
 
@@ -47,6 +48,26 @@ Professional positioning:
 - Warnings stay visible so model limitations are part of the workflow.
 - The app caps TLH output to keep recommendations operationally reviewable.
 
+## Portfolio Analyzer
+
+The portfolio analyzer is for users who already know their holdings and want a valuation, concentration, and tax-basis review without starting from a benchmark model.
+
+<img src="screenshots/portfolio-analyzer.jpg" alt="Portfolio analyzer" width="900">
+
+Primary user jobs:
+
+- Enter tickers, shares, and cost basis per share, especially for holdings above 1% of the account.
+- Review daily market value, account weight, total cost basis, and unrealized gain/loss.
+- Compare forward P/E against 5-year and 10-year forward P/E averages.
+- Identify valuation signals such as below 5-year average, below 10-year average, or at/above historical averages.
+- See whether each row used Stooq close data, yfinance data, deterministic fallback data, or a mixed source such as real price with fallback valuation metrics.
+
+Professional positioning:
+
+- The screen works for self-managed investors who do not want to use direct indexing but still want a disciplined review process.
+- Cost basis is visible because tax consequences matter when a holding is trimmed, gifted, donated, or transitioned.
+- Data-source labels are intentionally exposed so users can separate real daily close data from fallback valuation estimates.
+
 ## Retirement Analyzer
 
 The retirement analyzer is built around user-entered household, account, income, tax, and spending assumptions.
@@ -62,6 +83,9 @@ Primary user jobs:
 - Project annual retirement spending with the Natural Retirement Spending Smile.
 - Evaluate Roth conversion timing, suggested amount, tax funding, and reasoning.
 - See annual spending funded by stable income, taxable, tax-deferred, Roth, cash, and any shortfall.
+- Change how many detailed cash-flow rows are shown, with 36 rows as the default.
+- Compare Roth conversion tax savings using the user's current effective tax rate and different conversion percentages.
+- Add life events, family gifting goals, and estate-plan status to the planning context.
 - Allocate reserves across cash/T-bills, bonds, and growth assets to reduce forced selling risk.
 
 Professional positioning:
@@ -117,9 +141,10 @@ Professional positioning:
 3. Log in with the local demo account.
 4. Open Dashboard and create or select a direct-index portfolio.
 5. Run a backtest and compare TLH modes.
-6. Open Advisor Workspace and show how a taxable transition proposal is generated from imported lots and constraints.
-7. Open Retirement Analyzer and show account inputs, state taxes, spending smile, Roth conversion reasoning, and the annual funding mix chart.
-8. End by reiterating that outputs are planning artifacts for professional review, not trade or tax instructions.
+6. Open Portfolio Analyzer and show how entered holdings, cost basis, daily close data, unrealized gains, and valuation signals are reviewed.
+7. Open Advisor Workspace and show how a taxable transition proposal is generated from imported lots and constraints.
+8. Open Retirement Analyzer and show account inputs, state taxes, spending smile, Roth conversion reasoning, and the annual funding mix chart.
+9. End by reiterating that outputs are planning artifacts for professional review, not trade or tax instructions.
 
 ## Usability Principles
 
@@ -127,13 +152,15 @@ Professional positioning:
 - Preserve user-entered retirement assumptions after login.
 - Use collapsible reasoning for advanced tax and retirement details.
 - Prefer clear numbers, charts, and funding sources over broad summaries.
+- Expose data-source labels when price and valuation data come from different providers or fallback estimates.
 - Make the distinction between simulation and implementation unavoidable.
 - Keep product copy professional, specific, and conservative.
 
 ## Current Limitations
 
 - The app is designed for local development and demonstration.
-- Data can fall back to deterministic demo values when providers are unavailable.
+- Data can fall back to deterministic demo values when providers are unavailable or throttled.
+- Portfolio Analyzer rows can mix sources, such as Stooq daily close prices with fallback forward P/E estimates.
 - Tax and retirement calculations use simplified assumptions.
 - Retirement analyzer output is deterministic, not a Monte Carlo engine.
 - No live trading, custody, tax filing, or brokerage execution is provided.

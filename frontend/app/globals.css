@@ -116,6 +116,14 @@ select {
   outline: none;
 }
 
+.cash-flow-row-field {
+  min-width: 74px;
+}
+
+.cash-flow-row-field input {
+  width: 74px;
+}
+
 .mode-control {
   display: inline-grid;
   grid-template-columns: repeat(3, minmax(92px, 1fr));
@@ -1215,6 +1223,155 @@ select {
   background: #fbfcfa;
 }
 
+.portfolio-analyzer-layout {
+  display: grid;
+  grid-template-columns: 390px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.portfolio-analyzer-sidebar,
+.portfolio-analyzer-workspace {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.holding-editor-list {
+  display: grid;
+  gap: 10px;
+}
+
+.holding-editor-row {
+  display: grid;
+  grid-template-columns: minmax(74px, 0.82fr) minmax(86px, 1fr) minmax(118px, 1.2fr) 42px;
+  gap: 8px;
+  align-items: end;
+  padding: 10px;
+  background: #fbfcfa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.holding-editor-row .field label {
+  overflow: hidden;
+  font-size: 0.7rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.icon-button {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  justify-content: center;
+  padding: 0;
+}
+
+.portfolio-stat-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.portfolio-valuation-table {
+  min-width: 1600px;
+}
+
+.portfolio-valuation-row {
+  display: grid;
+  grid-template-columns: 86px 88px 100px 104px 128px 104px 130px 170px 90px 90px 90px 132px 124px;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 16px;
+  background: var(--surface);
+  font-size: 0.86rem;
+}
+
+.portfolio-valuation-row.header {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.portfolio-valuation-row.below-10y {
+  background: #eef7f0;
+  box-shadow: inset 3px 0 0 #0f766e;
+}
+
+.portfolio-valuation-row.below-5y {
+  background: #f0f7ff;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+.portfolio-valuation-row.neutral:hover,
+.portfolio-valuation-row.unknown:hover {
+  background: #fbfcfa;
+}
+
+.valuation-chip,
+.valuation-legend {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 760;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.valuation-chip.below-10y,
+.valuation-legend.ten-year {
+  color: #0f5132;
+  background: #e8f6ed;
+  border-color: #b9dfc8;
+}
+
+.valuation-chip.below-5y,
+.valuation-legend.five-year {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.valuation-chip.neutral {
+  color: #4b5563;
+  background: #f3f4f6;
+}
+
+.valuation-chip.unknown {
+  color: #6d420c;
+  background: #fff4dc;
+  border-color: #f1d098;
+}
+
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 4px 9px;
+  color: #315243;
+  background: #eef7f0;
+  border: 1px solid #c8decc;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 760;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.source-chip.fallback {
+  color: #6d420c;
+  background: #fff4dc;
+  border-color: #f1d098;
+}
+
 .filing-watch-row > span {
   display: inline-flex;
   align-items: center;
@@ -1864,6 +2021,102 @@ select {
   line-height: 1.15;
 }
 
+.conversion-sandbox-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.34fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.conversion-sandbox-control,
+.conversion-sandbox-metrics > div,
+.family-plan-card {
+  min-width: 0;
+  padding: 14px;
+  background: #fbfcfa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.conversion-sandbox-control {
+  display: grid;
+  gap: 10px;
+}
+
+.conversion-sandbox-control p,
+.family-plan-card p {
+  margin: 0;
+  color: #3f4b46;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.conversion-sandbox-metrics,
+.family-planning-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.family-planning-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.conversion-sandbox-metrics > div,
+.family-plan-card {
+  display: grid;
+  gap: 8px;
+}
+
+.conversion-sandbox-metrics span,
+.family-plan-card span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 760;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.conversion-sandbox-metrics strong,
+.family-plan-card strong {
+  font-size: 1.18rem;
+  line-height: 1.1;
+}
+
+.conversion-scenario-table {
+  min-width: 980px;
+}
+
+.conversion-scenario-row {
+  display: grid;
+  grid-template-columns: 100px 150px 166px 140px 130px 150px;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 14px;
+  background: var(--surface);
+  font-size: 0.86rem;
+}
+
+.conversion-scenario-row.header {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.conversion-scenario-row.selected {
+  background: #eef7f0;
+  box-shadow: inset 3px 0 0 var(--forest);
+}
+
+.positive-money {
+  color: #0f766e;
+}
+
+.negative-money {
+  color: #b45309;
+}
+
 .analysis-disclosure-list,
 .analysis-disclosure-grid {
   display: grid;
@@ -2055,6 +2308,7 @@ select {
   .dashboard-grid,
   .advisor-layout,
   .retirement-layout,
+  .portfolio-analyzer-layout,
   .idea-layout,
   .research-hero {
     grid-template-columns: 1fr;
@@ -2066,12 +2320,15 @@ select {
   .proposal-grid,
   .analysis-disclosure-grid,
   .return-assumption-bar,
+  .conversion-sandbox-grid,
+  .family-planning-grid,
   .idea-metric-grid,
   .idea-columns,
   .bucket-grid,
   .milestone-grid,
   .retirement-analysis-grid,
   .feature-map-grid,
+  .portfolio-stat-grid,
   .sequence-grid,
   .stat-grid,
   .trust-row {
@@ -2103,6 +2360,9 @@ select {
     .proposal-grid,
     .analysis-disclosure-grid,
     .return-assumption-bar,
+    .conversion-sandbox-grid,
+    .conversion-sandbox-metrics,
+    .family-planning-grid,
     .disclosure-metric-grid,
     .bucket-grid,
     .milestone-grid,
@@ -2111,6 +2371,8 @@ select {
     .state-tax-grid,
     .retirement-analysis-grid,
     .feature-map-grid,
+    .portfolio-stat-grid,
+    .holding-editor-row,
     .guardrail-grid,
     .sequence-grid,
     .stat-grid,

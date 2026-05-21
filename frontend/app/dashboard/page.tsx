@@ -445,6 +445,7 @@ export default function DashboardPage() {
         </div>
         <div className="dashboard-actions">
           <Link className="ghost-button" href="/research">Research</Link>
+          <Link className="ghost-button" href="/portfolio">Portfolio analyzer</Link>
           <Link className="ghost-button" href="/ideas">Ideas</Link>
           <Link className="ghost-button" href="/advisor">Advisor</Link>
           <Link className="ghost-button" href="/retirement-analyzer">Retirement analyzer</Link>

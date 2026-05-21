@@ -173,6 +173,44 @@ export type PortfolioImportResult = {
   warnings: string[];
 };
 
+export type PortfolioAnalyzerHoldingInput = {
+  symbol: string;
+  shares: number;
+  cost_basis_per_share: number;
+};
+
+export type PortfolioAnalyzerHolding = {
+  symbol: string;
+  shares: number;
+  price: number;
+  market_value: number;
+  weight: number;
+  cost_basis_per_share: number;
+  cost_basis: number;
+  unrealized_gain_loss: number;
+  unrealized_gain_loss_pct: number;
+  forward_pe?: number | null;
+  forward_pe_5y_avg?: number | null;
+  forward_pe_10y_avg?: number | null;
+  valuation_signal: "below_10y_average" | "below_5y_average" | "at_or_above_average" | "unknown";
+  valuation_signal_label: string;
+  data_source: string;
+  warning?: string | null;
+};
+
+export type PortfolioAnalyzerResult = {
+  as_of_date: string;
+  min_weight_percent: number;
+  total_market_value: number;
+  total_cost_basis: number;
+  unrealized_gain_loss: number;
+  unrealized_gain_loss_pct: number;
+  analyzed_holding_count: number;
+  hidden_holding_count: number;
+  holdings: PortfolioAnalyzerHolding[];
+  warnings: string[];
+};
+
 export type ThirteenFManagerCandidate = {
   cik: string;
   manager_name: string;

@@ -1,8 +1,8 @@
-# personal_finance
+# DirectIndex
 
-Personalfinance is a simulation-only personal finance and advisor workflow platform for tax-aware direct indexing, tax-loss harvesting research, portfolio transition planning, 13F manager research, and retirement income analysis.
+DirectIndex is a simulation-only personal finance and advisor workflow platform for tax-aware portfolio analysis, direct indexing, tax-loss harvesting research, portfolio transition planning, 13F manager research, and retirement income analysis.
 
-The product is designed to help users understand tradeoffs before taking action: tracking error versus tax-loss value, taxable account transitions versus embedded gains, Roth conversion windows versus future RMD pressure, and retirement spending needs versus portfolio durability.
+The product is designed to help users understand tradeoffs before taking action: tracking error versus tax-loss value, taxable account transitions versus embedded gains, individual-stock valuation versus cost basis, Roth conversion windows versus future RMD pressure, and retirement spending needs versus portfolio durability.
 
 > Important: DirectIndex is educational planning software only. It is not a registered investment adviser, broker-dealer, law firm, CPA firm, tax preparer, fiduciary, custodian, or trading system. Outputs are hypothetical and must not be treated as tax, legal, accounting, investment, fiduciary, brokerage, or trading advice.
 
@@ -13,6 +13,7 @@ The product is designed to help users understand tradeoffs before taking action:
 | Module | What it helps users do |
 | --- | --- |
 | Portfolio Dashboard | Build simulated direct-index portfolios, compare models, run backtests, review tax-loss harvesting candidates, and manage exclusions. |
+| Portfolio Analyzer | Enter existing holdings, shares, and cost basis; cache daily prices; review unrealized gain/loss; and compare forward P/E against 5-year and 10-year averages. |
 | Advisor Workspace | Import a taxable legacy account, define transition constraints, produce proposal-ready transition plans, and export CSV recommendations. |
 | Retirement Analyzer | Model retirement income, spending, tax-aware withdrawal order, Roth conversions, cash/bond/growth buckets, state taxes, and shortfall risk. |
 | Ideas Workspace | Review self-managed investor playbooks for sector ETF TLH, asset location, retirement buckets, TIPS ladders, charitable giving, Roth windows, and rebalancing bands. |
@@ -26,6 +27,12 @@ The product is designed to help users understand tradeoffs before taking action:
 The dashboard is the operational hub for direct-index simulation. Users can create a portfolio, choose a benchmark index, run backtests, compare direct-indexing models, import holdings and tax lots, and review TLH output before any real-world decision.
 
 <img src="docs/screenshots/dashboard.jpg" alt="Portfolio dashboard" width="900">
+
+### Portfolio Analyzer
+
+The portfolio analyzer is for users who want a professional review surface for existing holdings without building a direct-index portfolio first. Users enter positions, shares, and cost basis, then review market value, weight, unrealized gain/loss, forward P/E, 5-year and 10-year forward P/E averages, valuation signals, and the data source used for each row.
+
+<img src="docs/screenshots/portfolio-analyzer.jpg" alt="Portfolio analyzer" width="900">
 
 ### Retirement Analyzer
 
@@ -56,6 +63,12 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
 ## Core Capabilities
 
 - Direct-index portfolio simulation for supported indices including `XLG`, `SPY`, `TOPT`, and `QTOP`.
+- Existing portfolio analyzer for self-managed investors with:
+  - User-entered tickers, shares, and cost basis per share
+  - Daily close price cache by symbol and analysis date
+  - Market value, portfolio weight, unrealized gain/loss, and cost-basis review
+  - Forward P/E comparison against 5-year and 10-year averages
+  - Clear source labels when price data and valuation data come from different sources
 - Tax-loss harvesting review in conservative, moderate, and aggressive modes.
 - Direct-indexing model comparison:
   - Risk-score optimizer
@@ -81,15 +94,19 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
   - State and federal tax assumptions
   - Tax-aware withdrawal sequencing
   - Roth conversion amount, tax funding, and reasoning
+  - Roth conversion tax-savings sandbox using the user's current effective tax rate
   - Cash/T-bill, bond, and growth bucket guidance
+  - Configurable detailed cash-flow table, defaulting to at least 36 rows
   - Annual spending funding mix by stable income, taxable, tax-deferred, Roth, cash, and shortfall
+  - Effective tax-rate estimate from selected federal and state assumptions
+  - Life-event, family gifting, and estate-plan prompts
 
 ## Tech Stack
 
 - Frontend: Next.js, React, TypeScript, Recharts, Lucide icons
 - Backend: FastAPI, SQLAlchemy, Pydantic, Argon2 password hashing
 - Data and jobs: PostgreSQL, Redis, Celery
-- Market and filing data: cached provider data with deterministic fallback data when providers are unavailable
+- Market and filing data: Stooq daily close data, yfinance valuation data when available, cached provider data, and deterministic fallback data when providers are unavailable
 - Local environment: Docker Compose
 
 ## Project Structure
@@ -237,7 +254,9 @@ npm run build
 
 ## Data Behavior
 
-The backend caches holdings, daily prices, and SEC filing data. Where possible, it attempts free provider retrieval. If data is unavailable, throttled, stale, or incomplete, the app falls back to deterministic demo data and shows warnings so the UI remains usable.
+The backend caches holdings, daily prices, valuation snapshots, and SEC filing data. Where possible, it attempts free provider retrieval. If data is unavailable, throttled, stale, or incomplete, the app falls back to deterministic demo data and shows warnings so the UI remains usable.
+
+The Portfolio Analyzer retrieves U.S. daily close prices from Stooq first, then falls back to yfinance where available. Cached deterministic price rows are refreshed when provider data becomes available for the same symbol and date. Forward P/E data is requested from yfinance and can fall back separately from price data, so a row may show a real Stooq close with fallback valuation metrics.
 
 Backtest and trade outputs are hypothetical. They depend on cached data, simplified assumptions, user inputs, and model rules. They should be reviewed as research artifacts, not implementation instructions.
 

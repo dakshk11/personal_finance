@@ -356,6 +356,21 @@ class PriceBar(Base):
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
+class SecurityMetricSnapshot(Base):
+    __tablename__ = "security_metric_snapshots"
+    __table_args__ = (UniqueConstraint("symbol", "metric_date", name="uq_security_metric_symbol_date"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    metric_date: Mapped[date] = mapped_column(Date, index=True)
+    forward_pe: Mapped[float | None] = mapped_column(Float, nullable=True)
+    forward_pe_5y_avg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    forward_pe_10y_avg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(255))
+    warning: Mapped[str | None] = mapped_column(Text, nullable=True)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
 class Portfolio(Base):
     __tablename__ = "portfolios"
 

@@ -234,6 +234,50 @@ class PortfolioImportOut(BaseModel):
     warnings: list[str]
 
 
+class PortfolioAnalyzerHoldingIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=16)
+    shares: float = Field(gt=0)
+    cost_basis_per_share: float = Field(ge=0)
+
+
+class PortfolioAnalyzerRequest(BaseModel):
+    holdings: list[PortfolioAnalyzerHoldingIn] = Field(default_factory=list)
+    min_weight_percent: float = Field(default=1, ge=0, le=100)
+    as_of_date: date | None = None
+
+
+class PortfolioAnalyzerHoldingOut(BaseModel):
+    symbol: str
+    shares: float
+    price: float
+    market_value: float
+    weight: float
+    cost_basis_per_share: float
+    cost_basis: float
+    unrealized_gain_loss: float
+    unrealized_gain_loss_pct: float
+    forward_pe: float | None = None
+    forward_pe_5y_avg: float | None = None
+    forward_pe_10y_avg: float | None = None
+    valuation_signal: str
+    valuation_signal_label: str
+    data_source: str
+    warning: str | None = None
+
+
+class PortfolioAnalyzerOut(BaseModel):
+    as_of_date: date
+    min_weight_percent: float
+    total_market_value: float
+    total_cost_basis: float
+    unrealized_gain_loss: float
+    unrealized_gain_loss_pct: float
+    analyzed_holding_count: int
+    hidden_holding_count: int
+    holdings: list[PortfolioAnalyzerHoldingOut]
+    warnings: list[str]
+
+
 class DataSyncOut(BaseModel):
     status: str
     synced_indices: list[str]
