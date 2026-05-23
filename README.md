@@ -224,6 +224,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 ```
 
 If the backend is run without `DATABASE_URL`, it falls back to a local SQLite database. Background workflows still require Redis and Celery.
+For backend-only local runs, place API-specific overrides such as `AI_ADVISOR_KEY_ENCRYPTION_SECRET` in `backend/.env` or export them in the shell; the repo-root `.env` is intended for Docker Compose.
 
 ## Tests and Checks
 
