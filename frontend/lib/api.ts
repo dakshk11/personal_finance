@@ -482,6 +482,63 @@ export type AIAdvisorRetirementRunRequest = {
   inputs: Record<string, string>;
 };
 
+export type PersonalCFOModel = AIAdvisorRetirementRunRequest["model"];
+
+export type PersonalCFOMessage = {
+  id: number;
+  role: "assistant" | "user" | string;
+  content: string;
+  phase?: number | null;
+  created_at: string;
+};
+
+export type PersonalCFOFile = {
+  id: number;
+  path: string;
+  kind: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PersonalCFOUpload = {
+  id: number;
+  file_name: string;
+  file_type: string;
+  row_count: number;
+  created_at: string;
+};
+
+export type PersonalCFOProject = {
+  id: number;
+  name: string;
+  status: string;
+  current_phase: number;
+  phase_progress: Record<string, unknown>;
+  phase_complete: boolean;
+  can_generate_one_pager: boolean;
+  one_pager_generated: boolean;
+  refinement_used: boolean;
+  last_exported_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  messages: PersonalCFOMessage[];
+  files: PersonalCFOFile[];
+  uploads: PersonalCFOUpload[];
+};
+
+export type PersonalCFODashboard = {
+  project_id: number;
+  files_count: number;
+  uploads_count: number;
+  message_count: number;
+  cash_trend: Array<{ date: string; value: number }>;
+  pnl_summary: Record<string, number | string>;
+  exposures: Array<{ label: string; value: number; weight: number }>;
+  memory_timeline: string[];
+  open_flags: string[];
+};
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiUrl()}${path}`, {
     ...init,

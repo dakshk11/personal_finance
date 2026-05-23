@@ -18,7 +18,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
-import { HighYieldFund, MajorIndex, MarketHistory, MarketPriceBar, apiFetch } from "@/lib/api";
+import {
+  HighYieldFund,
+  MajorIndex,
+  MarketHistory,
+  MarketPriceBar,
+  apiFetch
+} from "@/lib/api";
 
 type ToolId = "etf-dma" | "stock-dma" | "etf-return" | "high-yield";
 type AssetKind = "etf" | "stock";
@@ -356,9 +362,11 @@ export default function InvestingPage() {
               This page adapts the calculator concepts into the DirectIndex visual system with original explanatory copy,
               interactive controls, and explicit simulation guardrails.
             </p>
-            <a className="text-link" href={activeMeta.sourceUrl} target="_blank" rel="noreferrer">
-              Open {activeMeta.sourceLabel}
-            </a>
+            {activeMeta.sourceUrl !== "#" && (
+              <a className="text-link" href={activeMeta.sourceUrl} target="_blank" rel="noreferrer">
+                Open {activeMeta.sourceLabel}
+              </a>
+            )}
           </section>
 
           <section className="dashboard-panel investing-source-card">

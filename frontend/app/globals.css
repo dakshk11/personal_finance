@@ -2867,10 +2867,16 @@ select {
   min-height: 38px;
   padding: 0 13px;
   color: var(--forest);
-  background: var(--mint);
-  border: 1px solid rgba(20, 61, 42, 0.1);
+  background: #fff;
+  border: 1px solid var(--line);
   border-radius: 8px;
   font-weight: 720;
+  cursor: pointer;
+}
+
+.ai-tabbar button.active {
+  background: var(--mint);
+  border-color: rgba(20, 61, 42, 0.1);
 }
 
 .ai-advisor-layout {
@@ -3085,6 +3091,279 @@ select {
   min-height: 260px;
 }
 
+.personal-cfo-head {
+  align-items: center;
+}
+
+.personal-cfo-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.42fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.personal-cfo-projects,
+.personal-cfo-interview,
+.personal-cfo-files,
+.personal-cfo-preview,
+.personal-cfo-upload,
+.personal-cfo-dashboard,
+.personal-cfo-refine {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.personal-cfo-project-list {
+  display: grid;
+  gap: 8px;
+}
+
+.personal-cfo-project-list button,
+.personal-cfo-file-tabs button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 11px 12px;
+  color: var(--ink);
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.personal-cfo-project-list button.active,
+.personal-cfo-file-tabs button.active {
+  border-color: rgba(15, 118, 110, 0.44);
+  background: #effcf8;
+}
+
+.personal-cfo-project-list span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.personal-cfo-models {
+  min-width: min(360px, 100%);
+}
+
+.personal-cfo-phase-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.personal-cfo-phase-strip span {
+  display: grid;
+  min-height: 26px;
+  place-items: center;
+  color: #63746d;
+  background: #f5f7f6;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.personal-cfo-phase-strip span.active {
+  color: #fff;
+  background: #173f3a;
+  border-color: #173f3a;
+}
+
+.personal-cfo-phase-strip span.complete {
+  color: #0f5132;
+  background: #dff7eb;
+  border-color: #b8e4cb;
+}
+
+.personal-cfo-chat {
+  display: grid;
+  gap: 10px;
+  max-height: 520px;
+  min-height: 280px;
+  overflow: auto;
+  padding: 12px;
+  background: #f8faf9;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.personal-cfo-message {
+  display: grid;
+  gap: 5px;
+  max-width: 86%;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.personal-cfo-message.user {
+  justify-self: end;
+  color: #f8fffd;
+  background: #173f3a;
+  border-color: #173f3a;
+}
+
+.personal-cfo-message span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.personal-cfo-message.user span {
+  color: #d7f5ee;
+}
+
+.personal-cfo-message p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.personal-cfo-chat-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.personal-cfo-chat-form textarea,
+.personal-cfo-refine textarea,
+.personal-cfo-upload textarea {
+  min-height: 104px;
+}
+
+.personal-cfo-actions {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.personal-cfo-actions h2 {
+  margin: 0;
+  line-height: 1.12;
+}
+
+.personal-cfo-file-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.personal-cfo-file-editor {
+  min-height: 460px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.personal-cfo-preview {
+  max-height: 720px;
+  overflow: auto;
+}
+
+.personal-cfo-markdown {
+  align-content: start;
+}
+
+.personal-cfo-upload-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.personal-cfo-upload-list span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  color: #315243;
+  background: #eef7f0;
+  border: 1px solid #c8decc;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.personal-cfo-stat-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.personal-cfo-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.personal-cfo-chart-box,
+.personal-cfo-timeline {
+  display: grid;
+  gap: 10px;
+  min-height: 260px;
+  padding: 14px;
+  background: #fbfcfa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.personal-cfo-chart-box h3,
+.personal-cfo-timeline h3 {
+  margin: 0;
+  font-size: 0.94rem;
+}
+
+.personal-cfo-empty-visual {
+  display: grid;
+  min-height: 210px;
+  place-items: center;
+  padding: 18px;
+  color: var(--muted);
+  text-align: center;
+  background: #fff;
+  border: 1px dashed #cfdad4;
+  border-radius: 8px;
+}
+
+.personal-cfo-exposure-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 0.55fr) minmax(0, 1fr) minmax(92px, 0.7fr);
+  gap: 10px;
+  align-items: center;
+  font-size: 0.86rem;
+}
+
+.personal-cfo-exposure-row div {
+  height: 9px;
+  overflow: hidden;
+  background: #e8efec;
+  border-radius: 999px;
+}
+
+.personal-cfo-exposure-row i {
+  display: block;
+  height: 100%;
+  background: #0f766e;
+  border-radius: inherit;
+}
+
+.personal-cfo-exposure-row strong {
+  text-align: right;
+}
+
+.personal-cfo-timeline {
+  min-height: 190px;
+}
+
+.personal-cfo-timeline p {
+  margin: 0;
+  color: #394842;
+  line-height: 1.5;
+}
+
 @media (max-width: 980px) {
   .hero,
   .dashboard-grid,
@@ -3094,6 +3373,8 @@ select {
   .investing-hero,
   .investing-page-layout,
   .investing-two-column,
+  .personal-cfo-grid,
+  .personal-cfo-dashboard-grid,
   .high-yield-fund-grid,
   .portfolio-analyzer-layout,
   .idea-layout,
@@ -3119,6 +3400,8 @@ select {
   .investing-return-stat-grid,
   .high-yield-summary-grid,
   .high-yield-meta-grid,
+  .personal-cfo-stat-grid,
+  .personal-cfo-file-tabs,
   .ai-module-grid,
   .investing-control-grid,
   .investing-return-grid,
@@ -3200,6 +3483,8 @@ select {
   .high-yield-card-head,
   .ai-advisor-head,
   .ai-retirement-form .panel-header,
+  .personal-cfo-head,
+  .personal-cfo-actions,
   .high-yield-footer,
   .high-yield-trade-head {
     flex-direction: column;
@@ -3214,6 +3499,8 @@ select {
   }
 
   .high-yield-card,
+  .personal-cfo-chat-form,
+  .personal-cfo-dashboard-grid,
   .high-yield-terminal-stats {
     grid-template-columns: 1fr;
   }

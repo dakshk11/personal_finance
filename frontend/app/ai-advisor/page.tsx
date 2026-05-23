@@ -4,6 +4,7 @@ import {
   Bot,
   CheckCircle2,
   FileText,
+  FolderArchive,
   KeyRound,
   Loader2,
   LockKeyhole,
@@ -16,6 +17,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
+import { PersonalCFOTool } from "@/components/PersonalCFOTool";
 import {
   AIAdvisorOpenAIKeyStatus,
   AIAdvisorReport,
@@ -25,6 +27,7 @@ import {
 } from "@/lib/api";
 
 type AIModel = AIAdvisorRetirementRunRequest["model"];
+type AdvisorTab = "retirement-plan" | "personal-cfo";
 
 type RetirementField = {
   id: string;
@@ -138,6 +141,7 @@ export default function AIAdvisorPage() {
   const [apiKey, setApiKey] = useState("");
   const [keyMessage, setKeyMessage] = useState("");
   const [activeModuleId, setActiveModuleId] = useState(modules[0].id);
+  const [activeTab, setActiveTab] = useState<AdvisorTab>("retirement-plan");
   const [model, setModel] = useState<AIModel>("gpt-5.4");
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [reports, setReports] = useState<AIAdvisorReportSummary[]>([]);
@@ -267,7 +271,24 @@ export default function AIAdvisorPage() {
       </div>
 
       <div className="ai-tabbar" role="tablist" aria-label="AI advisor tabs">
-        <button className="active" type="button" role="tab" aria-selected="true"><Bot size={16} /> Retirement plan</button>
+        <button
+          className={activeTab === "retirement-plan" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "retirement-plan"}
+          onClick={() => setActiveTab("retirement-plan")}
+        >
+          <Bot size={16} /> Retirement plan
+        </button>
+        <button
+          className={activeTab === "personal-cfo" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "personal-cfo"}
+          onClick={() => setActiveTab("personal-cfo")}
+        >
+          <FolderArchive size={16} /> Personal CFO
+        </button>
       </div>
 
       <div className="ai-advisor-layout">
@@ -320,102 +341,108 @@ export default function AIAdvisorPage() {
         </aside>
 
         <section className="ai-advisor-workspace">
-          <section className="dashboard-panel ai-advisor-head">
-            <div>
-              <p className="eyebrow">Retirement plan</p>
-              <h2>Generate a saved AI retirement report from complete client inputs.</h2>
-              <p>Choose one planning module, complete every required field, select a model, and generate a database-saved report using your validated OpenAI key.</p>
-            </div>
-            <span className="status-pill"><ShieldCheck size={14} /> Saved history</span>
-          </section>
-
-          <section className="dashboard-panel">
-            <div className="panel-header">
-              <h2>Planning module</h2>
-              <MessageSquareText size={18} />
-            </div>
-            <div className="ai-module-grid">
-              {modules.map((module) => (
-                <button
-                  type="button"
-                  key={module.id}
-                  className={module.id === activeModule.id ? "active" : ""}
-                  onClick={() => setActiveModuleId(module.id)}
-                >
-                  <strong>{module.title}</strong>
-                  <span>{module.summary}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <form className="dashboard-panel ai-retirement-form" onSubmit={generateReport}>
-            <div className="panel-header">
-              <div>
-                <h2>{activeModule.title}</h2>
-                <p className="fine-print">{missingFields.length ? `${missingFields.length} required input${missingFields.length === 1 ? "" : "s"} remaining` : "All required inputs complete"}</p>
-              </div>
-              <div className="ai-model-control" role="radiogroup" aria-label="OpenAI model">
-                {models.map((item) => (
-                  <button type="button" key={item.id} className={model === item.id ? "active" : ""} onClick={() => setModel(item.id)}>
-                    <strong>{item.label}</strong>
-                    <span>{item.helper}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="ai-field-grid">
-              {activeModule.fields.map((field) => (
-                <div className={`field ${field.kind === "long" ? "wide-field" : ""}`} key={`${activeModule.id}-${field.id}`}>
-                  <label htmlFor={`${activeModule.id}-${field.id}`}>{field.label}</label>
-                  {field.kind === "long" ? (
-                    <textarea
-                      id={`${activeModule.id}-${field.id}`}
-                      value={inputs[field.id] ?? ""}
-                      onChange={(event) => updateInput(field.id, event.target.value)}
-                    />
-                  ) : field.kind === "select" ? (
-                    <select id={`${activeModule.id}-${field.id}`} value={inputs[field.id] ?? ""} onChange={(event) => updateInput(field.id, event.target.value)}>
-                      <option value="">Select</option>
-                      {field.options?.map((option) => <option value={option} key={option}>{option}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      id={`${activeModule.id}-${field.id}`}
-                      value={inputs[field.id] ?? ""}
-                      onChange={(event) => updateInput(field.id, event.target.value)}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {error && <div className="error">{error}</div>}
-            {!keyStatus?.has_key && <div className="error">Save a validated OpenAI API key before generating a report.</div>}
-            <button className="primary-button ai-generate-button" type="submit" disabled={!canGenerate}>
-              {loading === "report" ? <Loader2 size={16} className="spin-icon" /> : <Play size={16} />}
-              {loading === "report" ? "Generating report" : "Generate retirement report"}
-            </button>
-          </form>
-
-          {activeReport ? (
-            <section className="dashboard-panel ai-report-output">
-              <div className="panel-header">
+          {activeTab === "retirement-plan" ? (
+            <>
+              <section className="dashboard-panel ai-advisor-head">
                 <div>
-                  <h2>{activeReport.module_title}</h2>
-                  <p className="fine-print">{activeReport.model} · {formatDateTime(activeReport.created_at)}</p>
+                  <p className="eyebrow">Retirement plan</p>
+                  <h2>Generate a saved AI retirement report from complete client inputs.</h2>
+                  <p>Choose one planning module, complete every required field, select a model, and generate a database-saved report using your validated OpenAI key.</p>
                 </div>
-                <span className="status-pill"><CheckCircle2 size={14} /> Saved</span>
-              </div>
-              <ReportText value={activeReport.response_text} />
-            </section>
+                <span className="status-pill"><ShieldCheck size={14} /> Saved history</span>
+              </section>
+
+              <section className="dashboard-panel">
+                <div className="panel-header">
+                  <h2>Planning module</h2>
+                  <MessageSquareText size={18} />
+                </div>
+                <div className="ai-module-grid">
+                  {modules.map((module) => (
+                    <button
+                      type="button"
+                      key={module.id}
+                      className={module.id === activeModule.id ? "active" : ""}
+                      onClick={() => setActiveModuleId(module.id)}
+                    >
+                      <strong>{module.title}</strong>
+                      <span>{module.summary}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <form className="dashboard-panel ai-retirement-form" onSubmit={generateReport}>
+                <div className="panel-header">
+                  <div>
+                    <h2>{activeModule.title}</h2>
+                    <p className="fine-print">{missingFields.length ? `${missingFields.length} required input${missingFields.length === 1 ? "" : "s"} remaining` : "All required inputs complete"}</p>
+                  </div>
+                  <div className="ai-model-control" role="radiogroup" aria-label="OpenAI model">
+                    {models.map((item) => (
+                      <button type="button" key={item.id} className={model === item.id ? "active" : ""} onClick={() => setModel(item.id)}>
+                        <strong>{item.label}</strong>
+                        <span>{item.helper}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="ai-field-grid">
+                  {activeModule.fields.map((field) => (
+                    <div className={`field ${field.kind === "long" ? "wide-field" : ""}`} key={`${activeModule.id}-${field.id}`}>
+                      <label htmlFor={`${activeModule.id}-${field.id}`}>{field.label}</label>
+                      {field.kind === "long" ? (
+                        <textarea
+                          id={`${activeModule.id}-${field.id}`}
+                          value={inputs[field.id] ?? ""}
+                          onChange={(event) => updateInput(field.id, event.target.value)}
+                        />
+                      ) : field.kind === "select" ? (
+                        <select id={`${activeModule.id}-${field.id}`} value={inputs[field.id] ?? ""} onChange={(event) => updateInput(field.id, event.target.value)}>
+                          <option value="">Select</option>
+                          {field.options?.map((option) => <option value={option} key={option}>{option}</option>)}
+                        </select>
+                      ) : (
+                        <input
+                          id={`${activeModule.id}-${field.id}`}
+                          value={inputs[field.id] ?? ""}
+                          onChange={(event) => updateInput(field.id, event.target.value)}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {error && <div className="error">{error}</div>}
+                {!keyStatus?.has_key && <div className="error">Save a validated OpenAI API key before generating a report.</div>}
+                <button className="primary-button ai-generate-button" type="submit" disabled={!canGenerate}>
+                  {loading === "report" ? <Loader2 size={16} className="spin-icon" /> : <Play size={16} />}
+                  {loading === "report" ? "Generating report" : "Generate retirement report"}
+                </button>
+              </form>
+
+              {activeReport ? (
+                <section className="dashboard-panel ai-report-output">
+                  <div className="panel-header">
+                    <div>
+                      <h2>{activeReport.module_title}</h2>
+                      <p className="fine-print">{activeReport.model} · {formatDateTime(activeReport.created_at)}</p>
+                    </div>
+                    <span className="status-pill"><CheckCircle2 size={14} /> Saved</span>
+                  </div>
+                  <ReportText value={activeReport.response_text} />
+                </section>
+              ) : (
+                <section className="dashboard-panel empty-proposal ai-empty-report">
+                  <Bot size={34} />
+                  <h2>No AI retirement report selected</h2>
+                  <p>Generated reports appear here and remain available in the report history.</p>
+                </section>
+              )}
+            </>
           ) : (
-            <section className="dashboard-panel empty-proposal ai-empty-report">
-              <Bot size={34} />
-              <h2>No AI retirement report selected</h2>
-              <p>Generated reports appear here and remain available in the report history.</p>
-            </section>
+            <PersonalCFOTool keyStatus={keyStatus} onAuthExpired={() => router.push("/login")} />
           )}
         </section>
       </div>

@@ -59,6 +59,88 @@ class AIAdvisorReportOut(AIAdvisorReportSummaryOut):
     error: dict[str, Any] | None = None
 
 
+class PersonalCFOProjectCreate(BaseModel):
+    name: str = Field(default="Investment Folder", min_length=1, max_length=160)
+
+
+class PersonalCFOMessageOut(BaseModel):
+    id: int
+    role: str
+    content: str
+    phase: int | None = None
+    created_at: datetime
+
+
+class PersonalCFOFileOut(BaseModel):
+    id: int
+    path: str
+    kind: str
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class PersonalCFOUploadOut(BaseModel):
+    id: int
+    file_name: str
+    file_type: str
+    row_count: int
+    created_at: datetime
+
+
+class PersonalCFOProjectOut(BaseModel):
+    id: int
+    name: str
+    status: str
+    current_phase: int
+    phase_progress: dict[str, Any] = Field(default_factory=dict)
+    phase_complete: bool = False
+    can_generate_one_pager: bool = False
+    one_pager_generated: bool = False
+    refinement_used: bool = False
+    last_exported_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    messages: list[PersonalCFOMessageOut] = Field(default_factory=list)
+    files: list[PersonalCFOFileOut] = Field(default_factory=list)
+    uploads: list[PersonalCFOUploadOut] = Field(default_factory=list)
+
+
+class PersonalCFOMessageIn(BaseModel):
+    content: str = Field(min_length=1, max_length=6000)
+    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+
+
+class PersonalCFOGenerateRequest(BaseModel):
+    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+
+
+class PersonalCFORefineRequest(BaseModel):
+    feedback: str = Field(min_length=1, max_length=6000)
+    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+
+
+class PersonalCFOFileUpdate(BaseModel):
+    content: str = Field(max_length=200000)
+
+
+class PersonalCFOUploadIn(BaseModel):
+    file_name: str = Field(min_length=1, max_length=240)
+    content: str = Field(min_length=1, max_length=500000)
+
+
+class PersonalCFODashboardOut(BaseModel):
+    project_id: int
+    files_count: int
+    uploads_count: int
+    message_count: int
+    cash_trend: list[dict[str, Any]] = Field(default_factory=list)
+    pnl_summary: dict[str, Any] = Field(default_factory=dict)
+    exposures: list[dict[str, Any]] = Field(default_factory=list)
+    memory_timeline: list[str] = Field(default_factory=list)
+    open_flags: list[str] = Field(default_factory=list)
+
+
 class IndexOut(BaseModel):
     symbol: str
     name: str

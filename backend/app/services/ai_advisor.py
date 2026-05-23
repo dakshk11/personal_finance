@@ -215,12 +215,14 @@ def validate_openai_api_key(api_key: str) -> None:
     _openai_json_request("https://api.openai.com/v1/models", api_key, method="GET")
 
 
-def create_openai_response(api_key: str, model: str, prompt: str) -> tuple[str, dict[str, Any]]:
+def create_openai_response(api_key: str, model: str, prompt: str, *, instructions: str | None = None) -> tuple[str, dict[str, Any]]:
     payload = {
         "model": model,
         "input": prompt,
         "max_output_tokens": 5000,
     }
+    if instructions:
+        payload["instructions"] = instructions
     response = _openai_json_request("https://api.openai.com/v1/responses", api_key, method="POST", payload=payload)
     return _extract_response_text(response), response
 

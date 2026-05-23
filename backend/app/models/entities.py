@@ -26,6 +26,7 @@ class User(Base):
     retirement_analyzer_state: Mapped["RetirementAnalyzerState | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     ai_advisor_openai_key: Mapped["AIAdvisorOpenAIKey | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     ai_advisor_reports: Mapped[list["AIAdvisorReport"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    personal_cfo_projects: Mapped[list["PersonalCFOProject"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class RetirementAnalyzerState(Base):
@@ -69,6 +70,81 @@ class AIAdvisorReport(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     user: Mapped["User"] = relationship(back_populates="ai_advisor_reports")
+
+
+class PersonalCFOProject(Base):
+    __tablename__ = "personal_cfo_projects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(160), default="Investment Folder")
+    status: Mapped[str] = mapped_column(String(40), default="interview", index=True)
+    current_phase: Mapped[int] = mapped_column(Integer, default=1)
+    phase_progress_json: Mapped[str] = mapped_column(Text, default="{}")
+    one_pager_generated: Mapped[bool] = mapped_column(Boolean, default=False)
+    refinement_used: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="personal_cfo_projects")
+    messages: Mapped[list["PersonalCFOMessage"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="PersonalCFOMessage.id",
+    )
+    files: Mapped[list["PersonalCFOFile"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="PersonalCFOFile.path",
+    )
+    uploads: Mapped[list["PersonalCFOUpload"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="PersonalCFOUpload.id",
+    )
+
+
+class PersonalCFOMessage(Base):
+    __tablename__ = "personal_cfo_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("personal_cfo_projects.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(24))
+    content: Mapped[str] = mapped_column(Text)
+    phase: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    project: Mapped["PersonalCFOProject"] = relationship(back_populates="messages")
+
+
+class PersonalCFOFile(Base):
+    __tablename__ = "personal_cfo_files"
+    __table_args__ = (UniqueConstraint("project_id", "path", name="uq_personal_cfo_project_file_path"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("personal_cfo_projects.id", ondelete="CASCADE"), index=True)
+    path: Mapped[str] = mapped_column(String(180))
+    kind: Mapped[str] = mapped_column(String(60), default="markdown")
+    content: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    project: Mapped["PersonalCFOProject"] = relationship(back_populates="files")
+
+
+class PersonalCFOUpload(Base):
+    __tablename__ = "personal_cfo_uploads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("personal_cfo_projects.id", ondelete="CASCADE"), index=True)
+    file_name: Mapped[str] = mapped_column(String(240))
+    file_type: Mapped[str] = mapped_column(String(24))
+    content: Mapped[str] = mapped_column(Text)
+    parsed_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    project: Mapped["PersonalCFOProject"] = relationship(back_populates="uploads")
 
 
 class Organization(Base):
