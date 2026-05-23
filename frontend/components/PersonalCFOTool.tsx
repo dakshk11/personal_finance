@@ -356,8 +356,8 @@ export function PersonalCFOTool({
             <textarea
               value={messageInput}
               onChange={(event) => setMessageInput(event.target.value)}
-              placeholder={keyStatus?.has_key ? "Answer the current question directly." : "Save an OpenAI key in AI Advisor before answering."}
-              disabled={!keyStatus?.has_key || !project || project.one_pager_generated}
+              placeholder={keyStatus?.has_key ? "Answer the current question directly." : "Draft your answer here, then save an OpenAI key before sending."}
+              disabled={!project || project.one_pager_generated}
             />
             <button className="primary-button" type="submit" disabled={!messageInput.trim() || !keyStatus?.has_key || loading === "message" || !project || project.one_pager_generated}>
               {loading === "message" ? <Loader2 size={16} className="spin-icon" /> : <Send size={16} />} Send
