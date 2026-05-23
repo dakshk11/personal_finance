@@ -211,6 +211,72 @@ export type PortfolioAnalyzerResult = {
   warnings: string[];
 };
 
+export type MajorIndex = {
+  symbol: string;
+  name: string;
+  benchmark: string;
+  category: string;
+};
+
+export type MarketPriceBar = {
+  date: string;
+  close: number;
+  adjusted_close: number;
+  dividend: number;
+  source: string;
+};
+
+export type MarketHistory = {
+  symbol: string;
+  name: string;
+  benchmark: string;
+  category: string;
+  requested_start_date: string;
+  requested_end_date: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  bars: MarketPriceBar[];
+  warnings: string[];
+};
+
+export type HighYieldBacktest = {
+  evaluated_weeks: number;
+  buy_signals: number;
+  hit_rate_4w?: number | null;
+  average_forward_return_4w?: number | null;
+  last_buy_date?: string | null;
+  recent_buy_dates: string[];
+};
+
+export type HighYieldSignal = {
+  action: "BUY" | "HOLD";
+  signal_date?: string | null;
+  last_close?: number | null;
+  reason: string;
+  reasons: string[];
+  risk_state: string;
+  confidence: number;
+  limited_history: boolean;
+  data_points: number;
+  backtest: HighYieldBacktest;
+};
+
+export type HighYieldFund = {
+  symbol: string;
+  name: string;
+  issuer: string;
+  exposure: string;
+  strategy: string;
+  distribution_frequency: string;
+  source_url: string;
+  risk_note: string;
+  data_source: string;
+  last_price_date?: string | null;
+  cached_at?: string | null;
+  warnings: string[];
+  signal: HighYieldSignal;
+};
+
 export type ThirteenFManagerCandidate = {
   cik: string;
   manager_name: string;
@@ -387,6 +453,35 @@ export type TransitionPlan = {
   created_at: string;
 };
 
+export type AIAdvisorOpenAIKeyStatus = {
+  has_key: boolean;
+  key_fingerprint?: string | null;
+  validated_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type AIAdvisorReportSummary = {
+  id: number;
+  module_id: string;
+  module_title: string;
+  model: string;
+  created_at: string;
+};
+
+export type AIAdvisorReport = AIAdvisorReportSummary & {
+  input_snapshot: Record<string, unknown>;
+  prompt_text: string;
+  response_text: string;
+  usage: Record<string, unknown>;
+  error?: Record<string, unknown> | null;
+};
+
+export type AIAdvisorRetirementRunRequest = {
+  module_id: string;
+  model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini";
+  inputs: Record<string, string>;
+};
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiUrl()}${path}`, {
     ...init,
@@ -400,7 +495,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     let message = `Request failed with ${response.status}`;
     try {
       const body = await response.json();
-      message = body.detail ?? message;
+      message = typeof body.detail === "string" ? body.detail : body.detail ? JSON.stringify(body.detail) : message;
     } catch {
       // Keep default message.
     }

@@ -24,6 +24,8 @@ class User(Base):
     thirteen_f_watches: Mapped[list["ThirteenFWatch"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     advisor_profile: Mapped["Advisor | None"] = relationship(back_populates="user")
     retirement_analyzer_state: Mapped["RetirementAnalyzerState | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
+    ai_advisor_openai_key: Mapped["AIAdvisorOpenAIKey | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
+    ai_advisor_reports: Mapped[list["AIAdvisorReport"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class RetirementAnalyzerState(Base):
@@ -35,6 +37,38 @@ class RetirementAnalyzerState(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     user: Mapped["User"] = relationship(back_populates="retirement_analyzer_state")
+
+
+class AIAdvisorOpenAIKey(Base):
+    __tablename__ = "ai_advisor_openai_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    encrypted_api_key: Mapped[str] = mapped_column(Text)
+    key_fingerprint: Mapped[str] = mapped_column(String(80), index=True)
+    validated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="ai_advisor_openai_key")
+
+
+class AIAdvisorReport(Base):
+    __tablename__ = "ai_advisor_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    module_id: Mapped[str] = mapped_column(String(80), index=True)
+    module_title: Mapped[str] = mapped_column(String(160))
+    model: Mapped[str] = mapped_column(String(80))
+    input_snapshot_json: Mapped[str] = mapped_column(Text)
+    prompt_text: Mapped[str] = mapped_column(Text)
+    response_text: Mapped[str] = mapped_column(Text)
+    usage_json: Mapped[str] = mapped_column(Text, default="{}")
+    error_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="ai_advisor_reports")
 
 
 class Organization(Base):

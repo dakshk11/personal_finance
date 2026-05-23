@@ -199,6 +199,7 @@ Copy `.env.example` to `.env` before running Docker Compose.
 | `SEED_TEST_ACCOUNT` | Seeds the local test user when `true` |
 | `TEST_ACCOUNT_EMAIL` | Local seeded test email |
 | `TEST_ACCOUNT_PASSWORD` | Local seeded test password |
+| `AI_ADVISOR_KEY_ENCRYPTION_SECRET` | Server-side secret used to encrypt user-owned OpenAI API keys before database storage; use at least 32 random characters and never commit real values |
 
 ## Local Development Without Docker
 
@@ -276,3 +277,23 @@ Nothing in the app, README, backtests, tax-loss-harvesting output, transition pl
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Exact Start Commands
+
+Start the backend and frontend in two separate terminals.
+
+Backend:
+
+```bash
+cd /Users/tvishakumar/github/directindex/backend
+.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Frontend:
+
+```bash
+cd /Users/tvishakumar/github/directindex/frontend
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev -- --hostname 0.0.0.0 --port 3000
+```
+
+Open the app at http://localhost:3000 and check the API at http://localhost:8000/health.

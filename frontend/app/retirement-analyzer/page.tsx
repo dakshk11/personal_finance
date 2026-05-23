@@ -140,7 +140,8 @@ type SpendingSmileMilestone = {
   age: number;
   annual: number;
   monthly: number;
-  realMultiplier: number;
+  discretionaryMultiplier: number;
+  totalRealMultiplier: number;
   note: string;
 };
 
@@ -1067,7 +1068,7 @@ export default function RetirementAnalyzerPage() {
           <section className="retirement-analysis-grid">
             <article className="dashboard-panel">
               <div className="panel-header">
-                <h2>Natural spending smile</h2>
+                <h2>{spendingModel === "retirementSmile" ? "Natural spending smile" : "Inflation-adjusted spending path"}</h2>
                 <RefreshCw size={18} />
               </div>
               <div className="milestone-grid">
@@ -1076,12 +1077,12 @@ export default function RetirementAnalyzerPage() {
                     <span>{milestone.label}</span>
                     <strong>{currency(milestone.annual)}</strong>
                     <small>Age {milestone.age} / {currency(milestone.monthly)} monthly</small>
-                    <p>{milestone.note} Real spend factor {percent(milestone.realMultiplier)}.</p>
+                    <p>{milestone.note} Discretionary factor {percent(milestone.discretionaryMultiplier)}; total real spend factor {percent(milestone.totalRealMultiplier)}.</p>
                   </div>
                 ))}
               </div>
               <p className="outcome-note">
-                The model keeps essential spending as a floor, then lets discretionary spending dip in mid-retirement and partially rise again late in life.
+                {spendingPathNote(inputs)}
               </p>
             </article>
 
@@ -1838,9 +1839,12 @@ function normalizeAccount(account: AccountInput): AccountInput {
 
 function retirementSpendingForYear(inputs: ProjectionInputs, retirementYear: number) {
   const inflationMultiplier = Math.pow(1 + inputs.inflationRate / 100, retirementYear);
-  const realSpending = inputs.retirementSpending * retirementSmileMultiplier(inputs, retirementYear);
-  const essentialFloor = inputs.essentialSpending * inflationMultiplier;
-  return Math.max(essentialFloor, realSpending * inflationMultiplier);
+  if (inputs.spendingModel === "inflationAdjusted") {
+    return inputs.retirementSpending * inflationMultiplier;
+  }
+  const discretionarySpending = Math.max(0, inputs.retirementSpending - inputs.essentialSpending);
+  const realSpending = inputs.essentialSpending + discretionarySpending * retirementSmileMultiplier(inputs, retirementYear);
+  return realSpending * inflationMultiplier;
 }
 
 function retirementSmileMultiplier(inputs: ProjectionInputs, retirementYear: number) {
@@ -2028,6 +2032,7 @@ function rothConversionDecision(inputs: ProjectionInputs, age: number, taxDeferr
 function buildSpendingSmileMilestones(inputs: ProjectionInputs): SpendingSmileMilestone[] {
   const safeInputs = normalizeInputs(inputs);
   const retirementHorizon = Math.max(1, safeInputs.lifeExpectancy - safeInputs.retirementAge);
+  const isSmileModel = safeInputs.spendingModel === "retirementSmile";
   const anchors = [
     {
       label: "Active years",
@@ -2037,26 +2042,45 @@ function buildSpendingSmileMilestones(inputs: ProjectionInputs): SpendingSmileMi
     {
       label: "Mid-retirement",
       year: Math.round(retirementHorizon * 0.62),
-      note: "Discretionary travel and activity spending tapers while the essential floor remains protected."
+      note: isSmileModel
+        ? "Discretionary travel and activity spending tapers while the essential floor remains protected."
+        : "Real spending stays flat while nominal dollars rise with inflation."
     },
     {
       label: "Late retirement",
       year: retirementHorizon,
-      note: "The model allows a late-life rise for care, housing, or support needs."
+      note: isSmileModel
+        ? "The model allows a late-life rise for care, housing, or support needs."
+        : "The final-year value is the same real spending target expressed in inflated dollars."
     }
   ];
 
   return anchors.map((anchor) => {
     const annual = retirementSpendingForYear(safeInputs, anchor.year);
+    const inflationMultiplier = Math.pow(1 + safeInputs.inflationRate / 100, anchor.year);
+    const realBase = safeInputs.retirementSpending * inflationMultiplier;
     return {
       label: anchor.label,
       age: safeInputs.retirementAge + anchor.year,
       annual,
       monthly: annual / 12,
-      realMultiplier: retirementSmileMultiplier(safeInputs, anchor.year),
+      discretionaryMultiplier: retirementSmileMultiplier(safeInputs, anchor.year),
+      totalRealMultiplier: realBase > 0 ? annual / realBase : 0,
       note: anchor.note
     };
   });
+}
+
+function spendingPathNote(inputs: ProjectionInputs) {
+  const safeInputs = normalizeInputs(inputs);
+  if (safeInputs.spendingModel === "inflationAdjusted") {
+    return "This path keeps real spending flat: annual cash-flow spending starts with the user-entered retirement spending amount and then rises only with inflation.";
+  }
+  const discretionarySpending = Math.max(0, safeInputs.retirementSpending - safeInputs.essentialSpending);
+  if (discretionarySpending <= 0) {
+    return "The natural spending smile is currently constrained because essential annual spending is equal to planned annual spending. The cash-flow table will match the inflation-adjusted path until essential spending is lower than total planned spending.";
+  }
+  return "Annual amounts are inflation-adjusted nominal dollars. The smile applies to discretionary spending above the essential floor, so required spending remains protected while flexible spending dips in mid-retirement and partially rises again late in life.";
 }
 
 function buildPreRetirementIncomeAnalysis(inputs: ProjectionInputs): PreRetirementIncomeAnalysis {

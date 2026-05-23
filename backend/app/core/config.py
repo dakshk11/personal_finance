@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     test_account_email: str = "test@gmail.com"
     test_account_password: str = "1234"
     sec_user_agent: str = "DirectIndex local 13F research admin@example.com"
+    ai_advisor_key_encryption_secret: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

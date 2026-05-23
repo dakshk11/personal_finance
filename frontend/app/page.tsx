@@ -15,7 +15,9 @@ export default function Home() {
         <nav className="nav-actions">
           <Link className="link-button" href="/research">Research</Link>
           <Link className="link-button" href="/portfolio">Portfolio</Link>
+          <Link className="link-button" href="/investing">Investing</Link>
           <Link className="link-button" href="/ideas">Ideas</Link>
+          <Link className="link-button" href="/ai-advisor">AI advisor</Link>
           <Link className="link-button" href="/retirement-analyzer">Retirement analyzer</Link>
           <Link className="link-button" href="/advisor">Advisor workspace</Link>
           <Link className="link-button" href="/login">Log in</Link>
@@ -33,13 +35,15 @@ export default function Home() {
           <div className="hero-actions" style={{ marginTop: 28 }}>
             <Link className="primary-button" href="/signup">Create account <ArrowRight size={16} /></Link>
             <Link className="secondary-button" href="/portfolio">Portfolio analyzer</Link>
+            <Link className="secondary-button" href="/investing">Investing calculators</Link>
             <Link className="secondary-button" href="/research">Review methodology</Link>
             <Link className="secondary-button" href="/ideas">Investor ideas</Link>
+            <Link className="secondary-button" href="/ai-advisor">AI advisor</Link>
             <Link className="secondary-button" href="/retirement-analyzer">Retirement analyzer</Link>
             <Link className="ghost-button" href="/advisor">Open advisor workspace</Link>
           </div>
           <div className="trust-row">
-            <div><strong>7 modules</strong><span>portfolio, retirement, ideas, advisor, research, 13F, direct indexing</span></div>
+            <div><strong>9 modules</strong><span>portfolio, investing, retirement, AI advisor, ideas, advisor, research, 13F, direct indexing</span></div>
             <div><strong>8 playbooks</strong><span>self-managed investor ideas</span></div>
             <div><strong>Saved inputs</strong><span>retirement analyzer state after login</span></div>
           </div>

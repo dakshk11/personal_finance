@@ -26,6 +26,39 @@ class RetirementAnalyzerStateOut(BaseModel):
     updated_at: datetime | None = None
 
 
+class AIAdvisorOpenAIKeyIn(BaseModel):
+    api_key: str = Field(min_length=20, max_length=512)
+
+
+class AIAdvisorOpenAIKeyOut(BaseModel):
+    has_key: bool
+    key_fingerprint: str | None = None
+    validated_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class AIAdvisorRetirementRunRequest(BaseModel):
+    module_id: str = Field(min_length=1, max_length=80)
+    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+    inputs: dict[str, Any] = Field(default_factory=dict)
+
+
+class AIAdvisorReportSummaryOut(BaseModel):
+    id: int
+    module_id: str
+    module_title: str
+    model: str
+    created_at: datetime
+
+
+class AIAdvisorReportOut(AIAdvisorReportSummaryOut):
+    input_snapshot: dict[str, Any]
+    prompt_text: str
+    response_text: str
+    usage: dict[str, Any] = Field(default_factory=dict)
+    error: dict[str, Any] | None = None
+
+
 class IndexOut(BaseModel):
     symbol: str
     name: str
@@ -282,6 +315,72 @@ class DataSyncOut(BaseModel):
     status: str
     synced_indices: list[str]
     warning: str | None = None
+
+
+class MajorIndexOut(BaseModel):
+    symbol: str
+    name: str
+    benchmark: str
+    category: str
+
+
+class HighYieldBacktestOut(BaseModel):
+    evaluated_weeks: int
+    buy_signals: int
+    hit_rate_4w: float | None = None
+    average_forward_return_4w: float | None = None
+    last_buy_date: date | None = None
+    recent_buy_dates: list[date]
+
+
+class HighYieldSignalOut(BaseModel):
+    action: Literal["BUY", "HOLD"]
+    signal_date: date | None = None
+    last_close: float | None = None
+    reason: str
+    reasons: list[str]
+    risk_state: str
+    confidence: float
+    limited_history: bool
+    data_points: int
+    backtest: HighYieldBacktestOut
+
+
+class HighYieldFundOut(BaseModel):
+    symbol: str
+    name: str
+    issuer: str
+    exposure: str
+    strategy: str
+    distribution_frequency: str
+    source_url: str
+    risk_note: str
+    data_source: str
+    last_price_date: date | None = None
+    cached_at: datetime | None = None
+    warnings: list[str]
+    signal: HighYieldSignalOut
+
+
+class MarketPriceBarOut(BaseModel):
+    date: date
+    close: float
+    adjusted_close: float
+    dividend: float = 0
+    source: str
+
+
+class MarketHistoryOut(BaseModel):
+    symbol: str
+    name: str
+    benchmark: str
+    category: str
+    requested_start_date: date
+    requested_end_date: date
+    start_date: date | None = None
+    end_date: date | None = None
+    bars: list[MarketPriceBarOut]
+    warnings: list[str]
 
 
 class ThirteenFSearchRequest(BaseModel):
