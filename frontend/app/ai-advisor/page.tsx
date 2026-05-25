@@ -10,6 +10,7 @@ import {
   Loader2,
   LockKeyhole,
   MessageSquareText,
+  Newspaper,
   Play,
   ShieldCheck,
   TrendingUp,
@@ -19,6 +20,7 @@ import {
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { EarningsAgentTool } from "@/components/EarningsAgentTool";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 import { OptionStrategyTool } from "@/components/OptionStrategyTool";
 import { PersonalCFOTool } from "@/components/PersonalCFOTool";
@@ -33,7 +35,7 @@ import {
 } from "@/lib/api";
 
 type AIModel = AIAdvisorRetirementRunRequest["model"];
-type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook";
+type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook" | "earnings-agent";
 
 type RetirementField = {
   id: string;
@@ -319,6 +321,15 @@ export default function AIAdvisorPage() {
         >
           <Gauge size={16} /> RSI Playbook
         </button>
+        <button
+          className={activeTab === "earnings-agent" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "earnings-agent"}
+          onClick={() => setActiveTab("earnings-agent")}
+        >
+          <Newspaper size={16} /> Earnings Agent
+        </button>
       </div>
 
       <div className="ai-advisor-layout">
@@ -477,8 +488,10 @@ export default function AIAdvisorPage() {
             <OptionStrategyTool />
           ) : activeTab === "portfolio-sync" ? (
             <PortfolioSyncTool />
-          ) : (
+          ) : activeTab === "rsi-playbook" ? (
             <RSIPlaybookTool />
+          ) : (
+            <EarningsAgentTool keyStatus={keyStatus} />
           )}
         </section>
       </div>

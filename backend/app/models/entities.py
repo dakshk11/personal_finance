@@ -26,6 +26,7 @@ class User(Base):
     retirement_analyzer_state: Mapped["RetirementAnalyzerState | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     ai_advisor_openai_key: Mapped["AIAdvisorOpenAIKey | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     ai_advisor_reports: Mapped[list["AIAdvisorReport"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    earnings_agent_runs: Mapped[list["EarningsAgentRun"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     personal_cfo_projects: Mapped[list["PersonalCFOProject"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     option_strategy_config: Mapped["OptionStrategyConfigState | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     option_strategy_scan_runs: Mapped[list["OptionStrategyScanRun"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -77,6 +78,33 @@ class AIAdvisorReport(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     user: Mapped["User"] = relationship(back_populates="ai_advisor_reports")
+
+
+class EarningsAgentRun(Base):
+    __tablename__ = "earnings_agent_runs"
+    __table_args__ = (
+        Index("ix_earnings_agent_run_user_created", "user_id", "created_at"),
+        Index("ix_earnings_agent_run_user_ticker", "user_id", "ticker"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    query: Mapped[str] = mapped_column(String(160))
+    ticker: Mapped[str] = mapped_column(String(16), index=True)
+    company_name: Mapped[str] = mapped_column(String(240))
+    cik: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    model: Mapped[str] = mapped_column(String(80))
+    source_status: Mapped[str] = mapped_column(String(32), default="partial", index=True)
+    sec_source_json: Mapped[str] = mapped_column(Text, default="{}")
+    transcript_source_json: Mapped[str] = mapped_column(Text, default="{}")
+    digest_json: Mapped[str] = mapped_column(Text, default="{}")
+    warnings_json: Mapped[str] = mapped_column(Text, default="[]")
+    prompt_text: Mapped[str] = mapped_column(Text)
+    response_text: Mapped[str] = mapped_column(Text)
+    usage_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="earnings_agent_runs")
 
 
 class PersonalCFOProject(Base):

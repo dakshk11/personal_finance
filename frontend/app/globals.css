@@ -4852,6 +4852,440 @@ button.rsi-row.active {
   line-height: 1.45;
 }
 
+.earnings-agent-head {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+  color: #e7f8f1;
+  background:
+    linear-gradient(180deg, rgba(16, 43, 39, 0.98) 0%, rgba(7, 16, 14, 0.98) 100%);
+  border-color: #1d4c43;
+}
+
+.earnings-agent-head h2 {
+  max-width: 930px;
+  margin: 0;
+  color: #f8fffd;
+  font-size: clamp(1.75rem, 3.3vw, 2.75rem);
+  line-height: 1.04;
+}
+
+.earnings-agent-source-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.earnings-agent-source-line span {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  color: #d8f5ea;
+  background: #10241f;
+  border: 1px solid #2a5a50;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.earnings-agent-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.earnings-agent-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.15fr) minmax(260px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.earnings-search-box {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.earnings-search-box input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+}
+
+.earnings-model-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.earnings-model-control button {
+  min-width: 0;
+  min-height: 42px;
+  padding: 7px 9px;
+  color: #315243;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.earnings-model-control button.active {
+  color: #e9fff7;
+  background: #173f3a;
+  border-color: #173f3a;
+}
+
+.earnings-model-control strong,
+.earnings-model-control span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.earnings-model-control strong {
+  font-size: 0.82rem;
+}
+
+.earnings-model-control span {
+  margin-top: 2px;
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+.earnings-run-button {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.earnings-agent-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  color: #5b4b20;
+  background: #fff8e6;
+  border-color: #f4d78d;
+}
+
+.earnings-agent-notice p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.earnings-agent-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.64fr) minmax(300px, 0.36fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.earnings-digest-panel {
+  display: grid;
+  gap: 14px;
+  color: #d8f5ea;
+  background:
+    linear-gradient(180deg, #090f10 0, #07110e 100%);
+  border-color: #17352d;
+}
+
+.earnings-digest-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.earnings-digest-head span,
+.earnings-source-radar span {
+  display: block;
+  color: #7ea99a;
+  font-size: 0.72rem;
+  font-weight: 820;
+  text-transform: uppercase;
+}
+
+.earnings-digest-head h2 {
+  margin: 4px 0;
+  color: #e9fff7;
+  font-size: clamp(1.35rem, 2.5vw, 2rem);
+  line-height: 1.05;
+}
+
+.earnings-digest-head p {
+  margin: 0;
+  color: #b6d9cb;
+}
+
+.earnings-source-radar {
+  min-width: 124px;
+  padding: 10px 11px;
+  text-align: right;
+  background: rgba(9, 24, 21, 0.92);
+  border: 1px solid #17352d;
+  border-radius: 8px;
+}
+
+.earnings-source-radar strong {
+  display: block;
+  margin-top: 4px;
+  color: #e9fff7;
+  font-size: 1rem;
+  text-transform: capitalize;
+}
+
+.earnings-source-radar.partial strong {
+  color: #facc15;
+}
+
+.earnings-source-radar.missing strong {
+  color: #fb7185;
+}
+
+.earnings-digest-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.earnings-digest-card,
+.earnings-raw-markdown {
+  min-width: 0;
+  padding: 12px;
+  color: #d8f5ea;
+  background: rgba(9, 24, 21, 0.92);
+  border: 1px solid #17352d;
+  border-radius: 8px;
+}
+
+.earnings-digest-card h3,
+.earnings-raw-markdown h3 {
+  margin: 0 0 8px;
+  color: #e9fff7;
+  font-size: 0.92rem;
+}
+
+.earnings-digest-card p,
+.earnings-raw-markdown p,
+.earnings-digest-card li {
+  color: #b6d9cb;
+  line-height: 1.48;
+}
+
+.earnings-digest-card p,
+.earnings-raw-markdown p,
+.earnings-digest-card ul {
+  margin: 0;
+}
+
+.earnings-digest-card ul {
+  display: grid;
+  gap: 7px;
+  padding-left: 18px;
+}
+
+.earnings-digest-card.risk {
+  border-color: #4e2c2f;
+}
+
+.earnings-metric-list {
+  display: grid;
+  gap: 8px;
+}
+
+.earnings-metric-list div {
+  min-width: 0;
+  padding: 9px 10px;
+  background: rgba(19, 54, 48, 0.72);
+  border: 1px solid #225046;
+  border-radius: 8px;
+}
+
+.earnings-metric-list span {
+  display: block;
+  color: #7ea99a;
+  font-size: 0.72rem;
+  font-weight: 820;
+  text-transform: uppercase;
+}
+
+.earnings-metric-list strong {
+  display: block;
+  margin-top: 3px;
+  color: #e9fff7;
+  overflow-wrap: anywhere;
+}
+
+.earnings-metric-list p {
+  margin-top: 4px;
+}
+
+.earnings-agent-rail,
+.earnings-source-panel,
+.earnings-warning-panel,
+.earnings-history-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.earnings-source-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.earnings-source-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  background: #fbfcfa;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.earnings-source-card.partial,
+.earnings-source-card.missing {
+  background: #fff8e6;
+  border-color: #f4d78d;
+}
+
+.earnings-source-card h3,
+.earnings-source-card p {
+  margin: 0;
+}
+
+.earnings-source-card h3 {
+  margin-top: 8px;
+}
+
+.earnings-source-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.earnings-source-card dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.earnings-source-card dd {
+  margin: 3px 0 0;
+  font-weight: 760;
+  overflow-wrap: anywhere;
+}
+
+.earnings-source-excerpt,
+.earnings-source-warning,
+.earnings-warning-panel p {
+  padding: 10px 11px;
+  border-radius: 8px;
+  line-height: 1.45;
+}
+
+.earnings-source-excerpt {
+  color: #315243;
+  background: #f0fdfa;
+  border: 1px solid #c8ece4;
+}
+
+.earnings-source-warning,
+.earnings-warning-panel p {
+  color: #5b4b20;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid #eed38e;
+}
+
+.earnings-warning-panel {
+  color: #5b4b20;
+  background: #fff8e6;
+  border-color: #f4d78d;
+}
+
+.earnings-warning-panel p {
+  margin: 0;
+}
+
+.earnings-history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.earnings-history-list button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 11px;
+  color: #25342f;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.earnings-history-list button.active {
+  background: #effcf8;
+  border-color: #99d8c8;
+}
+
+.earnings-history-list strong,
+.earnings-history-list span,
+.earnings-history-list em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.earnings-history-list small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.earnings-history-list span,
+.earnings-history-list em {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.earnings-empty {
+  display: grid;
+  min-height: 420px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.earnings-empty h2,
+.earnings-empty p {
+  margin: 0;
+}
+
+.earnings-empty p {
+  max-width: 520px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 @media (max-width: 980px) {
   .hero,
   .dashboard-grid,
@@ -4867,6 +5301,7 @@ button.rsi-row.active {
   .personal-cfo-dashboard-grid,
   .portfolio-sync-dashboard-grid,
   .rsi-workbench-grid,
+  .earnings-agent-layout,
   .high-yield-fund-grid,
   .portfolio-analyzer-layout,
   .idea-layout,
@@ -4900,6 +5335,8 @@ button.rsi-row.active {
   .portfolio-sync-credential-fields,
   .rsi-stat-grid,
   .rsi-rule-grid,
+  .earnings-agent-form,
+  .earnings-digest-grid,
   .personal-cfo-file-tabs,
   .ai-module-grid,
   .investing-control-grid,
@@ -4976,6 +5413,9 @@ button.rsi-row.active {
   .high-yield-meta-grid,
   .option-deep-dive-grid,
   .option-strategy-stat-grid,
+  .earnings-agent-form,
+  .earnings-model-control,
+  .earnings-digest-grid,
   .investing-control-grid,
   .investing-return-grid,
   .investing-row,
@@ -5004,12 +5444,15 @@ button.rsi-row.active {
   .portfolio-sync-head,
   .rsi-playbook-head,
   .rsi-detail-head,
+  .earnings-agent-head,
+  .earnings-digest-head,
   .option-terminal-head,
   .ai-retirement-form .panel-header,
   .personal-cfo-head,
   .personal-cfo-actions,
   .portfolio-sync-actions,
   .rsi-actions,
+  .earnings-agent-status,
   .high-yield-footer,
   .high-yield-trade-head {
     flex-direction: column;
@@ -5042,6 +5485,7 @@ button.rsi-row.active {
   .rsi-stat-grid,
   .rsi-rule-grid,
   .rsi-detail-stats,
+  .earnings-source-card dl,
   .high-yield-terminal-stats {
     grid-template-columns: 1fr;
   }

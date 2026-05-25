@@ -59,6 +59,57 @@ class AIAdvisorReportOut(AIAdvisorReportSummaryOut):
     error: dict[str, Any] | None = None
 
 
+class EarningsAgentRunRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=160)
+    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+
+
+class EarningsAgentSourceOut(BaseModel):
+    source_type: Literal["sec", "motley"] | str
+    title: str
+    status: Literal["found", "missing", "partial"] | str
+    url: str | None = None
+    document_type: str | None = None
+    filing_date: date | None = None
+    excerpt: str | None = None
+    warning: str | None = None
+
+
+class EarningsAgentMetricOut(BaseModel):
+    name: str
+    value: str
+    context: str | None = None
+
+
+class EarningsAgentDigestOut(BaseModel):
+    executive_summary: str = ""
+    top_takeaways: list[str] = Field(default_factory=list)
+    financial_metrics: list[EarningsAgentMetricOut] = Field(default_factory=list)
+    management_tone: str = ""
+    risks: list[str] = Field(default_factory=list)
+    deep_dive_questions: list[str] = Field(default_factory=list)
+    source_notes: list[str] = Field(default_factory=list)
+    raw_markdown: str | None = None
+
+
+class EarningsAgentRunSummaryOut(BaseModel):
+    id: int
+    ticker: str
+    company_name: str
+    created_at: datetime
+    source_status: str
+
+
+class EarningsAgentRunOut(EarningsAgentRunSummaryOut):
+    query: str
+    cik: str | None = None
+    model: str
+    sources: list[EarningsAgentSourceOut] = Field(default_factory=list)
+    digest: EarningsAgentDigestOut
+    warnings: list[str] = Field(default_factory=list)
+    usage: dict[str, Any] = Field(default_factory=dict)
+
+
 class PersonalCFOProjectCreate(BaseModel):
     name: str = Field(default="Investment Folder", min_length=1, max_length=160)
 

@@ -343,6 +343,54 @@ export type RSIPlaybookScan = {
   warnings: string[];
 };
 
+export type EarningsAgentModel = AIAdvisorRetirementRunRequest["model"];
+
+export type EarningsAgentSource = {
+  source_type: "sec" | "motley" | string;
+  title: string;
+  status: "found" | "missing" | "partial" | string;
+  url?: string | null;
+  document_type?: string | null;
+  filing_date?: string | null;
+  excerpt?: string | null;
+  warning?: string | null;
+};
+
+export type EarningsAgentMetric = {
+  name: string;
+  value: string;
+  context?: string | null;
+};
+
+export type EarningsAgentDigest = {
+  executive_summary: string;
+  top_takeaways: string[];
+  financial_metrics: EarningsAgentMetric[];
+  management_tone: string;
+  risks: string[];
+  deep_dive_questions: string[];
+  source_notes: string[];
+  raw_markdown?: string | null;
+};
+
+export type EarningsAgentRunSummary = {
+  id: number;
+  ticker: string;
+  company_name: string;
+  created_at: string;
+  source_status: string;
+};
+
+export type EarningsAgentRun = EarningsAgentRunSummary & {
+  query: string;
+  cik?: string | null;
+  model: EarningsAgentModel | string;
+  sources: EarningsAgentSource[];
+  digest: EarningsAgentDigest;
+  warnings: string[];
+  usage: Record<string, unknown>;
+};
+
 export type MajorIndex = {
   symbol: string;
   name: string;

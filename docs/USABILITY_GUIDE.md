@@ -133,6 +133,7 @@ Primary user jobs:
 - Open Wheel Strategy for a daily educational option-chain scan and wheel lifecycle review.
 - Open Portfolio Sync for read-only brokerage connection, account snapshots, holdings P/L, sector mix, and concentration review.
 - Open RSI Playbook for a combined Wheel Strategy and Portfolio Sync stock list mapped to RSI/EMA action zones.
+- Open Earnings Agent for a source-backed digest of recent SEC earnings materials and transcript coverage.
 
 Professional positioning:
 
@@ -141,6 +142,7 @@ Professional positioning:
 - Wheel Strategy output uses research-priority language and does not place orders.
 - Portfolio Sync is read-only, uses SnapTrade when configured, and shows setup-required copy instead of fake broker data when credentials are missing.
 - RSI Playbook action labels are rule outputs, not execution instructions.
+- Earnings Agent uses educational research language and avoids ratings, price targets, and buy/sell recommendations.
 
 ## Personal CFO
 
@@ -221,6 +223,26 @@ Professional positioning:
 - The chart uses cached provider history when available and labels deterministic fallback chart data.
 - More implementation detail is documented in [RSI_PLAYBOOK.md](RSI_PLAYBOOK.md).
 
+## Earnings Agent
+
+Earnings Agent is an educational earnings-research workspace inside FinanceOS Studio. It accepts a ticker or company name, resolves SEC company metadata, fetches recent earnings-related 8-K exhibits when available, searches bounded Motley Fool transcript pages, and uses the saved encrypted OpenAI key to produce a structured digest.
+
+Primary user jobs:
+
+- Enter a ticker or company name.
+- Choose an OpenAI model from the same FinanceOS Studio model set.
+- Review source cards for SEC EDGAR and earnings transcript coverage.
+- Generate a digest with executive summary, top takeaways, financial metrics, management tone, risks, and deep-dive questions.
+- Reopen saved Earnings Agent runs from history.
+- Use warning labels when SEC exhibits or transcript coverage is missing or only partially parsed.
+
+Professional positioning:
+
+- The workflow is a research digest, not a rating, price target, or trading recommendation.
+- SEC source links stay visible so users can verify the filing.
+- Motley Fool transcript text is used transiently for analysis; FinanceOS stores only source metadata and short provenance excerpts.
+- More implementation detail is documented in [EARNINGS_AGENT.md](EARNINGS_AGENT.md).
+
 ## Research Center
 
 The research center gives users context for the methodology and keeps assumptions visible.
@@ -249,10 +271,11 @@ Professional positioning:
 5. Open Portfolio Analyzer and show how entered holdings, cost basis, daily close data, unrealized gains, and valuation signals are reviewed.
 6. Open Advisor Workspace and show how a taxable transition proposal is generated from imported lots and constraints.
 7. Open Retirement Analyzer and show account inputs, state taxes, spending smile, Roth conversion reasoning, and the annual funding mix chart.
-8. Open FinanceOS Studio and show the saved OpenAI key area, Personal CFO tab, Wheel Strategy tab, Portfolio Sync tab, and RSI Playbook tab.
+8. Open FinanceOS Studio and show the saved OpenAI key area, Personal CFO tab, Wheel Strategy tab, Portfolio Sync tab, RSI Playbook tab, and Earnings Agent tab.
 9. In Wheel Strategy, show the universe chips, Deep Dive Summary, candidate table, checklist, and lifecycle cards.
 10. In Portfolio Sync, show either the setup-required state or a synced brokerage snapshot with accounts, sector mix, P/L, and concentration flags.
 11. In RSI Playbook, show the rule strip, per-stock summary, filters, and detail chart with price, EMA, and RSI.
+12. In Earnings Agent, show the ticker/company input, source cards, digest sections, warnings, and saved run history.
 12. End by reiterating that outputs are planning artifacts for professional review, not trade or tax instructions.
 
 ## Usability Principles
@@ -265,6 +288,7 @@ Professional positioning:
 - Label fallback option-chain data clearly in Wheel Strategy.
 - Show setup-required state instead of fake broker data in Portfolio Sync.
 - Keep RSI Playbook rule labels close to chart context and manual verification notes.
+- Keep Earnings Agent source warnings visible and avoid advice or rating language.
 - Make the distinction between simulation and implementation unavoidable.
 - Keep product copy professional, specific, and conservative.
 
@@ -277,6 +301,7 @@ Professional positioning:
 - Wheel Strategy depends on yfinance option-chain availability and may show deterministic fallback contracts for educational review.
 - Portfolio Sync requires SnapTrade credentials for live read-only brokerage connection; without credentials, users should use the manual Portfolio Analyzer.
 - RSI Playbook depends on daily market-history availability and can show deterministic fallback chart data when providers are unavailable.
+- Earnings Agent depends on public SEC/Motley source availability and a saved OpenAI key; missing or partial sources are labeled rather than replaced with fake transcripts.
 - Tax and retirement calculations use simplified assumptions.
 - Retirement analyzer output is deterministic, not a Monte Carlo engine.
 - No live trading, custody, tax filing, or brokerage execution is provided.
