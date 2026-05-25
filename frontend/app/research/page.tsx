@@ -1,5 +1,6 @@
 import { ArrowRight, BookOpen, Calculator, CheckCircle2, FileText, GitBranch, LineChart, Scale, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { AppHeader } from "@/components/AppHeader";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 
 const sourcePapers = [
@@ -117,21 +118,7 @@ const modelNotes = [
 export default function ResearchPage() {
   return (
     <main className="site-shell">
-      <header className="topbar">
-        <Link href="/" className="brand">
-          <span className="brand-mark">D</span>
-          <span>DirectIndex</span>
-        </Link>
-        <nav className="nav-actions">
-          <Link className="link-button" href="/">Home</Link>
-          <Link className="link-button" href="/ideas">Ideas</Link>
-          <Link className="link-button" href="/portfolio">Portfolio</Link>
-          <Link className="link-button" href="/retirement-analyzer">Retirement analyzer</Link>
-          <Link className="link-button" href="/advisor">Advisor workspace</Link>
-          <Link className="link-button" href="/login">Log in</Link>
-          <Link className="primary-button" href="/signup">Get started <ArrowRight size={16} /></Link>
-        </nav>
-      </header>
+      <AppHeader variant="site" />
 
       <section className="research-hero">
         <div>
@@ -145,7 +132,7 @@ export default function ResearchPage() {
           <BookOpen size={24} />
           <h2>What users should understand</h2>
           <p>
-            DirectIndex is simulation-only. It shows how tax-loss harvesting candidates are found, filtered, replaced, and backtested before a user talks with a qualified advisor.
+            FinanceOS is simulation-only. It shows how tax-loss harvesting candidates are found, filtered, replaced, and backtested before a user talks with a qualified advisor.
           </p>
           <div className="inline-actions">
             <span className="status-pill">Research backed</span>
@@ -174,7 +161,7 @@ export default function ResearchPage() {
               <h3>{paper.title}</h3>
               <p>{paper.plainEnglish}</p>
               <div className="source-use">
-                <strong>Used in DirectIndex for</strong>
+                <strong>Used in FinanceOS for</strong>
                 <span>{paper.usedFor}</span>
               </div>
               <a href={paper.url} target="_blank" rel="noreferrer" className="text-link">
@@ -231,7 +218,7 @@ export default function ResearchPage() {
               The website now separates methodology from marketing: users can see source material, understand the simplified algorithm, and verify that risky ideas such as long-short direct indexing are labeled research-only.
             </p>
           </div>
-          <Link className="primary-button" href="/signup">Try the simulation <ArrowRight size={16} /></Link>
+          <Link className="primary-button" href="/dashboard">Try the simulation <ArrowRight size={16} /></Link>
         </div>
       </section>
     </main>

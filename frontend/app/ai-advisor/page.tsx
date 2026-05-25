@@ -5,19 +5,25 @@ import {
   CheckCircle2,
   FileText,
   FolderArchive,
+  Gauge,
   KeyRound,
   Loader2,
   LockKeyhole,
   MessageSquareText,
   Play,
   ShieldCheck,
-  Trash2
+  TrendingUp,
+  Trash2,
+  WalletCards
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
+import { OptionStrategyTool } from "@/components/OptionStrategyTool";
 import { PersonalCFOTool } from "@/components/PersonalCFOTool";
+import { PortfolioSyncTool } from "@/components/PortfolioSyncTool";
+import { RSIPlaybookTool } from "@/components/RSIPlaybookTool";
 import {
   AIAdvisorOpenAIKeyStatus,
   AIAdvisorReport,
@@ -27,7 +33,7 @@ import {
 } from "@/lib/api";
 
 type AIModel = AIAdvisorRetirementRunRequest["model"];
-type AdvisorTab = "retirement-plan" | "personal-cfo";
+type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook";
 
 type RetirementField = {
   id: string;
@@ -136,7 +142,6 @@ const modules: RetirementModule[] = [
 ];
 
 export default function AIAdvisorPage() {
-  const router = useRouter();
   const [keyStatus, setKeyStatus] = useState<AIAdvisorOpenAIKeyStatus | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [keyMessage, setKeyMessage] = useState("");
@@ -159,16 +164,15 @@ export default function AIAdvisorPage() {
 
   async function bootstrap() {
     try {
-      await apiFetch("/auth/me");
       const [key, history] = await Promise.all([
         apiFetch<AIAdvisorOpenAIKeyStatus>("/ai-advisor/openai-key"),
         apiFetch<AIAdvisorReportSummary[]>("/ai-advisor/reports")
       ]);
       setKeyStatus(key);
       setReports(history);
-      setKeyMessage(key.has_key ? `Validated key ${key.key_fingerprint ?? ""}` : "No OpenAI key saved");
-    } catch {
-      router.push("/login");
+      setKeyMessage(key.has_key ? `Saved key ${key.key_fingerprint ?? ""}` : "No OpenAI key saved");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load FinanceOS Studio");
     }
   }
 
@@ -188,7 +192,7 @@ export default function AIAdvisorPage() {
       });
       setApiKey("");
       setKeyStatus(saved);
-      setKeyMessage(`Validated and saved ${saved.key_fingerprint ?? "OpenAI key"}`);
+      setKeyMessage(`Saved ${saved.key_fingerprint ?? "OpenAI key"}`);
     } catch (err) {
       setKeyMessage(err instanceof Error ? err.message : "Could not validate OpenAI key.");
     } finally {
@@ -252,25 +256,24 @@ export default function AIAdvisorPage() {
 
   return (
     <main className="dashboard-shell ai-advisor-shell">
-      <header className="dashboard-header">
-        <div>
-          <Link href="/" className="brand"><span className="brand-mark">D</span><span>DirectIndex</span></Link>
-          <h1>AI advisor</h1>
-        </div>
-        <div className="dashboard-actions">
+      <AppHeader
+        title="FinanceOS Studio"
+        actions={
+          <>
           <span className={keyStatus?.has_key ? "status-pill" : "risk-pill"}>{keyStatus?.has_key ? "OpenAI key saved" : "Key required"}</span>
           <Link className="ghost-button" href="/portfolio">Portfolio</Link>
-          <Link className="ghost-button" href="/investing">Investing</Link>
-          <Link className="ghost-button" href="/retirement-analyzer">Retirement analyzer</Link>
+          <Link className="ghost-button" href="/investing">Calculators</Link>
+          <Link className="ghost-button" href="/retirement-analyzer">Plan</Link>
           <Link className="secondary-button" href="/dashboard">Portfolio dashboard</Link>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="dashboard-disclaimer">
         <LegalDisclaimer compact />
       </div>
 
-      <div className="ai-tabbar" role="tablist" aria-label="AI advisor tabs">
+      <div className="ai-tabbar" role="tablist" aria-label="FinanceOS Studio tabs">
         <button
           className={activeTab === "retirement-plan" ? "active" : ""}
           type="button"
@@ -278,7 +281,7 @@ export default function AIAdvisorPage() {
           aria-selected={activeTab === "retirement-plan"}
           onClick={() => setActiveTab("retirement-plan")}
         >
-          <Bot size={16} /> Retirement plan
+          <Bot size={16} /> AI Planner
         </button>
         <button
           className={activeTab === "personal-cfo" ? "active" : ""}
@@ -288,6 +291,33 @@ export default function AIAdvisorPage() {
           onClick={() => setActiveTab("personal-cfo")}
         >
           <FolderArchive size={16} /> Personal CFO
+        </button>
+        <button
+          className={activeTab === "wheel-strategy" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "wheel-strategy"}
+          onClick={() => setActiveTab("wheel-strategy")}
+        >
+          <TrendingUp size={16} /> Wheel Strategy
+        </button>
+        <button
+          className={activeTab === "portfolio-sync" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "portfolio-sync"}
+          onClick={() => setActiveTab("portfolio-sync")}
+        >
+          <WalletCards size={16} /> Portfolio Sync
+        </button>
+        <button
+          className={activeTab === "rsi-playbook" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "rsi-playbook"}
+          onClick={() => setActiveTab("rsi-playbook")}
+        >
+          <Gauge size={16} /> RSI Playbook
         </button>
       </div>
 
@@ -312,7 +342,7 @@ export default function AIAdvisorPage() {
               </div>
               <button className="primary-button" type="submit" disabled={loading === "key"}>
                 {loading === "key" ? <Loader2 size={16} className="spin-icon" /> : <LockKeyhole size={16} />}
-                {keyStatus?.has_key ? "Update key" : "Validate and save"}
+                {keyStatus?.has_key ? "Update key" : "Save key"}
               </button>
               {keyStatus?.has_key && (
                 <button className="ghost-button danger-button" type="button" onClick={deleteKey} disabled={loading === "delete-key"}>
@@ -321,7 +351,7 @@ export default function AIAdvisorPage() {
               )}
             </form>
             <p className="fine-print">{keyMessage || "Keys are encrypted in the database and never shown again after save."}</p>
-            {keyStatus?.validated_at && <p className="fine-print">Validated {formatDateTime(keyStatus.validated_at)}</p>}
+            {keyStatus?.validated_at && <p className="fine-print">Saved {formatDateTime(keyStatus.validated_at)}</p>}
           </section>
 
           <section className="dashboard-panel">
@@ -345,9 +375,9 @@ export default function AIAdvisorPage() {
             <>
               <section className="dashboard-panel ai-advisor-head">
                 <div>
-                  <p className="eyebrow">Retirement plan</p>
+                  <p className="eyebrow">AI Planner</p>
                   <h2>Generate a saved AI retirement report from complete client inputs.</h2>
-                  <p>Choose one planning module, complete every required field, select a model, and generate a database-saved report using your validated OpenAI key.</p>
+                  <p>Choose one planning module, complete every required field, select a model, and generate a database-saved report using your saved OpenAI key.</p>
                 </div>
                 <span className="status-pill"><ShieldCheck size={14} /> Saved history</span>
               </section>
@@ -415,7 +445,7 @@ export default function AIAdvisorPage() {
                 </div>
 
                 {error && <div className="error">{error}</div>}
-                {!keyStatus?.has_key && <div className="error">Save a validated OpenAI API key before generating a report.</div>}
+                {!keyStatus?.has_key && <div className="error">Save an OpenAI API key before generating a report.</div>}
                 <button className="primary-button ai-generate-button" type="submit" disabled={!canGenerate}>
                   {loading === "report" ? <Loader2 size={16} className="spin-icon" /> : <Play size={16} />}
                   {loading === "report" ? "Generating report" : "Generate retirement report"}
@@ -441,8 +471,14 @@ export default function AIAdvisorPage() {
                 </section>
               )}
             </>
+          ) : activeTab === "personal-cfo" ? (
+            <PersonalCFOTool keyStatus={keyStatus} />
+          ) : activeTab === "wheel-strategy" ? (
+            <OptionStrategyTool />
+          ) : activeTab === "portfolio-sync" ? (
+            <PortfolioSyncTool />
           ) : (
-            <PersonalCFOTool keyStatus={keyStatus} onAuthExpired={() => router.push("/login")} />
+            <RSIPlaybookTool />
           )}
         </section>
       </div>

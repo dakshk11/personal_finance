@@ -1,5 +1,7 @@
 .DS_Store
 .env
+.env.*
+!.env.example
 .venv/
 __pycache__/
 *.pyc
@@ -15,3 +17,4 @@ coverage/
 postgres-data/
 redis-data/
 data-cache/
+artifacts/

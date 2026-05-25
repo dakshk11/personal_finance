@@ -66,7 +66,7 @@ class PersonalCFOTests(unittest.TestCase):
         project = cfo.create_project(db, user.id, "Early Project")
 
         with self.assertRaises(cfo.PersonalCFOStateError) as raised:
-            cfo.generate_one_pager(db, project, "sk-test", "gpt-5.4")
+            cfo.generate_one_pager(db, project, "test-openai-key-fixture", "gpt-5.4")
 
         self.assertIn("Complete all seven", str(raised.exception))
 
@@ -74,7 +74,7 @@ class PersonalCFOTests(unittest.TestCase):
         db, user = self._seed_user()
         project = cfo.create_project(db, user.id, "Generic Project")
 
-        updated = cfo.submit_interview_message(db, project, "sk-test", "gpt-5.4", "buy and hold quality companies")
+        updated = cfo.submit_interview_message(db, project, "test-openai-key-fixture", "gpt-5.4", "buy and hold quality companies")
 
         self.assertEqual(updated.current_phase, 1)
         self.assertEqual(updated.messages[-1].content, cfo.GENERIC_PUSHBACK)
@@ -90,7 +90,7 @@ class PersonalCFOTests(unittest.TestCase):
             updated = cfo.submit_interview_message(
                 db,
                 project,
-                "sk-test",
+                "test-openai-key-fixture",
                 "gpt-5.4-mini",
                 "I live in California, earn W2 income, and the portfolio is long-term optionality capital.",
             )
@@ -147,7 +147,7 @@ Tactical and core capital are separate.
 *This document is reviewed every quarter. Material changes require a 48-hour cooldown period before execution.*"""
 
         with patch("app.services.personal_cfo.create_openai_response", return_value=(one_pager, {})):
-            generated = cfo.generate_one_pager(db, project, "sk-test", "gpt-5.4")
+            generated = cfo.generate_one_pager(db, project, "test-openai-key-fixture", "gpt-5.4")
 
         one_pager_file = next(file_row for file_row in generated.files if file_row.path == "investor-one-pager.md")
         self.assertIn("# Investor One-Pager - Visha", one_pager_file.content)
@@ -155,11 +155,11 @@ Tactical and core capital are separate.
         self.assertEqual(generated.messages[-1].content, cfo.REFINEMENT_QUESTION)
 
         with patch("app.services.personal_cfo.create_openai_response", return_value=(one_pager.replace("Optionality first.", "Optionality with a hard cash floor."), {})):
-            refined = cfo.refine_one_pager(db, generated, "sk-test", "gpt-5.4", "Make the cash floor sharper.")
+            refined = cfo.refine_one_pager(db, generated, "test-openai-key-fixture", "gpt-5.4", "Make the cash floor sharper.")
 
         self.assertTrue(refined.refinement_used)
         with self.assertRaises(cfo.PersonalCFOStateError):
-            cfo.refine_one_pager(db, refined, "sk-test", "gpt-5.4", "Second pass.")
+            cfo.refine_one_pager(db, refined, "test-openai-key-fixture", "gpt-5.4", "Second pass.")
 
     def test_zip_export_contains_expected_entries(self) -> None:
         db, user = self._seed_user()

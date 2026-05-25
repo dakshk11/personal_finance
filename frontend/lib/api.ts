@@ -211,6 +211,138 @@ export type PortfolioAnalyzerResult = {
   warnings: string[];
 };
 
+export type PortfolioSyncStatus = {
+  provider: "snaptrade" | string;
+  configured: boolean;
+  connected: boolean;
+  account_count: number;
+  holding_count: number;
+  last_synced_at?: string | null;
+  warnings: string[];
+};
+
+export type PortfolioSyncProviderCredentialStatus = {
+  provider: "snaptrade" | string;
+  configured: boolean;
+  source: "environment" | "database" | "none" | string;
+  client_id?: string | null;
+  consumer_key_fingerprint?: string | null;
+  updated_at?: string | null;
+  warnings: string[];
+};
+
+export type PortfolioSyncProviderCredentialPayload = {
+  client_id: string;
+  consumer_key: string;
+};
+
+export type PortfolioSyncConnect = {
+  provider: "snaptrade" | string;
+  configured: boolean;
+  connected: boolean;
+  redirect_url?: string | null;
+  provider_user_id?: string | null;
+  warnings: string[];
+};
+
+export type PortfolioSyncAccount = {
+  account_id: string;
+  account_name: string;
+  brokerage_name: string;
+  authorization_id?: string | null;
+  account_type?: string | null;
+  status?: string | null;
+  raw: Record<string, unknown>;
+};
+
+export type PortfolioSyncHolding = {
+  symbol: string;
+  shares: number;
+  price: number;
+  market_value: number;
+  weight: number;
+  cost_basis_per_share: number;
+  cost_basis: number;
+  unrealized_gain_loss: number;
+  unrealized_gain_loss_pct: number;
+  account_id?: string | null;
+  account_name: string;
+  brokerage_name: string;
+  sector?: string | null;
+  data_source: string;
+  provider_symbol_id?: string | null;
+  provider_updated_at?: string | null;
+  warning?: string | null;
+};
+
+export type PortfolioSyncSectorExposure = {
+  sector: string;
+  market_value: number;
+  weight: number;
+  holding_count: number;
+};
+
+export type PortfolioSyncSummary = {
+  status: PortfolioSyncStatus;
+  synced_at?: string | null;
+  total_market_value: number;
+  total_cost_basis: number;
+  unrealized_gain_loss: number;
+  unrealized_gain_loss_pct: number;
+  account_count: number;
+  holding_count: number;
+  accounts: PortfolioSyncAccount[];
+  holdings: PortfolioSyncHolding[];
+  top_holdings: PortfolioSyncHolding[];
+  sector_exposures: PortfolioSyncSectorExposure[];
+  concentration_warnings: string[];
+  warnings: string[];
+};
+
+export type RSIPlaybookChartPoint = {
+  date: string;
+  close: number;
+  ema8?: number | null;
+  ema21?: number | null;
+  ema55?: number | null;
+  rsi?: number | null;
+};
+
+export type RSIPlaybookSignal = {
+  symbol: string;
+  name: string;
+  sector: string;
+  sources: string[];
+  group: string;
+  price: number;
+  as_of_date?: string | null;
+  rsi?: number | null;
+  level: string;
+  action: string;
+  action_tone: "cash" | "puts_far_otm" | "puts_atm" | "stock" | "leap" | "watch" | string;
+  summary: string;
+  trend: string;
+  ema8?: number | null;
+  ema21?: number | null;
+  ema55?: number | null;
+  distance_to_ema21?: number | null;
+  window_return_3m?: number | null;
+  portfolio_weight?: number | null;
+  data_source: string;
+  warnings: string[];
+  chart: RSIPlaybookChartPoint[];
+};
+
+export type RSIPlaybookScan = {
+  scanned_at: string;
+  source_summary: string;
+  universe_count: number;
+  portfolio_symbol_count: number;
+  wheel_symbol_count: number;
+  signals: RSIPlaybookSignal[];
+  warnings: string[];
+};
+
 export type MajorIndex = {
   symbol: string;
   name: string;
@@ -538,6 +670,155 @@ export type PersonalCFODashboard = {
   memory_timeline: string[];
   open_flags: string[];
 };
+
+export type OptionStrategyChecklistItem = {
+  id: string;
+  label: string;
+  passed: boolean;
+  actual?: string | number | null;
+  expected?: string | number | null;
+  detail?: string | null;
+};
+
+export type OptionStrategySignalCandidate = {
+  id?: number | string;
+  symbol: string;
+  action: "sell_put" | "covered_call" | string;
+  status: "approved" | "blocked" | string;
+  sector?: string | null;
+  underlying_price: number;
+  strike: number;
+  expiration: string;
+  dte: number;
+  delta: number;
+  iv: number;
+  iv_rank?: number | null;
+  bb_percent?: number | null;
+  earnings_date?: string | null;
+  earnings_days?: number | null;
+  spread_pct?: number | null;
+  bid: number;
+  ask: number;
+  mid: number;
+  open_interest: number;
+  premium_yield: number;
+  collateral: number;
+  alert_target_price: number;
+  exposure_usage?: number | null;
+  score?: number | null;
+  deep_dive_rank?: number | null;
+  deep_dive_summary?: string | null;
+  if_expires_return?: number | null;
+  if_assigned_basis?: number | null;
+  provider?: string | null;
+  checklist: OptionStrategyChecklistItem[];
+  blocked_reasons: string[];
+  created_at: string;
+};
+
+export type OptionStrategyConfig = {
+  tickers: string[];
+  universe_groups?: string[];
+  scan_cadence?: string;
+  account_value: number;
+  exposure_cap: number;
+  dte_min: number;
+  dte_max: number;
+  rsi_period: number;
+  rsi_max: number;
+  ema_periods: number[];
+  min_iv: number;
+  min_iv_rank?: number;
+  min_premium_yield: number;
+  target_delta_min?: number;
+  target_delta_max?: number;
+  bb_percent_max?: number;
+  earnings_exclusion_days?: number;
+  min_open_interest?: number;
+  max_spread_pct?: number;
+  profit_take_pct?: number;
+  single_name_cap?: number;
+  sector_cap?: number;
+  webhook_url?: string | null;
+  updated_at?: string | null;
+};
+
+export type OptionStrategyUniverseItem = {
+  symbol: string;
+  name: string;
+  sector: string;
+  group: string;
+};
+
+export type OptionStrategyUniverse = {
+  items: OptionStrategyUniverseItem[];
+  groups: string[];
+  count: number;
+};
+
+export type OptionStrategyWheelPosition = {
+  id?: number | string;
+  symbol: string;
+  status: "put_open" | "assigned" | "covered_call_open" | "closed" | string;
+  option_type: "put" | "call" | string;
+  strike: number;
+  expiration: string;
+  contracts: number;
+  entry_premium: number;
+  current_price?: number | null;
+  alert_target_price?: number | null;
+  collateral?: number | null;
+  created_at: string;
+  updated_at?: string | null;
+};
+
+export type OptionStrategyAlertEvent = {
+  id?: number | string;
+  symbol: string;
+  kind: "profit_50" | "covered_call_candidate" | string;
+  status: "open" | "sent" | "acknowledged" | string;
+  message: string;
+  target_price?: number | null;
+  current_price?: number | null;
+  created_at: string;
+};
+
+export type OptionStrategyScanResult = {
+  scan_run_id?: number | string | null;
+  scanned_at: string;
+  data_source?: string | null;
+  signals: OptionStrategySignalCandidate[];
+  warnings?: string[];
+};
+
+export function optionStrategyApiUrl(path = "") {
+  const base = process.env.NEXT_PUBLIC_OPTION_STRATEGY_API_URL || `${apiUrl()}/option-strategy`;
+  const normalizedBase = base.replace(/\/$/, "");
+  if (!path) return normalizedBase;
+  return `${normalizedBase}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export async function optionStrategyFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(optionStrategyApiUrl(path), {
+    ...init,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(init.headers ?? {})
+    }
+  });
+  if (!response.ok) {
+    let message = `Request failed with ${response.status}`;
+    try {
+      const body = await response.json();
+      message = typeof body.detail === "string" ? body.detail : body.detail ? JSON.stringify(body.detail) : message;
+    } catch {
+      // Keep default message.
+    }
+    throw new Error(message);
+  }
+  return response.json() as Promise<T>;
+}
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiUrl()}${path}`, {

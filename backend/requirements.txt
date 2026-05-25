@@ -7,6 +7,8 @@ argon2-cffi==23.1.0
 celery==5.4.0
 redis==5.2.1
 yfinance==0.2.51
+snaptrade-python-sdk==11.0.190
 python-multipart==0.0.20
 pytest==8.3.4
-cryptography==45.0.7
+cryptography==43.0.3
+certifi==2026.5.20

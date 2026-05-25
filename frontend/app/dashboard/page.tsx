@@ -2,9 +2,9 @@
 
 import { Activity, BarChart3, Bell, Clock3, DownloadCloud, FileDown, LogOut, Play, Plus, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { AppHeader } from "@/components/AppHeader";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 import { BacktestResult, DirectIndexModel, IndexDefinition, ModelComparison, Portfolio, PortfolioImportHoldingInput, PortfolioImportPayload, PortfolioImportResult, PortfolioImportTaxLotInput, PortfolioInitialization, ThirteenFManagerCandidate, ThirteenFPerformance, ThirteenFSearchResult, ThirteenFWatch, Trade, TradeGeneration, apiFetch, apiUrl, currency, percent } from "@/lib/api";
 
@@ -39,7 +39,6 @@ type DirectIndexModelId = (typeof directIndexModels)[number]["value"];
 type DashboardTab = "backtests" | "models" | "current" | "portfolio";
 
 export default function DashboardPage() {
-  const router = useRouter();
   const [indices, setIndices] = useState<IndexDefinition[]>([]);
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null);
@@ -84,7 +83,6 @@ export default function DashboardPage() {
   async function bootstrap() {
     setError("");
     try {
-      await apiFetch("/auth/me");
       const [indexRows, portfolioRows, filingWatches] = await Promise.all([
         apiFetch<IndexDefinition[]>("/indices"),
         apiFetch<Portfolio[]>("/portfolios"),
@@ -98,14 +96,13 @@ export default function DashboardPage() {
         setSelectedIndex(portfolioRows[0].index_symbol);
         setStartingValue(portfolioRows[0].starting_value);
       }
-    } catch {
-      router.push("/login");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load dashboard");
     }
   }
 
   async function logout() {
     await apiFetch("/auth/logout", { method: "POST" });
-    router.push("/");
   }
 
   async function createPortfolio(event: FormEvent<HTMLFormElement>) {
@@ -438,21 +435,20 @@ export default function DashboardPage() {
 
   return (
     <main className="dashboard-shell">
-      <header className="dashboard-header">
-        <div>
-          <div className="brand"><span className="brand-mark">D</span><span>DirectIndex</span></div>
-          <h1>Portfolio dashboard</h1>
-        </div>
-        <div className="dashboard-actions">
+      <AppHeader
+        title="Portfolio dashboard"
+        actions={
+          <>
           <Link className="ghost-button" href="/research">Research</Link>
           <Link className="ghost-button" href="/portfolio">Portfolio analyzer</Link>
           <Link className="ghost-button" href="/ideas">Ideas</Link>
           <Link className="ghost-button" href="/advisor">Advisor</Link>
-          <Link className="ghost-button" href="/retirement-analyzer">Retirement analyzer</Link>
+          <Link className="ghost-button" href="/retirement-analyzer">Plan</Link>
           <button className="secondary-button" onClick={syncData} disabled={loading === "sync"}><DownloadCloud size={16} /> {loading === "sync" ? "Syncing" : "Sync data"}</button>
           <button className="ghost-button" onClick={logout}><LogOut size={16} /> Log out</button>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="dashboard-disclaimer">
         <LegalDisclaimer compact />

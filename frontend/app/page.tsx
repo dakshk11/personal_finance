@@ -1,73 +1,97 @@
-import { ArrowRight, BarChart3, BookOpen, LockKeyhole, Scale, ShieldCheck, TrendingUp, WalletCards } from "lucide-react";
+import { ArrowRight, BarChart3, BookOpen, Bot, LineChart, LockKeyhole, Scale, ShieldCheck, TrendingUp, WalletCards } from "lucide-react";
 import Link from "next/link";
+import { AppHeader } from "@/components/AppHeader";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
+import { PRODUCT_NAME } from "@/lib/brand";
 
-const bars = [35, 44, 38, 52, 61, 57, 69, 64, 76, 72, 82, 79, 88, 84, 96, 92, 104, 100, 114, 110, 124, 119, 132, 128];
+const modules = [
+  {
+    href: "/retirement-analyzer",
+    label: "Plan",
+    title: "Retirement, Roth, sequencing",
+    body: "Model income, taxes, spending guardrails, and withdrawal order before real-world decisions.",
+    Icon: WalletCards
+  },
+  {
+    href: "/portfolio",
+    label: "Portfolio",
+    title: "Manual and synced holdings",
+    body: "Review cost basis, weights, sector mix, concentration, and synced brokerage snapshots.",
+    Icon: BarChart3
+  },
+  {
+    href: "/ai-advisor",
+    label: "Studio",
+    title: "AI planning and market playbooks",
+    body: "Generate planning artifacts, Personal CFO summaries, Wheel Strategy scans, and RSI reviews.",
+    Icon: Bot
+  },
+  {
+    href: "/research",
+    label: "Research",
+    title: "13F and methodology library",
+    body: "Inspect manager filings, tax-loss harvesting logic, and direct-indexing references.",
+    Icon: BookOpen
+  },
+  {
+    href: "/advisor",
+    label: "Advisor",
+    title: "Transition proposals",
+    body: "Build reviewable transition plans with tax impact, drift, active share, and audit snapshots.",
+    Icon: LineChart
+  }
+];
 
 export default function Home() {
   return (
     <main className="site-shell">
-      <header className="topbar">
-        <Link href="/" className="brand">
-          <span className="brand-mark">D</span>
-          <span>DirectIndex</span>
-        </Link>
-        <nav className="nav-actions">
-          <Link className="link-button" href="/research">Research</Link>
-          <Link className="link-button" href="/portfolio">Portfolio</Link>
-          <Link className="link-button" href="/investing">Investing</Link>
-          <Link className="link-button" href="/ideas">Ideas</Link>
-          <Link className="link-button" href="/ai-advisor">AI advisor</Link>
-          <Link className="link-button" href="/retirement-analyzer">Retirement analyzer</Link>
-          <Link className="link-button" href="/advisor">Advisor workspace</Link>
-          <Link className="link-button" href="/login">Log in</Link>
-          <Link className="primary-button" href="/signup">Get started <ArrowRight size={16} /></Link>
-        </nav>
-      </header>
+      <AppHeader variant="site" />
 
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Simulation-only tax-aware planning</p>
-          <h1>Tax-aware planning simulator.</h1>
+      <section className="hero financeos-hero">
+        <div className="hero-copy-block">
+          <p className="eyebrow">Simulation-only household finance workspace</p>
+          <h1>{PRODUCT_NAME}</h1>
           <p className="hero-copy">
-            Model portfolio transitions, retirement income, Roth conversion windows, self-managed investor playbooks, and direct-index tax workflows before any real-world decision.
+            Plan retirement income, sync brokerage holdings, analyze portfolios, review tax-aware transitions, and run educational market playbooks in one simulation-only workspace.
           </p>
           <div className="hero-actions" style={{ marginTop: 28 }}>
-            <Link className="primary-button" href="/signup">Create account <ArrowRight size={16} /></Link>
-            <Link className="secondary-button" href="/portfolio">Portfolio analyzer</Link>
-            <Link className="secondary-button" href="/investing">Investing calculators</Link>
-            <Link className="secondary-button" href="/research">Review methodology</Link>
-            <Link className="secondary-button" href="/ideas">Investor ideas</Link>
-            <Link className="secondary-button" href="/ai-advisor">AI advisor</Link>
-            <Link className="secondary-button" href="/retirement-analyzer">Retirement analyzer</Link>
-            <Link className="ghost-button" href="/advisor">Open advisor workspace</Link>
+            <Link className="primary-button" href="/dashboard">Open dashboard <ArrowRight size={16} /></Link>
+            <Link className="secondary-button" href="/retirement-analyzer">Plan retirement</Link>
+            <Link className="secondary-button" href="/portfolio">Analyze portfolio</Link>
+            <Link className="secondary-button" href="/ai-advisor">Open Studio</Link>
+            <Link className="ghost-button" href="/research">Research methodology</Link>
           </div>
           <div className="trust-row">
-            <div><strong>9 modules</strong><span>portfolio, investing, retirement, AI advisor, ideas, advisor, research, 13F, direct indexing</span></div>
-            <div><strong>8 playbooks</strong><span>self-managed investor ideas</span></div>
-            <div><strong>Saved inputs</strong><span>retirement analyzer state after login</span></div>
+            <div><strong>Command center</strong><span>planning, portfolio, market playbooks, advisor workflows</span></div>
+            <div><strong>Read-only sync</strong><span>brokerage snapshots, cost-basis review, concentration warnings</span></div>
+            <div><strong>Simulation-first</strong><span>hypothetical outputs with explicit review guardrails</span></div>
           </div>
         </div>
 
-        <div className="product-preview" aria-label="Planning simulator preview">
-          <div className="preview-header">
+        <div className="financeos-cockpit" aria-label="FinanceOS module cockpit">
+          <div className="cockpit-topline">
             <div>
-              <strong>Planning command center</strong>
-              <div style={{ color: "var(--muted)", fontSize: ".9rem", marginTop: 3 }}>Portfolio valuation, retirement, Roth, and investor idea review</div>
+              <strong>Household command center</strong>
+              <span>One workspace for planning, portfolios, markets, and research</span>
             </div>
             <span className="status-pill"><ShieldCheck size={14} /> Simulated</span>
           </div>
-          <div className="metric-strip">
-            <div className="metric"><span>Retirement confidence</span><strong>98%</strong></div>
-            <div className="metric"><span>Roth window</span><strong>Partial</strong></div>
-            <div className="metric"><span>Ideas library</span><strong>8 tabs</strong></div>
+          <div className="cockpit-grid">
+            {modules.map(({ Icon, ...module }) => (
+              <Link className="cockpit-module" href={module.href} key={module.href}>
+                <div className="module-kicker">
+                  <span>{module.label}</span>
+                  <Icon size={18} />
+                </div>
+                <strong>{module.title}</strong>
+                <p>{module.body}</p>
+              </Link>
+            ))}
           </div>
-          <div className="preview-chart">
-            {bars.map((height, index) => <i key={index} style={{ height }} />)}
-          </div>
-          <div className="preview-table">
-            <div className="preview-row"><strong>PLAN</strong><span>Tax-aware withdrawals</span><span>Funding mix</span><span className="status-pill">Modeled</span></div>
-            <div className="preview-row"><strong>REVIEW</strong><span>Roth conversion</span><span>Brokerage tax funding</span><span className="reason-pill">Explainable</span></div>
+          <div className="cockpit-rail">
+            <div><TrendingUp size={18} /><span>Wheel Strategy and RSI Playbook stay educational research, not trading instructions.</span></div>
+            <div><Scale size={18} /><span>Tax-aware transition output remains reviewable and documented.</span></div>
+            <div><LockKeyhole size={18} /><span>Provider secrets are encrypted and never returned to the browser.</span></div>
           </div>
         </div>
       </section>
@@ -78,13 +102,13 @@ export default function Home() {
 
       <section className="section-band">
         <div className="section-title">
-          <h2>Built for tax-aware planning decisions.</h2>
-          <p>Portfolio construction, retirement cash flow, advisor transition proposals, investor ideas, methodology, and daily data caching live behind secure authentication and a modular backend.</p>
+          <h2>Modules that work together.</h2>
+          <p>FinanceOS connects retirement cash flow, synced holdings, portfolio analysis, direct-indexing research, and educational market workbenches while keeping each output in a review-first lane.</p>
         </div>
         <div className="feature-grid">
-          <article className="feature-card"><LockKeyhole size={24} /><h3>Secure user workspace</h3><p>Passwords are hashed with Argon2id, sessions use HTTP-only cookies, and retirement inputs can reload after login.</p></article>
-          <article className="feature-card"><WalletCards size={24} /><h3>Retirement cash flow</h3><p>Account mix, state taxes, Natural Retirement Spending Smile, Roth conversions, and withdrawal sequencing stay visible.</p></article>
-          <article className="feature-card"><BookOpen size={24} /><h3>Investor playbooks</h3><p>Ideas tabs organize sector ETF TLH, asset location, TIPS ladders, charitable giving, buckets, and rebalance bands.</p></article>
+          <article className="feature-card"><LockKeyhole size={24} /><h3>Local workspace</h3><p>Inputs and saved planning artifacts reload against a shared local demo account while login is disabled.</p></article>
+          <article className="feature-card"><WalletCards size={24} /><h3>Household planning</h3><p>Account mix, state taxes, Natural Retirement Spending Smile, Roth conversions, and withdrawal sequencing stay visible.</p></article>
+          <article className="feature-card"><BookOpen size={24} /><h3>Investor playbooks</h3><p>Wheel Strategy, RSI Playbook, sector ETF TLH, asset location, TIPS ladders, charitable giving, buckets, and rebalance bands stay organized.</p></article>
           <article className="feature-card"><BarChart3 size={24} /><h3>Advisor proposals</h3><p>Transition plans show tax impact, drift, active share, assumptions, and frozen audit snapshots.</p></article>
         </div>
       </section>
@@ -92,7 +116,7 @@ export default function Home() {
       <section className="section-band">
         <div className="section-title">
           <h2>Every output stays reviewable.</h2>
-          <p>Direct-index trades, Roth conversion amounts, retirement shortfalls, bucket guidance, and investor ideas are framed as review artifacts, not instructions to act.</p>
+          <p>Portfolio transitions, Roth conversion amounts, retirement shortfalls, bucket guidance, and investor ideas are framed as review artifacts, not instructions to act.</p>
         </div>
         <div className="feature-grid">
           <article className="feature-card"><TrendingUp size={24} /><h3>Tax impact explained</h3><p>TLH output, taxable transitions, Roth conversion taxes, and charitable giving ideas show the assumptions behind the result.</p></article>

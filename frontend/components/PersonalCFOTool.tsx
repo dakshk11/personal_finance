@@ -44,14 +44,26 @@ const personalCfoPhases = [
   "Stress Tests"
 ];
 
+const financialUploadExampleName = "sample-financials.csv";
+const financialUploadExampleContent = `date,cash,pnl,contribution,symbol,market_value,notes
+2026-01-31,42000,1850,5000,,,"Month-end cash balance and portfolio P&L"
+2026-02-28,44750,-900,5000,,,"Month-end cash balance and portfolio P&L"
+2026-03-31,49500,3125,5000,,,"Month-end cash balance and portfolio P&L"
+2026-04-30,46800,-450,0,,,"Month-end cash balance and portfolio P&L"
+2026-05-31,52200,2780,5000,,,"Month-end cash balance and portfolio P&L"
+,,,,AAPL,18500,Core equity holding
+,,,,MSFT,16250,Core equity holding
+,,,,VTI,31000,Broad market ETF
+,,,,SGOV,22000,T-bill ETF / cash-like reserve
+,,,,BTC,7500,High-volatility satellite`;
+
 export function PersonalCFOTool({
-  keyStatus,
-  onAuthExpired
+  keyStatus
 }: {
   keyStatus: AIAdvisorOpenAIKeyStatus | null;
-  onAuthExpired?: () => void;
 }) {
   const bootstrappedRef = useRef(false);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
   const [projects, setProjects] = useState<PersonalCFOProject[]>([]);
   const [project, setProject] = useState<PersonalCFOProject | null>(null);
   const [dashboard, setDashboard] = useState<PersonalCFODashboard | null>(null);
@@ -85,11 +97,14 @@ export function PersonalCFOTool({
     setFileDraft(activeFile.content);
   }, [activeFile?.id, activeFile?.content]);
 
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [project?.messages.length, project?.messages.at(-1)?.id]);
+
   async function bootstrap() {
     setLoading("bootstrap");
     setError("");
     try {
-      await apiFetch("/auth/me");
       const rows = await apiFetch<PersonalCFOProject[]>("/ai-advisor/personal-cfo/projects");
       setProjects(rows);
       const initial = rows[0] ?? await apiFetch<PersonalCFOProject>("/ai-advisor/personal-cfo/projects", {
@@ -97,8 +112,8 @@ export function PersonalCFOTool({
         body: JSON.stringify({ name: "Investment Folder" })
       });
       await loadProject(initial.id, false);
-    } catch {
-      onAuthExpired?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load Personal CFO");
     } finally {
       setLoading("");
     }
@@ -239,6 +254,11 @@ export function PersonalCFOTool({
     setUploadContent(await file.text());
   }
 
+  function useFinancialUploadExample() {
+    setUploadName(financialUploadExampleName);
+    setUploadContent(financialUploadExampleContent);
+  }
+
   async function loadDashboard(projectId: number) {
     setDashboard(await apiFetch<PersonalCFODashboard>(`/ai-advisor/personal-cfo/projects/${projectId}/dashboard`));
   }
@@ -294,7 +314,7 @@ export function PersonalCFOTool({
       {!keyStatus?.has_key && (
         <section className="dashboard-panel investing-warning">
           <KeyRound size={18} />
-          <p>Personal CFO uses the encrypted OpenAI API key saved in AI Advisor. Save a validated key before sending interview answers or generating the one-pager.</p>
+          <p>Personal CFO uses the encrypted OpenAI API key saved in FinanceOS Studio. Save a key before sending interview answers or generating the one-pager.</p>
         </section>
       )}
 
@@ -350,6 +370,7 @@ export function PersonalCFOTool({
                 <p>{message.content}</p>
               </div>
             )) ?? <p className="fine-print">Loading interview.</p>}
+            <div ref={chatEndRef} />
           </div>
 
           <form className="personal-cfo-chat-form" onSubmit={sendMessage}>
@@ -436,11 +457,16 @@ export function PersonalCFOTool({
       <div className="personal-cfo-grid">
         <form className="dashboard-panel personal-cfo-upload" onSubmit={uploadFinancialFile}>
           <div className="panel-header">
-            <h2>Financial uploads</h2>
-            <Upload size={18} />
+            <div>
+              <h2>Financial uploads</h2>
+              <p className="fine-print">Paste CSV manually or choose a markdown/CSV file.</p>
+            </div>
+            <button className="ghost-button" type="button" onClick={useFinancialUploadExample}>
+              <FileText size={16} /> Use CSV example
+            </button>
           </div>
           <div className="field">
-            <label htmlFor="personal-cfo-file">Markdown or CSV file</label>
+            <label htmlFor="personal-cfo-file">Markdown or CSV file optional</label>
             <input id="personal-cfo-file" type="file" accept=".md,.markdown,.csv,text/markdown,text/csv,text/plain" onChange={(event) => void handleFileSelect(event.target.files?.[0] ?? null)} />
           </div>
           <div className="field">
@@ -448,8 +474,13 @@ export function PersonalCFOTool({
             <input id="personal-cfo-upload-name" value={uploadName} onChange={(event) => setUploadName(event.target.value)} placeholder="positions-may-2026.csv" />
           </div>
           <div className="field">
-            <label htmlFor="personal-cfo-upload-content">Content</label>
-            <textarea id="personal-cfo-upload-content" value={uploadContent} onChange={(event) => setUploadContent(event.target.value)} />
+            <label htmlFor="personal-cfo-upload-content">CSV or markdown content</label>
+            <textarea
+              id="personal-cfo-upload-content"
+              value={uploadContent}
+              onChange={(event) => setUploadContent(event.target.value)}
+              placeholder={financialUploadExampleContent}
+            />
           </div>
           <button className="secondary-button" type="submit" disabled={!project || !uploadName.trim() || !uploadContent.trim() || loading === "upload"}>
             {loading === "upload" ? <Loader2 size={16} className="spin-icon" /> : <Upload size={16} />} Upload to Financials

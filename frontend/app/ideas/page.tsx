@@ -17,6 +17,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 
 type IdeaMetric = {
@@ -386,21 +387,7 @@ export default function IdeasPage() {
 
   return (
     <main className="site-shell">
-      <header className="topbar">
-        <Link href="/" className="brand">
-          <span className="brand-mark">D</span>
-          <span>DirectIndex</span>
-        </Link>
-        <nav className="nav-actions">
-          <Link className="link-button" href="/">Home</Link>
-          <Link className="link-button" href="/research">Research</Link>
-          <Link className="link-button" href="/portfolio">Portfolio</Link>
-          <Link className="link-button" href="/retirement-analyzer">Retirement analyzer</Link>
-          <Link className="link-button" href="/advisor">Advisor workspace</Link>
-          <Link className="link-button" href="/login">Log in</Link>
-          <Link className="primary-button" href="/signup">Get started <ArrowRight size={16} /></Link>
-        </nav>
-      </header>
+      <AppHeader variant="site" />
 
       <section className="research-hero idea-hero">
         <div>
@@ -536,7 +523,7 @@ export default function IdeasPage() {
                 <div className="idea-actions">
                   <Link className="secondary-button" href="/dashboard">Dashboard</Link>
                   <Link className="secondary-button" href="/portfolio">Portfolio analyzer</Link>
-                  <Link className="ghost-button" href="/retirement-analyzer">Retirement analyzer</Link>
+                  <Link className="ghost-button" href="/retirement-analyzer">Plan</Link>
                 </div>
               </section>
 

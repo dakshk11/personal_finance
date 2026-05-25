@@ -3,10 +3,12 @@ from datetime import UTC, datetime, date, timedelta
 import csv
 import io
 import json
+import ssl
 from typing import Literal, cast
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+import certifi
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -169,6 +171,7 @@ HIGH_YIELD_FUNDS: tuple[HighYieldFund, ...] = (
 )
 
 HIGH_YIELD_BY_SYMBOL = {item.symbol: item for item in HIGH_YIELD_FUNDS}
+PROVIDER_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 
 def list_major_indexes() -> list[MajorIndex]:
@@ -568,7 +571,7 @@ def _fetch_yahoo_chart_history(symbol: str, start_date: date, end_date: date) ->
         headers={"User-Agent": "Mozilla/5.0 DirectIndex local research"},
     )
     try:
-        with urlopen(request, timeout=12) as response:
+        with urlopen(request, timeout=12, context=PROVIDER_SSL_CONTEXT) as response:
             payload = json.loads(response.read().decode("utf-8", errors="ignore"))
     except Exception:
         return []
@@ -669,7 +672,7 @@ def _fetch_stooq_history(symbol: str, start_date: date, end_date: date) -> list[
     )
     url = f"https://stooq.com/q/d/l/?{query}"
     try:
-        with urlopen(url, timeout=12) as response:
+        with urlopen(url, timeout=12, context=PROVIDER_SSL_CONTEXT) as response:
             payload = response.read().decode("utf-8", errors="ignore")
     except Exception:
         return []

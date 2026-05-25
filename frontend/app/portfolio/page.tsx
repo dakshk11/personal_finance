@@ -2,8 +2,8 @@
 
 import { BarChart3, DownloadCloud, LineChart, Plus, ShieldCheck, Trash2, Upload, WalletCards } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 import { PortfolioAnalyzerHoldingInput, PortfolioAnalyzerResult, apiFetch, currency, percent } from "@/lib/api";
 
@@ -29,7 +29,6 @@ const defaultHoldings: EditableHolding[] = [
 ];
 
 export default function PortfolioAnalyzerPage() {
-  const router = useRouter();
   const [holdings, setHoldings] = useState<EditableHolding[]>(defaultHoldings);
   const [bulkRows, setBulkRows] = useState(sampleBulkRows);
   const [minWeightPercent, setMinWeightPercent] = useState(1);
@@ -40,12 +39,6 @@ export default function PortfolioAnalyzerPage() {
 
   useEffect(() => {
     async function bootstrap() {
-      try {
-        await apiFetch("/auth/me");
-      } catch {
-        router.push("/login");
-        return;
-      }
       try {
         const savedHoldings = window.localStorage.getItem(storageKey);
         const savedThreshold = window.localStorage.getItem(thresholdStorageKey);
@@ -61,7 +54,7 @@ export default function PortfolioAnalyzerPage() {
       }
     }
     void bootstrap();
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     if (!loaded) return;
@@ -140,19 +133,18 @@ export default function PortfolioAnalyzerPage() {
 
   return (
     <main className="dashboard-shell">
-      <header className="dashboard-header">
-        <div>
-          <Link href="/" className="brand"><span className="brand-mark">D</span><span>DirectIndex</span></Link>
-          <h1>Portfolio analyzer</h1>
-        </div>
-        <div className="dashboard-actions">
+      <AppHeader
+        title="Portfolio analyzer"
+        actions={
+          <>
           <Link className="ghost-button" href="/research">Research</Link>
           <Link className="ghost-button" href="/ideas">Ideas</Link>
-          <Link className="ghost-button" href="/retirement-analyzer">Retirement analyzer</Link>
+          <Link className="ghost-button" href="/retirement-analyzer">Plan</Link>
           <Link className="ghost-button" href="/advisor">Advisor</Link>
           <Link className="secondary-button" href="/dashboard">Direct-index dashboard</Link>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="dashboard-disclaimer">
         <LegalDisclaimer compact />

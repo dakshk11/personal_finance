@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DirectIndex",
-  description: "Simulation-only direct indexing and tax-loss harvesting dashboard"
+  title: PRODUCT_NAME,
+  description: PRODUCT_TAGLINE
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -13,4 +14,3 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     </html>
   );
 }
-

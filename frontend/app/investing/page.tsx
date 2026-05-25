@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { AppHeader } from "@/components/AppHeader";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 import {
   HighYieldFund,
@@ -283,19 +284,18 @@ export default function InvestingPage() {
 
   return (
     <main className="dashboard-shell investing-shell">
-      <header className="dashboard-header">
-        <div>
-          <Link href="/" className="brand"><span className="brand-mark">D</span><span>DirectIndex</span></Link>
-          <h1>Investing calculators</h1>
-        </div>
-        <div className="dashboard-actions">
+      <AppHeader
+        title="Investing calculators"
+        actions={
+          <>
           <Link className="ghost-button" href="/"><ArrowLeft size={16} /> Home</Link>
           <Link className="ghost-button" href="/portfolio">Portfolio</Link>
           <Link className="ghost-button" href="/ideas">Ideas</Link>
           <Link className="ghost-button" href="/research">Research</Link>
           <Link className="secondary-button" href="/dashboard">Direct-index dashboard</Link>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="dashboard-disclaimer">
         <LegalDisclaimer compact />
@@ -359,7 +359,7 @@ export default function InvestingPage() {
               <Calculator size={18} />
             </div>
             <p>
-              This page adapts the calculator concepts into the DirectIndex visual system with original explanatory copy,
+              This page adapts the calculator concepts into the FinanceOS visual system with original explanatory copy,
               interactive controls, and explicit simulation guardrails.
             </p>
             {activeMeta.sourceUrl !== "#" && (

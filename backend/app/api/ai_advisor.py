@@ -29,7 +29,7 @@ from app.services.ai_advisor import (
     response_usage,
     sanitized_inputs,
     valid_ai_advisor_model,
-    validate_openai_api_key,
+    validate_openai_api_key_format,
 )
 
 
@@ -60,12 +60,16 @@ def save_openai_key(
 ) -> AIAdvisorOpenAIKeyOut:
     api_key = payload.api_key.strip()
     try:
-        validate_openai_api_key(api_key)
+        validate_openai_api_key_format(api_key)
         encrypted = encrypt_api_key(api_key, get_settings().ai_advisor_key_encryption_secret)
     except AIAdvisorConfigurationError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
     except AIAdvisorProviderError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="OpenAI API key could not be validated.") from exc
+        detail = "OpenAI API key could not be saved."
+        provider_message = str(exc).strip()
+        if provider_message and provider_message != "OpenAI request failed.":
+            detail = provider_message
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail) from exc
 
     timestamp = now_utc_naive()
     row = _openai_key_row(db, user)
@@ -122,7 +126,7 @@ def run_retirement_plan(
 
     key_row = _openai_key_row(db, user)
     if not key_row:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save a validated OpenAI API key before generating a report.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save an OpenAI API key before generating a report.")
 
     inputs = sanitized_inputs(module, payload.inputs)
     prompt_text = build_retirement_prompt(module, inputs)

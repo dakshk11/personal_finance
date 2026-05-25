@@ -1,0 +1,11 @@
+date,cash,pnl,contribution,symbol,market_value,notes
+2026-01-31,42000,1850,5000,,,"Month-end cash balance and portfolio P&L"
+2026-02-28,44750,-900,5000,,,"Month-end cash balance and portfolio P&L"
+2026-03-31,49500,3125,5000,,,"Month-end cash balance and portfolio P&L"
+2026-04-30,46800,-450,0,,,"Month-end cash balance and portfolio P&L"
+2026-05-31,52200,2780,5000,,,"Month-end cash balance and portfolio P&L"
+,,,,AAPL,18500,Core equity holding
+,,,,MSFT,16250,Core equity holding
+,,,,VTI,31000,Broad market ETF
+,,,,SGOV,22000,T-bill ETF / cash-like reserve
+,,,,BTC,7500,High-volatility satellite

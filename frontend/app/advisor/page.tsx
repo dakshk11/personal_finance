@@ -2,8 +2,8 @@
 
 import { CheckCircle2, Download, FileText, Play, ShieldCheck, Upload, Users } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 import {
   AccountImportPayload,
@@ -26,7 +26,6 @@ XOM,Exxon Mobil,Energy,95,115,130,2023-09-20`;
 type Objective = "transition_gradually" | "minimize_gains" | "harvest_losses";
 
 export default function AdvisorPage() {
-  const router = useRouter();
   const [clients, setClients] = useState<AdvisorClient[]>([]);
   const [clientName, setClientName] = useState("Legacy Equity Client");
   const [clientEmail, setClientEmail] = useState("client@example.com");
@@ -53,11 +52,10 @@ export default function AdvisorPage() {
 
   async function bootstrap() {
     try {
-      await apiFetch("/auth/me");
       const rows = await apiFetch<AdvisorClient[]>("/advisor/clients");
       setClients(rows);
-    } catch {
-      router.push("/login");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load advisor workspace");
     }
   }
 
@@ -133,19 +131,18 @@ export default function AdvisorPage() {
 
   return (
     <main className="dashboard-shell">
-      <header className="dashboard-header">
-        <div>
-          <Link href="/" className="brand"><span className="brand-mark">D</span><span>DirectIndex</span></Link>
-          <h1>Advisor planning workspace</h1>
-        </div>
-        <div className="dashboard-actions">
+      <AppHeader
+        title="Advisor planning workspace"
+        actions={
+          <>
           <Link className="ghost-button" href="/research">Research</Link>
           <Link className="ghost-button" href="/portfolio">Portfolio analyzer</Link>
           <Link className="ghost-button" href="/ideas">Ideas</Link>
-          <Link className="ghost-button" href="/retirement-analyzer">Retirement analyzer</Link>
+          <Link className="ghost-button" href="/retirement-analyzer">Plan</Link>
           <Link className="secondary-button" href="/dashboard">Portfolio dashboard</Link>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="dashboard-disclaimer">
         <LegalDisclaimer compact />
@@ -204,7 +201,7 @@ export default function AdvisorPage() {
               </label>
               <label className="check-row compliance-check">
                 <input type="checkbox" checked={disclaimerAccepted} onChange={(event) => setDisclaimerAccepted(event.target.checked)} required />
-                <span>I understand DirectIndex is not providing tax, legal, accounting, investment, fiduciary, brokerage, or trading advice, and I will not act on any output without qualified professional review.</span>
+                <span>I understand FinanceOS is not providing tax, legal, accounting, investment, fiduciary, brokerage, or trading advice, and I will not act on any output without qualified professional review.</span>
               </label>
               <div className="field">
                 <label htmlFor="notes">Household wash-sale notes</label>

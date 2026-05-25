@@ -3,12 +3,15 @@ from __future__ import annotations
 from base64 import urlsafe_b64encode
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 import hashlib
 import json
+import ssl
 from typing import Any, Literal
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+import certifi
 from cryptography.fernet import Fernet, InvalidToken
 
 
@@ -211,8 +214,25 @@ def api_key_fingerprint(api_key: str) -> str:
     return f"sha256:{digest[:16]}"
 
 
+def validate_openai_api_key_format(api_key: str) -> None:
+    cleaned = api_key.strip()
+    if not cleaned.startswith(("sk-", "sess-")) or len(cleaned) < 20:
+        raise AIAdvisorProviderError("Enter a valid OpenAI API key.", status_code=400)
+
+
 def validate_openai_api_key(api_key: str) -> None:
-    _openai_json_request("https://api.openai.com/v1/models", api_key, method="GET")
+    validate_openai_api_key_format(api_key)
+    _openai_json_request(
+        "https://api.openai.com/v1/responses",
+        api_key,
+        method="POST",
+        payload={
+            "model": "gpt-5.4-mini",
+            "input": "Reply with ok.",
+            "max_output_tokens": 8,
+        },
+        timeout=15,
+    )
 
 
 def create_openai_response(api_key: str, model: str, prompt: str, *, instructions: str | None = None) -> tuple[str, dict[str, Any]]:
@@ -270,14 +290,24 @@ def _openai_json_request(
         },
     )
     try:
-        with urlopen(request, timeout=timeout) as response:
+        with urlopen(request, timeout=timeout, context=_openai_ssl_context()) as response:
             return json.loads(response.read().decode("utf-8", errors="ignore") or "{}")
     except HTTPError as exc:
         message = _provider_error_message(exc)
         status_code = 400 if exc.code in {401, 403} else 502
         raise AIAdvisorProviderError(message, status_code=status_code) from exc
-    except (OSError, URLError, json.JSONDecodeError) as exc:
-        raise AIAdvisorProviderError("OpenAI request failed. Please try again later.", status_code=502) from exc
+    except json.JSONDecodeError as exc:
+        raise AIAdvisorProviderError("OpenAI returned an unreadable response. Please try again later.", status_code=502) from exc
+    except URLError as exc:
+        reason = getattr(exc, "reason", exc)
+        raise AIAdvisorProviderError(f"OpenAI request failed before reaching the API: {reason}", status_code=502) from exc
+    except OSError as exc:
+        raise AIAdvisorProviderError(f"OpenAI request failed before reaching the API: {exc}", status_code=502) from exc
+
+
+@lru_cache(maxsize=1)
+def _openai_ssl_context() -> ssl.SSLContext:
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def _provider_error_message(exc: HTTPError) -> str:

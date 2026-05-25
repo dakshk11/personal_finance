@@ -16,6 +16,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { AppHeader } from "@/components/AppHeader";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 import { apiFetch, currency, percent } from "@/lib/api";
 
@@ -630,20 +631,19 @@ export default function RetirementAnalyzerPage() {
 
   return (
     <main className="dashboard-shell">
-      <header className="dashboard-header">
-        <div>
-          <Link href="/" className="brand"><span className="brand-mark">D</span><span>DirectIndex</span></Link>
-          <h1>Retirement analyzer</h1>
-        </div>
-        <div className="dashboard-actions">
+      <AppHeader
+        title="Plan"
+        actions={
+          <>
           <span className={saveStatusClass}>{saveStatus}</span>
           <Link className="ghost-button" href="/research">Research</Link>
           <Link className="ghost-button" href="/portfolio">Portfolio analyzer</Link>
           <Link className="ghost-button" href="/ideas">Ideas</Link>
           <Link className="ghost-button" href="/advisor">Advisor</Link>
           <Link className="secondary-button" href="/dashboard">Portfolio dashboard</Link>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="dashboard-disclaimer">
         <LegalDisclaimer compact />
@@ -1462,7 +1462,7 @@ export default function RetirementAnalyzerPage() {
           <section className="dashboard-panel retirement-warning">
             <AlertTriangle size={18} />
             <p>
-              This is a deterministic planning simulation inspired by common advisor planning workflows. DirectIndex is not affiliated with MoneyGuidePro, RightCapital, or Income Lab, and this is not tax, legal, accounting, investment, fiduciary, brokerage, or trading advice.
+              This is a deterministic planning simulation inspired by common advisor planning workflows. FinanceOS is not affiliated with MoneyGuidePro, RightCapital, or Income Lab, and this is not tax, legal, accounting, investment, fiduciary, brokerage, or trading advice.
             </p>
           </section>
         </section>

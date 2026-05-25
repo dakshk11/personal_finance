@@ -12,16 +12,16 @@ from app.db.session import Base
 from app.models.entities import AIAdvisorOpenAIKey, AIAdvisorReport, User
 from app.schemas.common import AIAdvisorOpenAIKeyIn, AIAdvisorRetirementRunRequest
 from app.services.ai_advisor import (
-    AIAdvisorProviderError,
     RETIREMENT_PROMPT_MODULE_BY_ID,
     decrypt_api_key,
     encrypt_api_key,
     required_field_ids,
+    validate_openai_api_key,
 )
 
 
 SECRET = "test-secret-for-ai-advisor-key-encryption"
-PLAINTEXT_KEY = "sk-test-valid-openai-key-value"
+PLAINTEXT_KEY = "sess-test-valid-openai-key-value"
 
 
 class AIAdvisorTests(unittest.TestCase):
@@ -45,7 +45,7 @@ class AIAdvisorTests(unittest.TestCase):
     def test_key_save_rejects_missing_or_invalid_encryption_secret(self) -> None:
         db, user = self._seed_user()
 
-        with patch("app.api.ai_advisor.validate_openai_api_key"), patch(
+        with patch(
             "app.api.ai_advisor.get_settings",
             return_value=SimpleNamespace(ai_advisor_key_encryption_secret="short"),
         ):
@@ -55,15 +55,12 @@ class AIAdvisorTests(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 500)
         self.assertEqual(db.scalar(select(func.count(AIAdvisorOpenAIKey.id))), 0)
 
-    def test_key_save_validates_before_database_write(self) -> None:
+    def test_key_save_rejects_invalid_key_format_before_database_write(self) -> None:
         db, user = self._seed_user()
 
-        with patch(
-            "app.api.ai_advisor.validate_openai_api_key",
-            side_effect=AIAdvisorProviderError("invalid", status_code=400),
-        ), patch("app.api.ai_advisor.get_settings", return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET)):
+        with patch("app.api.ai_advisor.get_settings", return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET)):
             with self.assertRaises(HTTPException) as raised:
-                save_openai_key(AIAdvisorOpenAIKeyIn(api_key=PLAINTEXT_KEY), user, db)
+                save_openai_key(AIAdvisorOpenAIKeyIn(api_key="not-a-real-openai-key"), user, db)
 
         self.assertEqual(raised.exception.status_code, 400)
         self.assertEqual(db.scalar(select(func.count(AIAdvisorOpenAIKey.id))), 0)
@@ -73,6 +70,15 @@ class AIAdvisorTests(unittest.TestCase):
 
         self.assertNotIn(PLAINTEXT_KEY, ciphertext)
         self.assertEqual(decrypt_api_key(ciphertext, SECRET), PLAINTEXT_KEY)
+
+    def test_key_validation_uses_responses_api(self) -> None:
+        with patch("app.services.ai_advisor._openai_json_request", return_value={}) as request:
+            validate_openai_api_key(PLAINTEXT_KEY)
+
+        request.assert_called_once()
+        self.assertEqual(request.call_args.args[0], "https://api.openai.com/v1/responses")
+        self.assertEqual(request.call_args.kwargs["method"], "POST")
+        self.assertEqual(request.call_args.kwargs["payload"]["model"], "gpt-5.4-mini")
 
     def test_retirement_run_rejects_missing_required_fields(self) -> None:
         db, user = self._seed_user()
@@ -89,7 +95,7 @@ class AIAdvisorTests(unittest.TestCase):
 
     def test_retirement_run_decrypts_key_calls_openai_and_saves_report(self) -> None:
         db, user = self._seed_user()
-        with patch("app.api.ai_advisor.validate_openai_api_key"), patch(
+        with patch(
             "app.api.ai_advisor.get_settings",
             return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET),
         ):

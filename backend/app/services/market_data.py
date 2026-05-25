@@ -2,8 +2,10 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 import csv
 import io
+import ssl
 from urllib.request import urlopen
 
+import certifi
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -11,6 +13,8 @@ from app.models.entities import DataSyncLog, HoldingSnapshot, PriceBar, Security
 from app.services.direct_indexing import Holding, holdings_from_dicts
 from app.services.index_data import INDEX_DEFINITIONS, get_index_definition
 from app.services.price_math import deterministic_price
+
+PROVIDER_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 
 @dataclass(frozen=True)
@@ -202,7 +206,7 @@ def _fetch_stooq_latest_prices(symbols: list[str]) -> dict[str, float]:
         provider_symbol = f"{_provider_symbol(symbol).lower()}.us"
         url = f"https://stooq.com/q/l/?s={provider_symbol}&f=sd2t2ohlcv&h&e=csv"
         try:
-            with urlopen(url, timeout=8) as response:
+            with urlopen(url, timeout=8, context=PROVIDER_SSL_CONTEXT) as response:
                 payload = response.read().decode("utf-8", errors="ignore")
             rows = list(csv.DictReader(io.StringIO(payload)))
             if not rows:

@@ -4,11 +4,11 @@ import { useState } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 
 export const STRONG_LEGAL_DISCLAIMER = [
-  "DirectIndex is educational planning software only. It is not a registered investment adviser, broker-dealer, law firm, CPA firm, tax preparer, fiduciary, custodian, or trading system.",
+  "FinanceOS is educational planning software only. It is not a registered investment adviser, broker-dealer, law firm, CPA firm, tax preparer, fiduciary, custodian, or trading system.",
   "Nothing on this website, in any proposal, export, backtest, tax-loss-harvesting output, transition plan, algorithm result, or data display is tax, legal, accounting, investment, fiduciary, brokerage, or trading advice.",
   "Do not buy, sell, hold, rebalance, harvest losses, file a tax return, claim a tax benefit, or make any financial decision based only on this website. Consult a qualified attorney, CPA or tax professional, and appropriately registered investment adviser before acting.",
   "Outputs are hypothetical, model-based, and dependent on user-provided data, assumptions, cached data, and simplified rules. They may be stale, incomplete, inaccurate, unsuitable, or inconsistent with a client's full financial, legal, tax, or regulatory facts.",
-  "DirectIndex does not guarantee performance, tax savings, wash-sale treatment, tracking error, active share, data accuracy, regulatory compliance, suitability, availability, or any outcome. Users and advisors are solely responsible for independent review, documentation, supervision, and final decisions."
+  "FinanceOS does not guarantee performance, tax savings, wash-sale treatment, tracking error, active share, data accuracy, regulatory compliance, suitability, availability, or any outcome. Users and advisors are solely responsible for independent review, documentation, supervision, and final decisions."
 ];
 
 export function LegalDisclaimer({ compact = false, defaultCollapsed = compact }: { compact?: boolean; defaultCollapsed?: boolean }) {

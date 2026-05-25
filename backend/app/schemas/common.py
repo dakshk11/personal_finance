@@ -393,6 +393,138 @@ class PortfolioAnalyzerOut(BaseModel):
     warnings: list[str]
 
 
+class PortfolioSyncStatusOut(BaseModel):
+    provider: str = "snaptrade"
+    configured: bool
+    connected: bool
+    account_count: int = 0
+    holding_count: int = 0
+    last_synced_at: datetime | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class PortfolioSyncProviderCredentialIn(BaseModel):
+    client_id: str = Field(min_length=1, max_length=160)
+    consumer_key: str = Field(min_length=1, max_length=2048)
+
+
+class PortfolioSyncProviderCredentialOut(BaseModel):
+    provider: str = "snaptrade"
+    configured: bool
+    source: str = "none"
+    client_id: str | None = None
+    consumer_key_fingerprint: str | None = None
+    updated_at: datetime | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class PortfolioSyncConnectOut(BaseModel):
+    provider: str = "snaptrade"
+    configured: bool
+    connected: bool
+    redirect_url: str | None = None
+    provider_user_id: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class PortfolioSyncAccountOut(BaseModel):
+    account_id: str
+    account_name: str
+    brokerage_name: str
+    authorization_id: str | None = None
+    account_type: str | None = None
+    status: str | None = None
+    raw: dict[str, Any] = Field(default_factory=dict)
+
+
+class PortfolioSyncHoldingOut(BaseModel):
+    symbol: str
+    shares: float
+    price: float
+    market_value: float
+    weight: float = 0
+    cost_basis_per_share: float
+    cost_basis: float
+    unrealized_gain_loss: float
+    unrealized_gain_loss_pct: float = 0
+    account_id: str | None = None
+    account_name: str
+    brokerage_name: str
+    sector: str | None = None
+    data_source: str = "snaptrade"
+    provider_symbol_id: str | None = None
+    provider_updated_at: datetime | None = None
+    warning: str | None = None
+
+
+class PortfolioSyncSectorExposureOut(BaseModel):
+    sector: str
+    market_value: float
+    weight: float
+    holding_count: int
+
+
+class PortfolioSyncSummaryOut(BaseModel):
+    status: PortfolioSyncStatusOut
+    synced_at: datetime | None = None
+    total_market_value: float = 0
+    total_cost_basis: float = 0
+    unrealized_gain_loss: float = 0
+    unrealized_gain_loss_pct: float = 0
+    account_count: int = 0
+    holding_count: int = 0
+    accounts: list[PortfolioSyncAccountOut] = Field(default_factory=list)
+    holdings: list[PortfolioSyncHoldingOut] = Field(default_factory=list)
+    top_holdings: list[PortfolioSyncHoldingOut] = Field(default_factory=list)
+    sector_exposures: list[PortfolioSyncSectorExposureOut] = Field(default_factory=list)
+    concentration_warnings: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class RSIPlaybookChartPointOut(BaseModel):
+    date: date
+    close: float
+    ema8: float | None = None
+    ema21: float | None = None
+    ema55: float | None = None
+    rsi: float | None = None
+
+
+class RSIPlaybookSignalOut(BaseModel):
+    symbol: str
+    name: str
+    sector: str
+    sources: list[str]
+    group: str
+    price: float
+    as_of_date: date | None = None
+    rsi: float | None = None
+    level: str
+    action: str
+    action_tone: str
+    summary: str
+    trend: str
+    ema8: float | None = None
+    ema21: float | None = None
+    ema55: float | None = None
+    distance_to_ema21: float | None = None
+    window_return_3m: float | None = None
+    portfolio_weight: float | None = None
+    data_source: str
+    warnings: list[str] = Field(default_factory=list)
+    chart: list[RSIPlaybookChartPointOut] = Field(default_factory=list)
+
+
+class RSIPlaybookScanOut(BaseModel):
+    scanned_at: datetime
+    source_summary: str
+    universe_count: int
+    portfolio_symbol_count: int
+    wheel_symbol_count: int
+    signals: list[RSIPlaybookSignalOut]
+    warnings: list[str] = Field(default_factory=list)
+
+
 class DataSyncOut(BaseModel):
     status: str
     synced_indices: list[str]
@@ -463,6 +595,148 @@ class MarketHistoryOut(BaseModel):
     end_date: date | None = None
     bars: list[MarketPriceBarOut]
     warnings: list[str]
+
+
+class OptionStrategyChecklistItemOut(BaseModel):
+    id: str
+    label: str
+    passed: bool
+    actual: str | float | int | None = None
+    expected: str | float | int | None = None
+    detail: str | None = None
+
+
+class OptionStrategySignalCandidateOut(BaseModel):
+    id: int | str | None = None
+    symbol: str
+    action: str
+    status: str
+    sector: str | None = None
+    underlying_price: float
+    strike: float
+    expiration: date
+    dte: int
+    delta: float
+    iv: float
+    iv_rank: float | None = None
+    bb_percent: float | None = None
+    earnings_date: date | None = None
+    earnings_days: int | None = None
+    spread_pct: float | None = None
+    bid: float
+    ask: float
+    mid: float
+    open_interest: int
+    premium_yield: float
+    collateral: float
+    alert_target_price: float
+    exposure_usage: float | None = None
+    score: float | None = None
+    deep_dive_rank: int | None = None
+    deep_dive_summary: str | None = None
+    if_expires_return: float | None = None
+    if_assigned_basis: float | None = None
+    provider: str | None = None
+    checklist: list[OptionStrategyChecklistItemOut] = Field(default_factory=list)
+    blocked_reasons: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+
+class OptionStrategyConfigOut(BaseModel):
+    tickers: list[str]
+    universe_groups: list[str] = Field(default_factory=list)
+    scan_cadence: str = "daily"
+    account_value: float
+    exposure_cap: float
+    dte_min: int
+    dte_max: int
+    rsi_period: int
+    rsi_max: float
+    ema_periods: list[int]
+    min_iv: float
+    min_iv_rank: float = 0.40
+    min_premium_yield: float
+    target_delta_min: float = 0.20
+    target_delta_max: float = 0.35
+    bb_percent_max: float = 0.75
+    earnings_exclusion_days: int = 7
+    min_open_interest: int = 100
+    max_spread_pct: float = 0.15
+    profit_take_pct: float = 0.50
+    single_name_cap: float = 0.10
+    sector_cap: float = 0.25
+    webhook_url: str | None = None
+    updated_at: datetime | None = None
+
+
+class OptionStrategyConfigUpdate(BaseModel):
+    tickers: list[str] | None = None
+    account_value: float | None = Field(default=None, gt=0)
+    exposure_cap: float | None = Field(default=None, gt=0, le=1)
+    dte_min: int | None = Field(default=None, ge=1, le=365)
+    dte_max: int | None = Field(default=None, ge=1, le=365)
+    rsi_period: int | None = Field(default=None, ge=2, le=100)
+    rsi_max: float | None = Field(default=None, ge=1, le=100)
+    ema_periods: list[int] | None = None
+    min_iv: float | None = Field(default=None, ge=0, le=5)
+    min_premium_yield: float | None = Field(default=None, ge=0, le=1)
+    webhook_url: str | None = Field(default=None, max_length=512)
+
+
+class OptionStrategyWheelPositionOut(BaseModel):
+    id: int | str | None = None
+    symbol: str
+    status: str
+    option_type: str
+    strike: float
+    expiration: date
+    contracts: int
+    entry_premium: float
+    current_price: float | None = None
+    alert_target_price: float | None = None
+    collateral: float | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
+class OptionStrategyAlertEventOut(BaseModel):
+    id: int | str | None = None
+    symbol: str
+    kind: str
+    status: str
+    message: str
+    target_price: float | None = None
+    current_price: float | None = None
+    created_at: datetime
+
+
+class OptionStrategyScanResultOut(BaseModel):
+    scan_run_id: int | str | None = None
+    scanned_at: datetime
+    data_source: str | None = None
+    signals: list[OptionStrategySignalCandidateOut]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class OptionStrategyUniverseItemOut(BaseModel):
+    symbol: str
+    name: str
+    sector: str
+    group: str
+
+
+class OptionStrategyUniverseOut(BaseModel):
+    items: list[OptionStrategyUniverseItemOut]
+    groups: list[str]
+    count: int
+
+
+class OptionStrategyPositionEventIn(BaseModel):
+    event: Literal["accepted_put", "assigned", "closed"] | str
+    signal_candidate_id: int | str | None = None
+    candidate: dict[str, Any] | None = None
+    position_id: int | str | None = None
+    position: dict[str, Any] | None = None
 
 
 class ThirteenFSearchRequest(BaseModel):

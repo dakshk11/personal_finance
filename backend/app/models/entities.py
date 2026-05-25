@@ -27,6 +27,13 @@ class User(Base):
     ai_advisor_openai_key: Mapped["AIAdvisorOpenAIKey | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     ai_advisor_reports: Mapped[list["AIAdvisorReport"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     personal_cfo_projects: Mapped[list["PersonalCFOProject"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    option_strategy_config: Mapped["OptionStrategyConfigState | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
+    option_strategy_scan_runs: Mapped[list["OptionStrategyScanRun"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    option_strategy_positions: Mapped[list["OptionStrategyWheelPosition"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    option_strategy_alerts: Mapped[list["OptionStrategyAlertEvent"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    portfolio_sync_provider_credential: Mapped["PortfolioSyncProviderCredential | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
+    portfolio_sync_credential: Mapped["PortfolioSyncCredential | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
+    portfolio_sync_snapshot: Mapped["PortfolioSyncSnapshot | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class RetirementAnalyzerState(Base):
@@ -145,6 +152,167 @@ class PersonalCFOUpload(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     project: Mapped["PersonalCFOProject"] = relationship(back_populates="uploads")
+
+
+class OptionStrategyConfigState(Base):
+    __tablename__ = "option_strategy_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    tickers_json: Mapped[str] = mapped_column(Text, default='["NVDA","AAPL","MSFT","AMZN","GOOGL","AVGO","META","GOOG","TSLA","BRK.B","JPM","WMT","LLY","V","ORCL","XOM","MA","NFLX","COST","JNJ","HD","PG","ABBV","BAC","UNH","KO","GE","CRM","CSCO","CVX","MU","AMD","PEP","ADBE","TMUS","INTU","QCOM","AMAT","TXN","AMGN","HON","ISRG","BKNG","PANW","QQQ","SPY","SMH","XLE","XLI","UPRO","TQQQ","SOXL"]')
+    account_value: Mapped[float] = mapped_column(Float, default=500_000)
+    exposure_cap: Mapped[float] = mapped_column(Float, default=0.30)
+    dte_min: Mapped[int] = mapped_column(Integer, default=30)
+    dte_max: Mapped[int] = mapped_column(Integer, default=45)
+    rsi_period: Mapped[int] = mapped_column(Integer, default=14)
+    rsi_max: Mapped[float] = mapped_column(Float, default=65)
+    ema_periods_json: Mapped[str] = mapped_column(Text, default="[8,21,34,55]")
+    min_iv: Mapped[float] = mapped_column(Float, default=0.15)
+    min_premium_yield: Mapped[float] = mapped_column(Float, default=0.05)
+    webhook_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="option_strategy_config")
+
+
+class OptionStrategyScanRun(Base):
+    __tablename__ = "option_strategy_scan_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="completed", index=True)
+    data_source: Mapped[str] = mapped_column(String(255), default="market history cache with deterministic option-chain adapter")
+    warnings_json: Mapped[str] = mapped_column(Text, default="[]")
+    scanned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+    user: Mapped["User"] = relationship(back_populates="option_strategy_scan_runs")
+    candidates: Mapped[list["OptionStrategySignalCandidate"]] = relationship(
+        back_populates="scan_run",
+        cascade="all, delete-orphan",
+        order_by="OptionStrategySignalCandidate.rank",
+    )
+
+
+class OptionStrategySignalCandidate(Base):
+    __tablename__ = "option_strategy_signal_candidates"
+    __table_args__ = (
+        Index("ix_option_strategy_signal_user_scan", "user_id", "scan_run_id"),
+        Index("ix_option_strategy_signal_user_symbol", "user_id", "symbol"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    scan_run_id: Mapped[int] = mapped_column(ForeignKey("option_strategy_scan_runs.id", ondelete="CASCADE"), index=True)
+    rank: Mapped[int] = mapped_column(Integer, default=0)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    action: Mapped[str] = mapped_column(String(32), default="sell_put")
+    status: Mapped[str] = mapped_column(String(32), default="blocked", index=True)
+    underlying_price: Mapped[float] = mapped_column(Float)
+    strike: Mapped[float] = mapped_column(Float)
+    expiration: Mapped[date] = mapped_column(Date, index=True)
+    dte: Mapped[int] = mapped_column(Integer)
+    delta: Mapped[float] = mapped_column(Float)
+    iv: Mapped[float] = mapped_column(Float)
+    bid: Mapped[float] = mapped_column(Float)
+    ask: Mapped[float] = mapped_column(Float)
+    mid: Mapped[float] = mapped_column(Float)
+    open_interest: Mapped[int] = mapped_column(Integer, default=0)
+    premium_yield: Mapped[float] = mapped_column(Float)
+    collateral: Mapped[float] = mapped_column(Float)
+    alert_target_price: Mapped[float] = mapped_column(Float)
+    exposure_usage: Mapped[float] = mapped_column(Float, default=0)
+    checklist_json: Mapped[str] = mapped_column(Text, default="[]")
+    blocked_reasons_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+    scan_run: Mapped["OptionStrategyScanRun"] = relationship(back_populates="candidates")
+
+
+class OptionStrategyWheelPosition(Base):
+    __tablename__ = "option_strategy_wheel_positions"
+    __table_args__ = (Index("ix_option_strategy_position_user_symbol", "user_id", "symbol"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    signal_candidate_id: Mapped[int | None] = mapped_column(ForeignKey("option_strategy_signal_candidates.id", ondelete="SET NULL"), nullable=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    status: Mapped[str] = mapped_column(String(40), default="put_open", index=True)
+    option_type: Mapped[str] = mapped_column(String(12), default="put")
+    strike: Mapped[float] = mapped_column(Float)
+    expiration: Mapped[date] = mapped_column(Date, index=True)
+    contracts: Mapped[int] = mapped_column(Integer, default=1)
+    entry_premium: Mapped[float] = mapped_column(Float)
+    current_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    alert_target_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    collateral: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="option_strategy_positions")
+
+
+class OptionStrategyAlertEvent(Base):
+    __tablename__ = "option_strategy_alert_events"
+    __table_args__ = (Index("ix_option_strategy_alert_user_symbol", "user_id", "symbol"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    position_id: Mapped[int | None] = mapped_column(ForeignKey("option_strategy_wheel_positions.id", ondelete="CASCADE"), nullable=True, index=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    kind: Mapped[str] = mapped_column(String(40), index=True)
+    status: Mapped[str] = mapped_column(String(32), default="open", index=True)
+    message: Mapped[str] = mapped_column(Text)
+    target_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    current_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+    user: Mapped["User"] = relationship(back_populates="option_strategy_alerts")
+
+
+class PortfolioSyncProviderCredential(Base):
+    __tablename__ = "portfolio_sync_provider_credentials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    provider: Mapped[str] = mapped_column(String(40), default="snaptrade", index=True)
+    client_id: Mapped[str] = mapped_column(String(160))
+    encrypted_consumer_key: Mapped[str] = mapped_column(Text)
+    consumer_key_fingerprint: Mapped[str] = mapped_column(String(80), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="portfolio_sync_provider_credential")
+
+
+class PortfolioSyncCredential(Base):
+    __tablename__ = "portfolio_sync_credentials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    provider: Mapped[str] = mapped_column(String(40), default="snaptrade", index=True)
+    provider_user_id: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    encrypted_user_secret: Mapped[str] = mapped_column(Text)
+    user_secret_fingerprint: Mapped[str] = mapped_column(String(80), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="portfolio_sync_credential")
+
+
+class PortfolioSyncSnapshot(Base):
+    __tablename__ = "portfolio_sync_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    provider: Mapped[str] = mapped_column(String(40), default="snaptrade", index=True)
+    accounts_json: Mapped[str] = mapped_column(Text, default="[]")
+    holdings_json: Mapped[str] = mapped_column(Text, default="[]")
+    warnings_json: Mapped[str] = mapped_column(Text, default="[]")
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="portfolio_sync_snapshot")
 
 
 class Organization(Base):
