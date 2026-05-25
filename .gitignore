@@ -18,3 +18,4 @@ postgres-data/
 redis-data/
 data-cache/
 artifacts/
+AGENTS.md
