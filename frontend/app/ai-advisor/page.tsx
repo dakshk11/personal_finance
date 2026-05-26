@@ -2,11 +2,13 @@
 
 import {
   Bot,
+  CandlestickChart,
   CheckCircle2,
   FileText,
   FolderArchive,
   Gauge,
   KeyRound,
+  LineChart,
   Loader2,
   LockKeyhole,
   MessageSquareText,
@@ -20,12 +22,14 @@ import {
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { BreakoutScannerTool } from "@/components/BreakoutScannerTool";
 import { EarningsAgentTool } from "@/components/EarningsAgentTool";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 import { OptionStrategyTool } from "@/components/OptionStrategyTool";
 import { PersonalCFOTool } from "@/components/PersonalCFOTool";
 import { PortfolioSyncTool } from "@/components/PortfolioSyncTool";
 import { RSIPlaybookTool } from "@/components/RSIPlaybookTool";
+import { StockAnalysisTool } from "@/components/StockAnalysisTool";
 import {
   AIAdvisorOpenAIKeyStatus,
   AIAdvisorReport,
@@ -35,7 +39,7 @@ import {
 } from "@/lib/api";
 
 type AIModel = AIAdvisorRetirementRunRequest["model"];
-type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook" | "earnings-agent";
+type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook" | "breakout-scanner" | "earnings-agent" | "equity-research";
 
 type RetirementField = {
   id: string;
@@ -322,6 +326,24 @@ export default function AIAdvisorPage() {
           <Gauge size={16} /> RSI Playbook
         </button>
         <button
+          className={activeTab === "breakout-scanner" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "breakout-scanner"}
+          onClick={() => setActiveTab("breakout-scanner")}
+        >
+          <CandlestickChart size={16} /> Breakout Scanner
+        </button>
+        <button
+          className={activeTab === "equity-research" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "equity-research"}
+          onClick={() => setActiveTab("equity-research")}
+        >
+          <LineChart size={16} /> Equity Research
+        </button>
+        <button
           className={activeTab === "earnings-agent" ? "active" : ""}
           type="button"
           role="tab"
@@ -490,6 +512,10 @@ export default function AIAdvisorPage() {
             <PortfolioSyncTool />
           ) : activeTab === "rsi-playbook" ? (
             <RSIPlaybookTool />
+          ) : activeTab === "breakout-scanner" ? (
+            <BreakoutScannerTool />
+          ) : activeTab === "equity-research" ? (
+            <StockAnalysisTool keyStatus={keyStatus} />
           ) : (
             <EarningsAgentTool keyStatus={keyStatus} />
           )}

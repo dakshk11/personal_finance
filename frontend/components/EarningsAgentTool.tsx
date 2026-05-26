@@ -109,7 +109,8 @@ export function EarningsAgentTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
           <h2>SEC exhibits and earnings transcripts distilled into an educational research digest.</h2>
           <div className="earnings-agent-source-line">
             <span><FileSearch size={14} /> SEC Exhibit 99.1 / 99.2</span>
-            <span><Newspaper size={14} /> Motley Fool transcript search</span>
+            <span><Newspaper size={14} /> Motley + company IR</span>
+            <span><FileSearch size={14} /> YouTube / Quartr status</span>
             <span><ShieldCheck size={14} /> No advice language</span>
           </div>
         </div>
@@ -234,7 +235,7 @@ function SourceCard({ source }: { source: EarningsAgentSource }) {
     <article className={`earnings-source-card ${source.status}`}>
       <div>
         <span className={source.status === "found" ? "status-pill" : "risk-pill"}>{source.status}</span>
-        <h3>{source.source_type === "sec" ? "SEC EDGAR" : "Earnings Transcript"}</h3>
+        <h3>{sourceLabel(source.source_type)}</h3>
         <p>{source.title}</p>
       </div>
       <dl>
@@ -250,6 +251,16 @@ function SourceCard({ source }: { source: EarningsAgentSource }) {
       )}
     </article>
   );
+}
+
+function sourceLabel(sourceType: string) {
+  if (sourceType === "sec") return "SEC EDGAR";
+  if (sourceType === "sec_presentation") return "SEC Presentation";
+  if (sourceType === "company_ir") return "Company IR";
+  if (sourceType === "motley") return "Earnings Transcript";
+  if (sourceType === "youtube") return "YouTube";
+  if (sourceType === "quartr") return "Quartr";
+  return "Source";
 }
 
 function DigestCard({ title, text }: { title: string; text: string }) {

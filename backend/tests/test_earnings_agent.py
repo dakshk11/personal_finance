@@ -16,9 +16,12 @@ from app.services.ai_advisor import encrypt_api_key
 from app.services.earnings_agent import (
     EarningsCompany,
     EarningsSource,
+    best_company_ir_links,
     best_sec_exhibit,
     extract_sec_document_text,
+    fetch_company_ir_sources,
     fetch_motley_transcript_source,
+    fetch_youtube_discovery_source,
     parse_digest_response,
     parse_sec_submission_documents,
     resolve_company,
@@ -86,6 +89,63 @@ class EarningsAgentTests(unittest.TestCase):
         self.assertIsNone(warning)
         self.assertIn("Revenue grew", text)
 
+    def test_sec_multi_source_returns_release_and_presentation(self) -> None:
+        submission = """
+        <DOCUMENT>
+        <TYPE>EX-99.1
+        <FILENAME>release.htm
+        <DESCRIPTION>Earnings press release
+        <TEXT><html><body>Revenue grew and operating margin expanded.</body></html></TEXT>
+        </DOCUMENT>
+        <DOCUMENT>
+        <TYPE>EX-99.2
+        <FILENAME>presentation.htm
+        <DESCRIPTION>Investor presentation
+        <TEXT><html><body>Presentation with ARR, revenue, and guidance.</body></html></TEXT>
+        </DOCUMENT>
+        """
+        submissions_json = {
+            "filings": {
+                "recent": {
+                    "form": ["8-K"],
+                    "accessionNumber": ["0000320193-26-000001"],
+                    "filingDate": ["2026-04-30"],
+                }
+            }
+        }
+        with patch("app.services.earnings_agent._fetch_json", return_value=submissions_json), patch(
+            "app.services.earnings_agent._fetch_sec_submission_text",
+            return_value=(submission, "https://www.sec.gov/Archives/edgar/data/320193/000032019326000001/0000320193-26-000001.txt"),
+        ):
+            from app.services.earnings_agent import fetch_sec_earnings_sources
+
+            sources = fetch_sec_earnings_sources(EarningsCompany("AAPL", "Apple Inc.", "0000320193"))
+
+        self.assertEqual({source.source_type for source in sources}, {"sec", "sec_presentation"})
+        self.assertTrue(any("Presentation" in (source.excerpt or "") for source in sources))
+
+    def test_sec_submission_text_fetch_tries_hyphenated_filename_first(self) -> None:
+        from app.services.earnings_agent import _fetch_sec_submission_text
+
+        calls: list[str] = []
+
+        def fake_fetch(url: str, *, sec: bool, max_bytes: int) -> str:
+            del sec, max_bytes
+            calls.append(url)
+            if url.endswith("000032019326000001.txt"):
+                raise AssertionError("Should use the hyphenated SEC submission filename before no-dash fallback.")
+            return "submission"
+
+        with patch("app.services.earnings_agent._fetch_text", side_effect=fake_fetch):
+            text, url = _fetch_sec_submission_text(
+                "https://www.sec.gov/Archives/edgar/data/320193/000032019326000001",
+                "0000320193-26-000001",
+            )
+
+        self.assertEqual(text, "submission")
+        self.assertTrue(url.endswith("0000320193-26-000001.txt"))
+        self.assertEqual(len(calls), 1)
+
     def test_sec_pdf_extraction_path_uses_pypdf_helper(self) -> None:
         document = {
             "type": "EX-99.2",
@@ -110,6 +170,36 @@ class EarningsAgentTests(unittest.TestCase):
 
         self.assertEqual(source.status, "missing")
         self.assertIn("No matching Motley Fool", source.warning or "")
+
+    def test_company_ir_fallback_extracts_presentation_link(self) -> None:
+        html = """
+        <html><body>
+        <a href="/files/q2-2026-earnings-presentation.pdf">Q2 2026 Earnings Presentation</a>
+        </body></html>
+        """
+        links = best_company_ir_links(html, "https://investor.example.com/", EarningsCompany("TEST", "Test Corp", "1"))
+        self.assertEqual(links[0]["url"], "https://investor.example.com/files/q2-2026-earnings-presentation.pdf")
+
+        with patch("app.services.earnings_agent.company_ir_candidate_pages", return_value=["https://investor.example.com/"]), patch(
+            "app.services.earnings_agent._fetch_text",
+            return_value=html,
+        ), patch(
+            "app.services.earnings_agent.extract_public_document_url",
+            return_value=("Revenue and EPS presentation text", None),
+        ):
+            sources = fetch_company_ir_sources(EarningsCompany("TEST", "Test Corp", "1"))
+
+        self.assertEqual(sources[0].source_type, "company_ir")
+        self.assertEqual(sources[0].status, "found")
+        self.assertIn("Revenue", sources[0].text)
+
+    def test_youtube_discovery_is_manual_review_only(self) -> None:
+        source = fetch_youtube_discovery_source(EarningsCompany("AAPL", "Apple Inc.", "0000320193"))
+
+        self.assertEqual(source.source_type, "youtube")
+        self.assertEqual(source.status, "partial")
+        self.assertIn("youtube.com/results", source.url or "")
+        self.assertIn("manual review", source.warning or "")
 
     def test_digest_json_parse_and_markdown_fallback(self) -> None:
         parsed = parse_digest_response(
@@ -137,16 +227,18 @@ class EarningsAgentTests(unittest.TestCase):
         with (
             patch("app.services.earnings_agent.resolve_company", return_value=company),
             patch(
-                "app.services.earnings_agent.fetch_sec_earnings_source",
-                return_value=EarningsSource(
-                    source_type="sec",
-                    title="AAPL SEC earnings release",
-                    status="found",
-                    url="https://sec.test/aapl",
-                    document_type="8-K EX-99.1",
-                    text="Revenue increased and gross margin improved.",
-                    excerpt="Revenue increased and gross margin improved.",
-                ),
+                "app.services.earnings_agent.fetch_sec_earnings_sources",
+                return_value=[
+                    EarningsSource(
+                        source_type="sec",
+                        title="AAPL SEC earnings release",
+                        status="found",
+                        url="https://sec.test/aapl",
+                        document_type="8-K EX-99.1",
+                        text="Revenue increased and gross margin improved.",
+                        excerpt="Revenue increased and gross margin improved.",
+                    )
+                ],
             ),
             patch(
                 "app.services.earnings_agent.fetch_motley_transcript_source",
@@ -160,6 +252,7 @@ class EarningsAgentTests(unittest.TestCase):
                     excerpt=transcript_text[:120],
                 ),
             ),
+            patch("app.services.earnings_agent.fetch_company_ir_sources", return_value=[]),
             patch(
                 "app.services.earnings_agent.create_openai_response",
                 return_value=(
@@ -189,6 +282,7 @@ class EarningsAgentTests(unittest.TestCase):
         self.assertNotIn("DO_NOT_STORE_FULL_TRANSCRIPT", stored.prompt_text)
         self.assertIn("Full source text was sent transiently", stored.prompt_text)
         self.assertIn("services", stored.transcript_source_json)
+        self.assertTrue(stored.sec_source_json.startswith("["))
 
     def test_get_run_is_scoped_to_current_user(self) -> None:
         db, user_one = self._seed_user("one@example.com")

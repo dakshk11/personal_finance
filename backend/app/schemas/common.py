@@ -110,6 +110,234 @@ class EarningsAgentRunOut(EarningsAgentRunSummaryOut):
     usage: dict[str, Any] = Field(default_factory=dict)
 
 
+class StockAnalysisRunRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=160)
+    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+
+
+class StockAnalysisSourceOut(BaseModel):
+    source_type: str
+    title: str
+    status: str
+    url: str | None = None
+    document_type: str | None = None
+    excerpt: str | None = None
+    warning: str | None = None
+
+
+class StockAnalysisFinancialRowOut(BaseModel):
+    year: int
+    revenue: float | None = None
+    revenue_growth: float | None = None
+    net_income: float | None = None
+    free_cash_flow: float | None = None
+    gross_margin: float | None = None
+    operating_margin: float | None = None
+    profit_margin: float | None = None
+    debt: float | None = None
+    roe: float | None = None
+
+
+class StockAnalysisPeerOut(BaseModel):
+    symbol: str
+    company_name: str
+    sector: str | None = None
+    industry: str | None = None
+    forward_pe: float | None = None
+    trailing_pe: float | None = None
+    price_to_sales: float | None = None
+    profit_margin: float | None = None
+
+
+class StockAnalysisDCFOut(BaseModel):
+    fair_value_per_share: float | None = None
+    upside_downside_pct: float | None = None
+    base_free_cash_flow: float | None = None
+    growth_rate: float | None = None
+    discount_rate: float = 0.10
+    terminal_growth_rate: float = 0.03
+    warning: str | None = None
+
+
+class StockAnalysisValuationOut(BaseModel):
+    current_price: float | None = None
+    market_cap: float | None = None
+    trailing_pe: float | None = None
+    forward_pe: float | None = None
+    price_to_sales: float | None = None
+    enterprise_to_ebitda: float | None = None
+    industry_average_forward_pe: float | None = None
+    peer_average_forward_pe: float | None = None
+    dcf: StockAnalysisDCFOut
+    peers: list[StockAnalysisPeerOut] = Field(default_factory=list)
+
+
+class StockAnalysisRiskOut(BaseModel):
+    rank: int
+    title: str
+    detail: str
+    severity: str | None = None
+
+
+class StockAnalysisScenarioOut(BaseModel):
+    case: Literal["bull", "base", "bear"] | str
+    summary: str
+    key_drivers: list[str] = Field(default_factory=list)
+
+
+class StockAnalysisDigestOut(BaseModel):
+    executive_summary: str = ""
+    business_model: str = ""
+    moat_summary: str = ""
+    moat_score: int | None = None
+    competitor_comparison: list[str] = Field(default_factory=list)
+    industry_trends: list[str] = Field(default_factory=list)
+    financial_health: str = ""
+    valuation_summary: str = ""
+    risks: list[StockAnalysisRiskOut] = Field(default_factory=list)
+    growth_potential: str = ""
+    institutional_perspective: str = ""
+    scenarios: list[StockAnalysisScenarioOut] = Field(default_factory=list)
+    bull_bear_debate: list[str] = Field(default_factory=list)
+    latest_earnings: str = ""
+    outlook_12_24_months: str = ""
+    research_stance: str = "Neutral / monitor"
+    deep_dive_questions: list[str] = Field(default_factory=list)
+    source_notes: list[str] = Field(default_factory=list)
+    raw_markdown: str | None = None
+
+
+class StockAnalysisRunSummaryOut(BaseModel):
+    id: int
+    ticker: str
+    company_name: str
+    created_at: datetime
+    source_status: str
+    research_stance: str
+
+
+class StockAnalysisRunOut(StockAnalysisRunSummaryOut):
+    query: str
+    sector: str | None = None
+    industry: str | None = None
+    model: str
+    reused_from_cache: bool = False
+    cache_message: str | None = None
+    sources: list[StockAnalysisSourceOut] = Field(default_factory=list)
+    financials: list[StockAnalysisFinancialRowOut] = Field(default_factory=list)
+    valuation: StockAnalysisValuationOut
+    digest: StockAnalysisDigestOut
+    warnings: list[str] = Field(default_factory=list)
+    usage: dict[str, Any] = Field(default_factory=dict)
+
+
+BreakoutDetectorLiteral = Literal["ceiling_breakout", "momentum_breakout", "near_breakout"]
+
+
+class BreakoutScannerConfigIn(BaseModel):
+    detectors: list[BreakoutDetectorLiteral] = Field(default_factory=lambda: ["ceiling_breakout", "momentum_breakout", "near_breakout"])
+    lookback_days: int = Field(default=420, ge=120, le=1600)
+    min_relative_volume: float = Field(default=1.5, ge=0.1, le=10)
+    ideal_relative_volume: float = Field(default=2.0, ge=0.1, le=20)
+    min_ceiling_touches: int = Field(default=3, ge=1, le=12)
+    ceiling_tolerance_pct: float = Field(default=0.025, ge=0.001, le=0.15)
+    breakout_clearance_pct: float = Field(default=0.01, ge=0, le=0.2)
+    near_breakout_pct: float = Field(default=0.03, ge=0.001, le=0.2)
+    min_avg_dollar_volume: float = Field(default=25_000_000, ge=0, le=5_000_000_000)
+    require_above_sma200: bool = True
+    max_symbols: int = Field(default=120, ge=1, le=505)
+
+
+class BreakoutScannerBacktestRequest(BreakoutScannerConfigIn):
+    detector: BreakoutDetectorLiteral = "ceiling_breakout"
+    years: int = Field(default=5, ge=1, le=10)
+
+
+class BreakoutUniverseItemOut(BaseModel):
+    symbol: str
+    company_name: str
+    sector: str
+    source: str
+    source_url: str
+
+
+class BreakoutUniverseOut(BaseModel):
+    items: list[BreakoutUniverseItemOut]
+    count: int
+    source: str
+    source_url: str
+    cache_status: str
+    retrieved_at: datetime | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class BreakoutChartPointOut(BaseModel):
+    date: date
+    close: float
+    volume: float
+    sma20: float | None = None
+    sma50: float | None = None
+    sma200: float | None = None
+    resistance: float | None = None
+
+
+class BreakoutSignalOut(BaseModel):
+    symbol: str
+    company_name: str
+    sector: str
+    detector_type: str
+    setup_label: str
+    score: float
+    rank: int
+    price: float
+    as_of_date: date | None = None
+    resistance_level: float | None = None
+    breakout_pct: float | None = None
+    proximity_pct: float | None = None
+    touch_count: int = 0
+    relative_volume: float | None = None
+    avg_volume_50d: float | None = None
+    sma20: float | None = None
+    sma50: float | None = None
+    sma200: float | None = None
+    trend_label: str
+    summary: str
+    data_source: str
+    warnings: list[str] = Field(default_factory=list)
+    chart: list[BreakoutChartPointOut] = Field(default_factory=list)
+
+
+class BreakoutScanOut(BaseModel):
+    scan_run_id: int | str | None = None
+    scanned_at: datetime
+    market_date: date
+    data_source: str
+    universe_count: int
+    scanned_symbols: int
+    config: dict[str, Any]
+    signals: list[BreakoutSignalOut]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class BreakoutBacktestHorizonOut(BaseModel):
+    horizon_days: int
+    signal_count: int
+    win_rate: float | None = None
+    average_return: float | None = None
+    median_return: float | None = None
+    p10_return: float | None = None
+    p90_return: float | None = None
+
+
+class BreakoutBacktestOut(BaseModel):
+    detector: str
+    evaluated_years: int
+    signal_count: int
+    config: dict[str, Any]
+    horizons: list[BreakoutBacktestHorizonOut]
+    warnings: list[str] = Field(default_factory=list)
+
+
 class PersonalCFOProjectCreate(BaseModel):
     name: str = Field(default="Investment Folder", min_length=1, max_length=160)
 

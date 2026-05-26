@@ -1,6 +1,6 @@
 # FinanceOS
 
-FinanceOS is a simulation-only household personal finance command center for planning, portfolios, market research, and advisor workflows. It includes tax-aware portfolio analysis, direct indexing, tax-loss harvesting research, portfolio transition planning, 13F manager research, retirement income analysis, AI-assisted planning workflows, earnings research, and educational options research.
+FinanceOS is a simulation-only household personal finance command center for planning, portfolios, market research, and advisor workflows. It includes tax-aware portfolio analysis, direct indexing, tax-loss harvesting research, portfolio transition planning, 13F manager research, retirement income analysis, AI-assisted planning workflows, equity research, earnings research, and educational options research.
 
 The product is designed to help users understand tradeoffs before taking action: tracking error versus tax-loss value, taxable account transitions versus embedded gains, individual-stock valuation versus cost basis, Roth conversion windows versus future RMD pressure, and retirement spending needs versus portfolio durability.
 
@@ -20,10 +20,12 @@ The product is designed to help users understand tradeoffs before taking action:
 | Ideas Workspace | Review self-managed investor playbooks for sector ETF TLH, asset location, retirement buckets, TIPS ladders, charitable giving, Roth windows, and rebalancing bands. |
 | Research Center | Explain the methodology, tax-loss harvesting assumptions, wash-sale safeguards, model design, and source references in plain language. |
 | 13F Research | Search investment managers, watch filings, download holdings, and simulate copycat performance from SEC 13F data. |
-| FinanceOS Studio | Save an encrypted OpenAI API key, generate saved AI Planner reports, run Personal CFO projects, review Wheel Strategy and RSI Playbook, open Portfolio Sync, and run Earnings Agent digests. |
+| FinanceOS Studio | Save an encrypted OpenAI API key, generate saved AI Planner reports, run Personal CFO projects, review Wheel Strategy, RSI Playbook, and Breakout Scanner, open Portfolio Sync, and run Equity Research and Earnings Agent digests. |
 | Wheel Strategy | Run a daily educational wheel-strategy scan for S&P 500 top holdings, Nasdaq top holdings, core ETFs, and leveraged ETFs using live yfinance option chains when available. |
 | RSI Playbook | Combine Wheel Strategy and Portfolio Sync symbols, compute RSI/EMA history, and map every stock to the requested RSI action zone with chart details. |
-| Earnings Agent | Resolve a ticker or company, fetch recent SEC earnings exhibits and matching transcript coverage, and use the encrypted OpenAI key to create an educational earnings digest. |
+| Breakout Scanner | Scan S&P 500 stocks only for ceiling breakouts, momentum breakouts, and near-breakout watch setups with relative-volume, trend, and backtest context. |
+| Equity Research | Enter a ticker or company, pull free market and five-year financial data, run peer/DCF context, and generate an educational Wall Street-style research stance. |
+| Earnings Agent | Resolve a ticker or company, fetch recent SEC earnings exhibits, company IR slides/remarks, and matching transcript coverage, then use the encrypted OpenAI key to create an educational digest. |
 
 ## Screenshots
 
@@ -63,6 +65,12 @@ The ideas workspace organizes self-managed investor concepts into reviewable tab
 
 <img src="docs/screenshots/ideas.jpg" alt="Self-managed investor ideas workspace" width="900">
 
+### FinanceOS Studio
+
+FinanceOS Studio brings together encrypted OpenAI-key workflows, AI Planner reports, Personal CFO, Portfolio Sync, Wheel Strategy, RSI Playbook, Breakout Scanner, Equity Research, and Earnings Agent in one research workspace.
+
+<img src="docs/screenshots/studio.jpg" alt="FinanceOS Studio workspace" width="900">
+
 For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_GUIDE.md).
 
 ## Core Capabilities
@@ -88,7 +96,8 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
   - Encrypted user-owned OpenAI API key storage
   - Saved retirement-planning report history
   - Personal CFO project workspace with a seven-phase interview, editable markdown files, optional financial CSV upload, dashboard summaries, generated one-pager, and one refinement round
-  - Earnings Agent tab that resolves tickers/company names, fetches recent SEC 8-K Exhibit 99.1/99.2 earnings materials and Motley Fool transcript coverage when available, and saves educational digest history
+  - Equity Research tab that combines yfinance profile/valuation data, five-year financial statement rows, same-sector peer context, a simple DCF model, recent earnings source metadata, and a saved educational research stance
+  - Earnings Agent tab that resolves tickers/company names, fetches recent SEC 8-K Exhibit 99.1/99.2 earnings materials, company investor-relations slides/prepared remarks, and Motley Fool transcript coverage when available, and saves educational digest history
 - Portfolio Sync workspace with:
   - Read-only SnapTrade connection workflow for brokerage accounts
   - Browser-entered SnapTrade client id and consumer key setup for local use, with the consumer key encrypted in the backend database
@@ -102,6 +111,11 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
   - Daily RSI 14 and EMA 8/21/55 calculations using cached market history
   - Requested action zones: RSI 70+ go to cash, RSI 55-65 sell puts far OTM, RSI 45-55 sell puts ATM, RSI 30-45 buy the stock, and RSI 30 and below buy LEAP aggressively
   - Per-symbol summary table and click-through chart details with price, EMA overlays, RSI bands, source labels, and manual-verification notes
+- Breakout Scanner workspace with:
+  - S&P 500-only universe from the current public constituents table, with SPY-holdings fallback clearly labeled
+  - Breakout-specific OHLCV cache for high/low/volume data without changing the close-only price cache
+  - Ceiling breakout, momentum breakout, and near-breakout watch detectors using resistance touches, relative volume, SMA trend context, and liquidity filters
+  - Ranked setup table, click-through price/SMA/resistance/volume chart, and Backtest Lab distributions for 5/10/20/60 trading-day forward returns
 - Wheel Strategy workspace with:
   - Daily scan universe built from S&P 500 top holdings, Nasdaq top holdings, plus `QQQ`, `SPY`, `SMH`, `XLE`, `XLI`, `UPRO`, `TQQQ`, and `SOXL`
   - yfinance option-chain adapter for 30-45 DTE cash-secured put candidates
@@ -148,8 +162,9 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
 ├── docs/
 │   ├── USABILITY_GUIDE.md    Product walkthrough and demo guide
 │   ├── PORTFOLIO_SYNC.md     SnapTrade read-only sync behavior, API, setup, and tests
-│   ├── EARNINGS_AGENT.md     SEC/Motley source retrieval, digest API, storage, and tests
+│   ├── EARNINGS_AGENT.md     SEC/company IR/Motley source retrieval, digest API, storage, and tests
 │   ├── RSI_PLAYBOOK.md       RSI Playbook rules, API, chart data, and test notes
+│   ├── BREAKOUT_SCANNER.md   S&P 500 breakout detection, OHLCV cache, backtest lab, and test notes
 │   ├── WHEEL_STRATEGY.md     Wheel Strategy behavior, API, scoring, and test notes
 │   └── screenshots/          README and guide screenshots
 ├── docker-compose.yml        Local Postgres, Redis, backend, worker, beat, frontend
@@ -246,14 +261,17 @@ The backend exposes the main planning workflows through FastAPI routes:
 - `/portfolios`, `/backtests`, `/indices`, `/filings`, `/market-data`, and `/portfolio-analysis` support the direct-indexing, portfolio analyzer, 13F, and market-data workflows.
 - `/ai-advisor/openai-key`, `/ai-advisor/reports`, and `/ai-advisor/personal-cfo/...` support encrypted OpenAI key storage, saved retirement reports, and Personal CFO projects.
 - `/earnings-agent/run`, `/earnings-agent/runs`, and `/earnings-agent/runs/{id}` support source-backed earnings digests and saved per-user history.
+- `/stock-analysis/run`, `/stock-analysis/runs`, and `/stock-analysis/runs/{id}` support Equity Research runs, saved per-user history, financial snapshots, peer/DCF context, and educational research stances.
 - `/option-strategy/universe`, `/option-strategy/config`, `/option-strategy/scan?force=false`, `/option-strategy/signals`, `/option-strategy/positions`, and `/option-strategy/alerts` support the Wheel Strategy workspace.
 - `/portfolio-sync/status`, `/portfolio-sync/provider-credentials`, `/portfolio-sync/connect`, `/portfolio-sync/connections`, `/portfolio-sync/sync`, and `/portfolio-sync/summary` support encrypted SnapTrade provider setup, read-only broker connection, and holdings snapshots.
 - `/rsi-playbook/scan?force=false` supports the combined Wheel Strategy + Portfolio Sync RSI action workspace.
+- `/breakout-scanner/universe`, `/breakout-scanner/scan?force=false`, and `/breakout-scanner/backtest` support the S&P 500-only Breakout Scanner workspace.
 
 See [docs/WHEEL_STRATEGY.md](docs/WHEEL_STRATEGY.md) for the Wheel Strategy API contract and scoring details.
 See [docs/PORTFOLIO_SYNC.md](docs/PORTFOLIO_SYNC.md) for Portfolio Sync setup, API contract, normalization, and test notes.
 See [docs/EARNINGS_AGENT.md](docs/EARNINGS_AGENT.md) for Earnings Agent source retrieval, API contract, storage behavior, and test notes.
 See [docs/RSI_PLAYBOOK.md](docs/RSI_PLAYBOOK.md) for RSI Playbook rules, API contract, chart fields, and test notes.
+See [docs/BREAKOUT_SCANNER.md](docs/BREAKOUT_SCANNER.md) for Breakout Scanner detectors, API contract, OHLCV cache behavior, and backtest notes.
 
 ## Local Development Without Docker
 
@@ -320,7 +338,11 @@ Portfolio Sync uses SnapTrade when backend env credentials are configured or whe
 
 The RSI Playbook uses the Wheel Strategy universe and any latest Portfolio Sync holdings snapshot, then pulls cached daily market history for RSI and EMA calculations. If provider history is unavailable, it labels deterministic fallback chart data.
 
-Earnings Agent uses SEC company metadata, SEC submissions JSON, EDGAR filing archives, and bounded Motley Fool transcript searches. It stores source metadata, short excerpts, prompt/response metadata, and the parsed digest, but does not store full third-party transcript text.
+The Breakout Scanner uses only S&P 500 constituents, caches breakout-specific OHLCV bars, and runs ceiling, momentum, and near-breakout detectors with relative-volume and SMA context. Backtest Lab summarizes historical forward-return distributions and labels survivorship-bias and provider-fallback limits.
+
+Earnings Agent uses SEC company metadata, SEC submissions JSON, EDGAR filing archives, known company investor-relations pages, bounded Motley Fool transcript searches, and manual-review YouTube/Quartr discovery status when transcript text is unavailable. It stores source metadata, short excerpts, prompt/response metadata, and the parsed digest, but does not store full third-party transcript text.
+
+Equity Research uses SEC company metadata for ticker resolution, yfinance profile/valuation data, yfinance annual financial statements, same-sector index peers, a simple DCF estimate, and recent SEC/company IR earnings source metadata. It stores financial snapshots, source metadata, prompts, responses, and parsed digest sections, while using research stance language instead of buy/sell/hold ratings.
 
 Backtest and trade outputs are hypothetical. They depend on cached data, simplified assumptions, user inputs, and model rules. They should be reviewed as research artifacts, not implementation instructions.
 
@@ -331,14 +353,14 @@ Backtest and trade outputs are hypothetical. They depend on cached data, simplif
 - Local development currently falls back to a shared demo user when no valid session is present. Re-enable strict authentication before any hosted deployment.
 - Local development defaults are intentionally simple and should be changed before any hosted deployment.
 - Browser-entered SnapTrade consumer keys and SnapTrade `userSecret` values are encrypted before database storage; Portfolio Sync is read-only and does not expose order placement, rebalancing, money movement, or direct broker credential handling inside FinanceOS.
-- User-owned OpenAI API keys are encrypted before database storage and reused by FinanceOS Studio features, including Earnings Agent.
+- User-owned OpenAI API keys are encrypted before database storage and reused by FinanceOS Studio features, including Equity Research and Earnings Agent.
 - Do not commit `.env`, database files, cache volumes, or private account data.
 
 ## Legal and Advice Disclaimer
 
 FinanceOS is educational planning software only. It is not a registered investment adviser, broker-dealer, law firm, CPA firm, tax preparer, fiduciary, custodian, or trading system.
 
-Nothing in the app, README, backtests, tax-loss-harvesting output, transition plans, retirement analyzer, FinanceOS Studio reports, Personal CFO output, Wheel Strategy scans, RSI Playbook outputs, Earnings Agent digests, Portfolio Sync snapshots, exports, or data displays is tax, legal, accounting, investment, fiduciary, brokerage, or trading advice. Consult qualified professionals before making financial decisions.
+Nothing in the app, README, backtests, tax-loss-harvesting output, transition plans, retirement analyzer, FinanceOS Studio reports, Personal CFO output, Wheel Strategy scans, RSI Playbook outputs, Breakout Scanner outputs, Equity Research analyses, Earnings Agent digests, Portfolio Sync snapshots, exports, or data displays is tax, legal, accounting, investment, fiduciary, brokerage, or trading advice. Consult qualified professionals before making financial decisions.
 
 ## License
 

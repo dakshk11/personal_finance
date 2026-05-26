@@ -391,6 +391,230 @@ export type EarningsAgentRun = EarningsAgentRunSummary & {
   usage: Record<string, unknown>;
 };
 
+export type StockAnalysisModel = AIAdvisorRetirementRunRequest["model"];
+
+export type StockAnalysisSource = {
+  source_type: string;
+  title: string;
+  status: string;
+  url?: string | null;
+  document_type?: string | null;
+  excerpt?: string | null;
+  warning?: string | null;
+};
+
+export type StockAnalysisFinancialRow = {
+  year: number;
+  revenue?: number | null;
+  revenue_growth?: number | null;
+  net_income?: number | null;
+  free_cash_flow?: number | null;
+  gross_margin?: number | null;
+  operating_margin?: number | null;
+  profit_margin?: number | null;
+  debt?: number | null;
+  roe?: number | null;
+};
+
+export type StockAnalysisPeer = {
+  symbol: string;
+  company_name: string;
+  sector?: string | null;
+  industry?: string | null;
+  forward_pe?: number | null;
+  trailing_pe?: number | null;
+  price_to_sales?: number | null;
+  profit_margin?: number | null;
+};
+
+export type StockAnalysisDCF = {
+  fair_value_per_share?: number | null;
+  upside_downside_pct?: number | null;
+  base_free_cash_flow?: number | null;
+  growth_rate?: number | null;
+  discount_rate: number;
+  terminal_growth_rate: number;
+  warning?: string | null;
+};
+
+export type StockAnalysisValuation = {
+  current_price?: number | null;
+  market_cap?: number | null;
+  trailing_pe?: number | null;
+  forward_pe?: number | null;
+  price_to_sales?: number | null;
+  enterprise_to_ebitda?: number | null;
+  industry_average_forward_pe?: number | null;
+  peer_average_forward_pe?: number | null;
+  dcf: StockAnalysisDCF;
+  peers: StockAnalysisPeer[];
+};
+
+export type StockAnalysisRisk = {
+  rank: number;
+  title: string;
+  detail: string;
+  severity?: string | null;
+};
+
+export type StockAnalysisScenario = {
+  case: string;
+  summary: string;
+  key_drivers: string[];
+};
+
+export type StockAnalysisDigest = {
+  executive_summary: string;
+  business_model: string;
+  moat_summary: string;
+  moat_score?: number | null;
+  competitor_comparison: string[];
+  industry_trends: string[];
+  financial_health: string;
+  valuation_summary: string;
+  risks: StockAnalysisRisk[];
+  growth_potential: string;
+  institutional_perspective: string;
+  scenarios: StockAnalysisScenario[];
+  bull_bear_debate: string[];
+  latest_earnings: string;
+  outlook_12_24_months: string;
+  research_stance: string;
+  deep_dive_questions: string[];
+  source_notes: string[];
+  raw_markdown?: string | null;
+};
+
+export type StockAnalysisRunSummary = {
+  id: number;
+  ticker: string;
+  company_name: string;
+  created_at: string;
+  source_status: string;
+  research_stance: string;
+};
+
+export type StockAnalysisRun = StockAnalysisRunSummary & {
+  query: string;
+  sector?: string | null;
+  industry?: string | null;
+  model: StockAnalysisModel | string;
+  reused_from_cache: boolean;
+  cache_message?: string | null;
+  sources: StockAnalysisSource[];
+  financials: StockAnalysisFinancialRow[];
+  valuation: StockAnalysisValuation;
+  digest: StockAnalysisDigest;
+  warnings: string[];
+  usage: Record<string, unknown>;
+};
+
+export type BreakoutDetectorType = "ceiling_breakout" | "momentum_breakout" | "near_breakout";
+
+export type BreakoutScannerConfig = {
+  detectors: BreakoutDetectorType[];
+  lookback_days: number;
+  min_relative_volume: number;
+  ideal_relative_volume: number;
+  min_ceiling_touches: number;
+  ceiling_tolerance_pct: number;
+  breakout_clearance_pct: number;
+  near_breakout_pct: number;
+  min_avg_dollar_volume: number;
+  require_above_sma200: boolean;
+  max_symbols: number;
+};
+
+export type BreakoutUniverseItem = {
+  symbol: string;
+  company_name: string;
+  sector: string;
+  source: string;
+  source_url: string;
+};
+
+export type BreakoutUniverse = {
+  items: BreakoutUniverseItem[];
+  count: number;
+  source: string;
+  source_url: string;
+  cache_status: string;
+  retrieved_at?: string | null;
+  warnings: string[];
+};
+
+export type BreakoutChartPoint = {
+  date: string;
+  close: number;
+  volume: number;
+  sma20?: number | null;
+  sma50?: number | null;
+  sma200?: number | null;
+  resistance?: number | null;
+};
+
+export type BreakoutSignal = {
+  symbol: string;
+  company_name: string;
+  sector: string;
+  detector_type: BreakoutDetectorType | string;
+  setup_label: string;
+  score: number;
+  rank: number;
+  price: number;
+  as_of_date?: string | null;
+  resistance_level?: number | null;
+  breakout_pct?: number | null;
+  proximity_pct?: number | null;
+  touch_count: number;
+  relative_volume?: number | null;
+  avg_volume_50d?: number | null;
+  sma20?: number | null;
+  sma50?: number | null;
+  sma200?: number | null;
+  trend_label: string;
+  summary: string;
+  data_source: string;
+  warnings: string[];
+  chart: BreakoutChartPoint[];
+};
+
+export type BreakoutScan = {
+  scan_run_id?: number | string | null;
+  scanned_at: string;
+  market_date: string;
+  data_source: string;
+  universe_count: number;
+  scanned_symbols: number;
+  config: BreakoutScannerConfig;
+  signals: BreakoutSignal[];
+  warnings: string[];
+};
+
+export type BreakoutBacktestRequest = BreakoutScannerConfig & {
+  detector: BreakoutDetectorType;
+  years: number;
+};
+
+export type BreakoutBacktestHorizon = {
+  horizon_days: number;
+  signal_count: number;
+  win_rate?: number | null;
+  average_return?: number | null;
+  median_return?: number | null;
+  p10_return?: number | null;
+  p90_return?: number | null;
+};
+
+export type BreakoutBacktest = {
+  detector: string;
+  evaluated_years: number;
+  signal_count: number;
+  config: BreakoutScannerConfig;
+  horizons: BreakoutBacktestHorizon[];
+  warnings: string[];
+};
+
 export type MajorIndex = {
   symbol: string;
   name: string;

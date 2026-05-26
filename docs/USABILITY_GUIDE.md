@@ -13,6 +13,7 @@ FinanceOS helps users and advisors answer practical planning questions before im
 - Which existing holdings have large embedded gains, high concentration, or valuation signals that deserve review?
 - Which synced brokerage holdings have concentration, sector, cost-basis, or unrealized P/L issues that deserve manual review?
 - Which stocks fall into the RSI playbook zones for cash, put-selling, stock-buying, or LEAP review?
+- Which individual stocks deserve deeper equity-research review based on business model, moat, financials, valuation, risks, and earnings context?
 - How should I transition a taxable legacy account without ignoring embedded gains?
 - What does a retirement plan look like after state taxes, account type, Roth conversion windows, and spending changes?
 - Which wheel-strategy candidates deserve further manual review based on option-chain, liquidity, volatility, earnings, and exposure guardrails?
@@ -124,6 +125,8 @@ Professional positioning:
 
 FinanceOS Studio is a multi-tab workspace for OpenAI-assisted planning artifacts, read-only portfolio sync, and educational market research.
 
+<img src="screenshots/studio.jpg" alt="FinanceOS Studio workspace" width="900">
+
 Primary user jobs:
 
 - Save an encrypted user-owned OpenAI API key.
@@ -133,6 +136,8 @@ Primary user jobs:
 - Open Wheel Strategy for a daily educational option-chain scan and wheel lifecycle review.
 - Open Portfolio Sync for read-only brokerage connection, account snapshots, holdings P/L, sector mix, and concentration review.
 - Open RSI Playbook for a combined Wheel Strategy and Portfolio Sync stock list mapped to RSI/EMA action zones.
+- Open Breakout Scanner for S&P 500-only ceiling breakout, momentum breakout, near-breakout, and Backtest Lab review.
+- Open Equity Research for Wall Street-style stock analysis using five-year financials, valuation context, peer comparison, DCF, moat, risks, and research stance language.
 - Open Earnings Agent for a source-backed digest of recent SEC earnings materials and transcript coverage.
 
 Professional positioning:
@@ -142,6 +147,8 @@ Professional positioning:
 - Wheel Strategy output uses research-priority language and does not place orders.
 - Portfolio Sync is read-only, uses SnapTrade when configured, and shows setup-required copy instead of fake broker data when credentials are missing.
 - RSI Playbook action labels are rule outputs, not execution instructions.
+- Breakout Scanner setups are educational research prompts, not trade entries.
+- Equity Research uses research stance language instead of buy/sell/hold advice, price targets, or allocation instructions.
 - Earnings Agent uses educational research language and avoids ratings, price targets, and buy/sell recommendations.
 
 ## Personal CFO
@@ -223,15 +230,53 @@ Professional positioning:
 - The chart uses cached provider history when available and labels deterministic fallback chart data.
 - More implementation detail is documented in [RSI_PLAYBOOK.md](RSI_PLAYBOOK.md).
 
-## Earnings Agent
+## Breakout Scanner
 
-Earnings Agent is an educational earnings-research workspace inside FinanceOS Studio. It accepts a ticker or company name, resolves SEC company metadata, fetches recent earnings-related 8-K exhibits when available, searches bounded Motley Fool transcript pages, and uses the saved encrypted OpenAI key to produce a structured digest.
+Breakout Scanner is an S&P 500-only technical research workbench inside FinanceOS Studio. It scans current S&P 500 constituents for ceiling breakouts, momentum breakouts, and near-breakout watch setups using cached OHLCV history, resistance quality, relative volume, and SMA trend context.
+
+Primary user jobs:
+
+- Review ranked breakout setups across the S&P 500 universe.
+- Toggle ceiling, momentum, and near-breakout detectors.
+- Adjust lookback, resistance tolerance, breakout clearance, relative volume, liquidity, and max-symbol settings.
+- Click a setup to inspect price, volume, SMA 20/50/200, and resistance on the detail chart.
+- Run Backtest Lab for 5/10/20/60 trading-day forward-return distributions.
+
+Professional positioning:
+
+- The scanner is not an order ticket or recommendation engine.
+- Backtests are historical distributions and do not include slippage, taxes, spreads, or execution quality.
+- Current S&P 500 membership can introduce survivorship bias in older backtests.
+- Provider and fallback sources are labeled. More implementation detail is documented in [BREAKOUT_SCANNER.md](BREAKOUT_SCANNER.md).
+
+## Equity Research
+
+Equity Research is an educational stock-analysis workspace inside FinanceOS Studio. It accepts a ticker or company name, resolves the company, pulls yfinance profile and valuation data, normalizes recent annual financial statements, builds same-sector peer context, computes a simple DCF estimate, adds recent public earnings source metadata when available, and uses the saved encrypted OpenAI key to produce a structured research analysis.
 
 Primary user jobs:
 
 - Enter a ticker or company name.
 - Choose an OpenAI model from the same FinanceOS Studio model set.
-- Review source cards for SEC EDGAR and earnings transcript coverage.
+- Review business model, revenue streams, moat score, competitors, industry trends, five-year financial health, valuation, ranked risks, growth potential, institutional perspective, scenarios, latest earnings context, and 12-24 month outlook.
+- Use the research stance as a review label: Attractive for research, Neutral / monitor, or Avoid-for-now for research.
+- Reopen saved Equity Research runs from history.
+- Keep source warnings visible when financial statements, peer data, DCF inputs, or earnings context are partial.
+
+Professional positioning:
+
+- The workflow is a research workbench, not a rating, price target, or order recommendation.
+- DCF output is shown as a model estimate and should not be treated as a price target.
+- Missing data is labeled rather than replaced with fabricated metrics.
+
+## Earnings Agent
+
+Earnings Agent is an educational earnings-research workspace inside FinanceOS Studio. It accepts a ticker or company name, resolves SEC company metadata, fetches recent earnings-related 8-K exhibits when available, searches bounded Motley Fool transcript pages, checks known company investor-relations pages for slides and prepared remarks, and uses the saved encrypted OpenAI key to produce a structured digest.
+
+Primary user jobs:
+
+- Enter a ticker or company name.
+- Choose an OpenAI model from the same FinanceOS Studio model set.
+- Review source cards for SEC EDGAR, company investor relations, earnings transcript coverage, and manual-review discovery links when needed.
 - Generate a digest with executive summary, top takeaways, financial metrics, management tone, risks, and deep-dive questions.
 - Reopen saved Earnings Agent runs from history.
 - Use warning labels when SEC exhibits or transcript coverage is missing or only partially parsed.
@@ -240,7 +285,7 @@ Professional positioning:
 
 - The workflow is a research digest, not a rating, price target, or trading recommendation.
 - SEC source links stay visible so users can verify the filing.
-- Motley Fool transcript text is used transiently for analysis; FinanceOS stores only source metadata and short provenance excerpts.
+- Third-party transcript and company IR text is used transiently for analysis; FinanceOS stores only source metadata and short provenance excerpts.
 - More implementation detail is documented in [EARNINGS_AGENT.md](EARNINGS_AGENT.md).
 
 ## Research Center
@@ -271,12 +316,14 @@ Professional positioning:
 5. Open Portfolio Analyzer and show how entered holdings, cost basis, daily close data, unrealized gains, and valuation signals are reviewed.
 6. Open Advisor Workspace and show how a taxable transition proposal is generated from imported lots and constraints.
 7. Open Retirement Analyzer and show account inputs, state taxes, spending smile, Roth conversion reasoning, and the annual funding mix chart.
-8. Open FinanceOS Studio and show the saved OpenAI key area, Personal CFO tab, Wheel Strategy tab, Portfolio Sync tab, RSI Playbook tab, and Earnings Agent tab.
+8. Open FinanceOS Studio and show the saved OpenAI key area, Personal CFO tab, Wheel Strategy tab, Portfolio Sync tab, RSI Playbook tab, Breakout Scanner tab, Equity Research tab, and Earnings Agent tab.
 9. In Wheel Strategy, show the universe chips, Deep Dive Summary, candidate table, checklist, and lifecycle cards.
 10. In Portfolio Sync, show either the setup-required state or a synced brokerage snapshot with accounts, sector mix, P/L, and concentration flags.
 11. In RSI Playbook, show the rule strip, per-stock summary, filters, and detail chart with price, EMA, and RSI.
-12. In Earnings Agent, show the ticker/company input, source cards, digest sections, warnings, and saved run history.
-12. End by reiterating that outputs are planning artifacts for professional review, not trade or tax instructions.
+12. In Breakout Scanner, show detector cards, parameter controls, ranked setup table, detail chart, and Backtest Lab distributions.
+13. In Equity Research, show the ticker/company input, five-year financial chart, DCF/peer metrics, research stance, ranked risks, and saved run history.
+14. In Earnings Agent, show the ticker/company input, source cards, digest sections, warnings, and saved run history.
+15. End by reiterating that outputs are planning artifacts for professional review, not trade or tax instructions.
 
 ## Usability Principles
 
@@ -288,6 +335,8 @@ Professional positioning:
 - Label fallback option-chain data clearly in Wheel Strategy.
 - Show setup-required state instead of fake broker data in Portfolio Sync.
 - Keep RSI Playbook rule labels close to chart context and manual verification notes.
+- Label Breakout Scanner provider fallbacks and backtest survivorship-bias limits.
+- Keep Equity Research stance language separate from ratings, price targets, and trade instructions.
 - Keep Earnings Agent source warnings visible and avoid advice or rating language.
 - Make the distinction between simulation and implementation unavoidable.
 - Keep product copy professional, specific, and conservative.
@@ -301,7 +350,9 @@ Professional positioning:
 - Wheel Strategy depends on yfinance option-chain availability and may show deterministic fallback contracts for educational review.
 - Portfolio Sync requires SnapTrade credentials for live read-only brokerage connection; without credentials, users should use the manual Portfolio Analyzer.
 - RSI Playbook depends on daily market-history availability and can show deterministic fallback chart data when providers are unavailable.
-- Earnings Agent depends on public SEC/Motley source availability and a saved OpenAI key; missing or partial sources are labeled rather than replaced with fake transcripts.
+- Breakout Scanner depends on current S&P 500 universe data and OHLCV provider history; fallback histories are labeled and backtests are distribution summaries, not forecasts.
+- Equity Research depends on yfinance profile/statement availability, free peer metadata, recent public earnings sources, and a saved OpenAI key; missing fields are labeled rather than replaced with fabricated metrics.
+- Earnings Agent depends on public SEC, company IR, Motley, YouTube discovery, and optional Quartr availability plus a saved OpenAI key; missing or partial sources are labeled rather than replaced with fake transcripts.
 - Tax and retirement calculations use simplified assumptions.
 - Retirement analyzer output is deterministic, not a Monte Carlo engine.
 - No live trading, custody, tax filing, or brokerage execution is provided.

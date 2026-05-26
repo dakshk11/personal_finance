@@ -27,6 +27,8 @@ class User(Base):
     ai_advisor_openai_key: Mapped["AIAdvisorOpenAIKey | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     ai_advisor_reports: Mapped[list["AIAdvisorReport"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     earnings_agent_runs: Mapped[list["EarningsAgentRun"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    stock_analysis_runs: Mapped[list["StockAnalysisRun"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    breakout_scanner_scan_runs: Mapped[list["BreakoutScannerScanRun"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     personal_cfo_projects: Mapped[list["PersonalCFOProject"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     option_strategy_config: Mapped["OptionStrategyConfigState | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     option_strategy_scan_runs: Mapped[list["OptionStrategyScanRun"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -105,6 +107,84 @@ class EarningsAgentRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     user: Mapped["User"] = relationship(back_populates="earnings_agent_runs")
+
+
+class StockAnalysisRun(Base):
+    __tablename__ = "stock_analysis_runs"
+    __table_args__ = (
+        Index("ix_stock_analysis_run_user_created", "user_id", "created_at"),
+        Index("ix_stock_analysis_run_user_ticker", "user_id", "ticker"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    query: Mapped[str] = mapped_column(String(160))
+    ticker: Mapped[str] = mapped_column(String(16), index=True)
+    company_name: Mapped[str] = mapped_column(String(240))
+    sector: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    industry: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    model: Mapped[str] = mapped_column(String(80))
+    source_status: Mapped[str] = mapped_column(String(32), default="partial", index=True)
+    source_json: Mapped[str] = mapped_column(Text, default="[]")
+    financial_snapshot_json: Mapped[str] = mapped_column(Text, default="{}")
+    digest_json: Mapped[str] = mapped_column(Text, default="{}")
+    warnings_json: Mapped[str] = mapped_column(Text, default="[]")
+    prompt_text: Mapped[str] = mapped_column(Text)
+    response_text: Mapped[str] = mapped_column(Text)
+    usage_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="stock_analysis_runs")
+
+
+class BreakoutUniverseMember(Base):
+    __tablename__ = "breakout_universe_members"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    company_name: Mapped[str] = mapped_column(String(240))
+    sector: Mapped[str] = mapped_column(String(120), default="Unknown")
+    source: Mapped[str] = mapped_column(String(255))
+    source_url: Mapped[str] = mapped_column(String(512))
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+
+class BreakoutOhlcvBar(Base):
+    __tablename__ = "breakout_ohlcv_bars"
+    __table_args__ = (UniqueConstraint("symbol", "price_date", name="uq_breakout_ohlcv_symbol_date"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    price_date: Mapped[date] = mapped_column(Date, index=True)
+    open: Mapped[float] = mapped_column(Float)
+    high: Mapped[float] = mapped_column(Float)
+    low: Mapped[float] = mapped_column(Float)
+    close: Mapped[float] = mapped_column(Float)
+    adjusted_close: Mapped[float] = mapped_column(Float)
+    volume: Mapped[float] = mapped_column(Float, default=0)
+    source: Mapped[str] = mapped_column(String(255))
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class BreakoutScannerScanRun(Base):
+    __tablename__ = "breakout_scanner_scan_runs"
+    __table_args__ = (
+        Index("ix_breakout_scan_user_market_date", "user_id", "market_date"),
+        Index("ix_breakout_scan_user_config", "user_id", "config_hash"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    market_date: Mapped[date] = mapped_column(Date, index=True)
+    config_hash: Mapped[str] = mapped_column(String(80), index=True)
+    config_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(32), default="completed", index=True)
+    data_source: Mapped[str] = mapped_column(String(255), default="S&P 500 universe + yfinance OHLCV cache")
+    result_json: Mapped[str] = mapped_column(Text, default="{}")
+    warnings_json: Mapped[str] = mapped_column(Text, default="[]")
+    scanned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+
+    user: Mapped["User"] = relationship(back_populates="breakout_scanner_scan_runs")
 
 
 class PersonalCFOProject(Base):

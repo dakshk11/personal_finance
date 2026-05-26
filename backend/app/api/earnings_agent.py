@@ -83,8 +83,7 @@ def get_run(
 
 
 def _run_out(run: EarningsAgentRun) -> EarningsAgentRunOut:
-    sec_source = _json_load(run.sec_source_json, {})
-    transcript_source = _json_load(run.transcript_source_json, {})
+    source_payloads = [*_source_payloads(run.sec_source_json), *_source_payloads(run.transcript_source_json)]
     digest = _json_load(run.digest_json, {})
     return EarningsAgentRunOut(
         id=run.id,
@@ -97,13 +96,22 @@ def _run_out(run: EarningsAgentRun) -> EarningsAgentRunOut:
         source_status=run.source_status,
         sources=[
             EarningsAgentSourceOut(**source)
-            for source in (sec_source, transcript_source)
+            for source in source_payloads
             if isinstance(source, dict) and source
         ],
         digest=EarningsAgentDigestOut(**digest),
         warnings=_json_load(run.warnings_json, []),
         usage=_json_load(run.usage_json, {}),
     )
+
+
+def _source_payloads(value: str | None) -> list[dict[str, object]]:
+    loaded = _json_load(value, [])
+    if isinstance(loaded, list):
+        return [item for item in loaded if isinstance(item, dict)]
+    if isinstance(loaded, dict) and loaded:
+        return [loaded]
+    return []
 
 
 def _json_load(value: str | None, default: object) -> object:

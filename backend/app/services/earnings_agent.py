@@ -25,9 +25,24 @@ SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS_BASE = "https://data.sec.gov/submissions"
 SEC_ARCHIVES_BASE = "https://www.sec.gov/Archives/edgar/data"
 FOOL_TRANSCRIPTS_BASE = "https://www.fool.com/earnings-call-transcripts/"
+YOUTUBE_SEARCH_BASE = "https://www.youtube.com/results"
 MAX_SOURCE_CHARS = 55_000
 MAX_PROMPT_SOURCE_CHARS = 24_000
 MAX_EXCERPT_CHARS = 900
+MAX_COMPANY_IR_SOURCES = 2
+
+KNOWN_IR_URLS = {
+    "AAPL": "https://investor.apple.com/",
+    "MSFT": "https://www.microsoft.com/en-us/Investor",
+    "NVDA": "https://investor.nvidia.com/",
+    "AMZN": "https://ir.aboutamazon.com/",
+    "GOOGL": "https://abc.xyz/investor/",
+    "GOOG": "https://abc.xyz/investor/",
+    "META": "https://investor.atmeta.com/",
+    "TSLA": "https://ir.tesla.com/",
+    "AVGO": "https://investors.broadcom.com/",
+    "CSCO": "https://investor.cisco.com/",
+}
 
 
 class EarningsAgentSourceError(RuntimeError):
@@ -72,14 +87,21 @@ class EarningsSource:
 
 def run_earnings_agent(db: Session, user_id: int, query: str, model: str, api_key: str) -> EarningsAgentRun:
     company = resolve_company(query)
-    sec_source = fetch_sec_earnings_source(company)
+    sec_sources = fetch_sec_earnings_sources(company)
     transcript_source = fetch_motley_transcript_source(company)
-    sources = [sec_source, transcript_source]
+    existing_urls = {source.url for source in [*sec_sources, transcript_source] if source.url}
+    company_ir_sources = fetch_company_ir_sources(company, existing_urls=existing_urls)
+    sources = [*sec_sources, transcript_source, *company_ir_sources]
+    discovery_sources: list[EarningsSource] = []
+    if not any("transcript" in (source.document_type or "").lower() and source.text.strip() for source in sources):
+        discovery_sources.append(fetch_youtube_discovery_source(company))
+        discovery_sources.append(fetch_quartr_status_source(company))
+        sources.extend(discovery_sources)
     warnings = [source.warning for source in sources if source.warning]
     usable_sources = [source for source in sources if source.text.strip()]
     if not usable_sources:
         raise EarningsAgentSourceError(
-            "No earnings source text was available from SEC EDGAR or Motley Fool for this query. Try a public US ticker with recent earnings materials."
+            "No earnings source text was available from SEC EDGAR, company investor relations, or Motley Fool for this query. Try a public US ticker with recent earnings materials."
         )
 
     prompt_text = build_earnings_prompt(company, usable_sources)
@@ -103,8 +125,8 @@ def run_earnings_agent(db: Session, user_id: int, query: str, model: str, api_ke
         cik=company.cik,
         model=model,
         source_status=status,
-        sec_source_json=json.dumps(sec_source.public_dict(), separators=(",", ":"), sort_keys=True),
-        transcript_source_json=json.dumps(transcript_source.public_dict(), separators=(",", ":"), sort_keys=True),
+        sec_source_json=json.dumps([source.public_dict() for source in [*sec_sources, *company_ir_sources]], separators=(",", ":"), sort_keys=True),
+        transcript_source_json=json.dumps([source.public_dict() for source in [transcript_source, *discovery_sources]], separators=(",", ":"), sort_keys=True),
         digest_json=json.dumps(digest, separators=(",", ":"), sort_keys=True),
         warnings_json=json.dumps(_unique([warning for warning in warnings if warning]), separators=(",", ":"), sort_keys=True),
         prompt_text=build_stored_prompt_snapshot(company, sources),
@@ -162,25 +184,34 @@ def resolve_company(query: str) -> EarningsCompany:
 
 
 def fetch_sec_earnings_source(company: EarningsCompany) -> EarningsSource:
+    sources = fetch_sec_earnings_sources(company)
+    return sources[0]
+
+
+def fetch_sec_earnings_sources(company: EarningsCompany) -> list[EarningsSource]:
     if not company.cik:
-        return EarningsSource(
-            source_type="sec",
-            title="SEC EDGAR exhibit",
-            status="missing",
-            document_type="8-K exhibit",
-            warning=f"SEC CIK could not be resolved for {company.ticker}.",
-        )
+        return [
+            EarningsSource(
+                source_type="sec",
+                title="SEC EDGAR exhibit",
+                status="missing",
+                document_type="8-K exhibit",
+                warning=f"SEC CIK could not be resolved for {company.ticker}.",
+            )
+        ]
     submissions_url = f"{SEC_SUBMISSIONS_BASE}/CIK{company.cik.zfill(10)}.json"
     try:
         submissions = _fetch_json(submissions_url, sec=True)
     except EarningsAgentSourceError as exc:
-        return EarningsSource(
-            source_type="sec",
-            title="SEC EDGAR exhibit",
-            status="missing",
-            document_type="8-K exhibit",
-            warning=f"SEC submissions could not be fetched: {exc}",
-        )
+        return [
+            EarningsSource(
+                source_type="sec",
+                title="SEC EDGAR exhibit",
+                status="missing",
+                document_type="8-K exhibit",
+                warning=f"SEC submissions could not be fetched: {exc}",
+            )
+        ]
 
     recent = (submissions.get("filings") or {}).get("recent") or {}
     forms = list(recent.get("form") or [])
@@ -194,48 +225,172 @@ def fetch_sec_earnings_source(company: EarningsCompany) -> EarningsSource:
         accession_str = str(accession)
         filing_date = _date_from_value(filing_date_value)
         folder_url = _sec_archive_folder(company.cik, accession_str)
-        submission_text_url = f"{folder_url}/{accession_str.replace('-', '')}.txt"
         try:
-            submission_text = _fetch_text(submission_text_url, sec=True, max_bytes=8_000_000)
+            submission_text, submission_text_url = _fetch_sec_submission_text(folder_url, accession_str)
         except EarningsAgentSourceError:
             continue
         documents = parse_sec_submission_documents(submission_text, folder_url)
-        candidate = best_sec_exhibit(documents)
-        if not candidate:
+        candidates = ranked_sec_exhibits(documents)
+        if not candidates:
             continue
-        extracted_text, warning = extract_sec_document_text(candidate)
-        public_text = _compact_text(extracted_text)
-        url = str(candidate.get("url") or submission_text_url)
-        document_type = str(candidate.get("type") or "EX-99")
-        title = _source_title(company, "SEC EDGAR", candidate.get("description"), filing_date)
-        if public_text:
-            return EarningsSource(
-                source_type="sec",
-                title=title,
-                status="found",
-                url=url,
-                document_type=f"{str(form).upper()} {document_type}".strip(),
-                filing_date=filing_date,
-                excerpt=_excerpt(public_text),
-                warning=warning,
-                text=public_text[:MAX_SOURCE_CHARS],
-            )
-        return EarningsSource(
-            source_type="sec",
-            title=title,
-            status="partial",
-            url=url,
-            document_type=f"{str(form).upper()} {document_type}".strip(),
-            filing_date=filing_date,
-            warning=warning or "SEC exhibit was found, but readable text could not be extracted.",
-        )
+        sources: list[EarningsSource] = []
+        seen_roles: set[str] = set()
+        for _, candidate in candidates:
+            role = _sec_document_role(candidate)
+            if role in seen_roles:
+                continue
+            seen_roles.add(role)
+            extracted_text, warning = extract_sec_document_text(candidate)
+            public_text = _compact_text(extracted_text)
+            url = str(candidate.get("url") or submission_text_url)
+            document_type = str(candidate.get("type") or "EX-99")
+            source_type = "sec_presentation" if role == "presentation" else "sec"
+            title = _source_title(company, "SEC EDGAR", candidate.get("description"), filing_date)
+            if public_text:
+                sources.append(
+                    EarningsSource(
+                        source_type=source_type,
+                        title=title,
+                        status="found",
+                        url=url,
+                        document_type=f"{str(form).upper()} {document_type}".strip(),
+                        filing_date=filing_date,
+                        excerpt=_excerpt(public_text),
+                        warning=warning,
+                        text=public_text[:MAX_SOURCE_CHARS],
+                    )
+                )
+            else:
+                sources.append(
+                    EarningsSource(
+                        source_type=source_type,
+                        title=title,
+                        status="partial",
+                        url=url,
+                        document_type=f"{str(form).upper()} {document_type}".strip(),
+                        filing_date=filing_date,
+                        warning=warning or "SEC exhibit was found, but readable text could not be extracted.",
+                    )
+                )
+            if len(sources) >= 3:
+                break
+        if sources:
+            return sources
 
+    return [
+        EarningsSource(
+            source_type="sec",
+            title="SEC EDGAR exhibit",
+            status="missing",
+            document_type="8-K exhibit",
+            warning=f"No recent 8-K Exhibit 99.1 or 99.2 earnings material was found for {company.ticker}.",
+        )
+    ]
+
+
+def fetch_company_ir_sources(company: EarningsCompany, existing_urls: set[str] | None = None) -> list[EarningsSource]:
+    existing_urls = existing_urls or set()
+    sources: list[EarningsSource] = []
+    warnings: list[str] = []
+    for page_url in company_ir_candidate_pages(company):
+        if len(sources) >= MAX_COMPANY_IR_SOURCES:
+            break
+        try:
+            html = _fetch_text(page_url, sec=False, max_bytes=2_500_000)
+        except EarningsAgentSourceError as exc:
+            warnings.append(str(exc))
+            continue
+        links = best_company_ir_links(html, page_url, company)
+        if not links:
+            page_text = _compact_text(_html_to_text(html))
+            if _looks_like_earnings_material(page_text) and page_url not in existing_urls:
+                sources.append(
+                    EarningsSource(
+                        source_type="company_ir",
+                        title=f"{company.ticker} company investor relations page",
+                        status="found",
+                        url=page_url,
+                        document_type="company investor relations earnings page",
+                        excerpt=_excerpt(page_text),
+                        text=page_text[:MAX_SOURCE_CHARS],
+                    )
+                )
+            continue
+        for link in links:
+            if len(sources) >= MAX_COMPANY_IR_SOURCES:
+                break
+            url = link["url"]
+            if url in existing_urls:
+                continue
+            text, warning = extract_public_document_url(url)
+            if text:
+                sources.append(
+                    EarningsSource(
+                        source_type="company_ir",
+                        title=link["title"],
+                        status="found",
+                        url=url,
+                        document_type=link["document_type"],
+                        excerpt=_excerpt(text),
+                        warning=warning,
+                        text=text[:MAX_SOURCE_CHARS],
+                    )
+                )
+            else:
+                sources.append(
+                    EarningsSource(
+                        source_type="company_ir",
+                        title=link["title"],
+                        status="partial",
+                        url=url,
+                        document_type=link["document_type"],
+                        warning=warning or "Company investor-relations document was discovered, but text could not be extracted.",
+                    )
+                )
+    if not sources and warnings:
+        return [
+            EarningsSource(
+                source_type="company_ir",
+                title="Company investor relations",
+                status="missing",
+                document_type="company earnings material",
+                warning=f"Company IR fallback could not fetch source text. Last warning: {warnings[-1]}",
+            )
+        ]
+    if not sources:
+        return [
+            EarningsSource(
+                source_type="company_ir",
+                title="Company investor relations",
+                status="missing",
+                document_type="company earnings material",
+                warning=f"No company investor-relations earnings presentation or transcript link was discovered for {company.ticker}.",
+            )
+        ]
+    return sources
+
+
+def fetch_youtube_discovery_source(company: EarningsCompany) -> EarningsSource:
+    query = f"{company.ticker} {company.company_name} earnings call transcript presentation"
+    url = f"{YOUTUBE_SEARCH_BASE}?search_query={quote_plus(query)}"
     return EarningsSource(
-        source_type="sec",
-        title="SEC EDGAR exhibit",
+        source_type="youtube",
+        title=f"YouTube search for {company.ticker} earnings call",
+        status="partial",
+        url=url,
+        document_type="video discovery link",
+        warning="YouTube is linked for manual review only; FinanceOS does not download captions or rehost video transcripts.",
+    )
+
+
+def fetch_quartr_status_source(company: EarningsCompany) -> EarningsSource:
+    return EarningsSource(
+        source_type="quartr",
+        title=f"Quartr transcripts and slides for {company.ticker}",
         status="missing",
-        document_type="8-K exhibit",
-        warning=f"No recent 8-K Exhibit 99.1 or 99.2 earnings material was found for {company.ticker}.",
+        url="https://quartr.com/",
+        document_type="transcript and slide provider",
+        warning="Quartr is not configured in the FinanceOS backend. The Codex Quartr connector check requires a Quartr Pro subscription, so this run used public web sources only.",
     )
 
 
@@ -416,6 +571,13 @@ def parse_sec_submission_documents(submission_text: str, folder_url: str) -> lis
 
 
 def best_sec_exhibit(documents: list[dict[str, str]]) -> dict[str, str] | None:
+    scored = ranked_sec_exhibits(documents)
+    if not scored:
+        return None
+    return scored[0][1]
+
+
+def ranked_sec_exhibits(documents: list[dict[str, str]]) -> list[tuple[int, dict[str, str]]]:
     scored: list[tuple[int, dict[str, str]]] = []
     for document in documents:
         haystack = " ".join(str(document.get(key, "")) for key in ("type", "filename", "description")).lower()
@@ -433,10 +595,8 @@ def best_sec_exhibit(documents: list[dict[str, str]]) -> dict[str, str] | None:
             score += 2
         if score >= 70:
             scored.append((score, document))
-    if not scored:
-        return None
     scored.sort(key=lambda item: item[0], reverse=True)
-    return scored[0][1]
+    return scored
 
 
 def extract_sec_document_text(document: dict[str, str]) -> tuple[str, str | None]:
@@ -479,6 +639,84 @@ def best_motley_link(index_html: str, company: EarningsCompany) -> dict[str, str
     return candidates[0][1]
 
 
+def company_ir_candidate_pages(company: EarningsCompany) -> list[str]:
+    candidates: list[str] = []
+    known = KNOWN_IR_URLS.get(company.ticker.upper())
+    if known:
+        base = known.rstrip("/")
+        candidates.extend([known, f"{base}/events-and-presentations", f"{base}/financials", f"{base}/news"])
+        return _unique_urls(candidates)[:8]
+    website = _company_website(company.ticker)
+    if website:
+        base = website.rstrip("/")
+        candidates.extend(
+            [
+                base,
+                f"{base}/investor-relations",
+                f"{base}/investors",
+                f"{base}/investor",
+                f"{base}/ir",
+                f"{base}/news-and-events",
+            ]
+        )
+    return _unique_urls(candidates)[:8]
+
+
+def best_company_ir_links(html: str, base_url: str, company: EarningsCompany) -> list[dict[str, str]]:
+    candidates: list[tuple[int, dict[str, str]]] = []
+    company_tokens = [token for token in _company_key(company.company_name).split() if len(token) > 3]
+    for match in re.finditer(r"<a[^>]+href=[\"'](?P<href>[^\"']+)[\"'][^>]*>(?P<label>.*?)</a>", html, flags=re.IGNORECASE | re.DOTALL):
+        href = unescape(match.group("href")).strip()
+        if not href or href.startswith(("#", "mailto:", "tel:", "javascript:")):
+            continue
+        url = urljoin(base_url, href)
+        label = _compact_text(_html_to_text(match.group("label")))
+        haystack = f"{url} {label}".lower()
+        score = 0
+        for keyword in ("earnings", "results", "quarter", "quarterly", "q1", "q2", "q3", "q4", "fiscal"):
+            if keyword in haystack:
+                score += 12
+        if "presentation" in haystack or "slides" in haystack or "deck" in haystack:
+            score += 34
+        if "transcript" in haystack or "call" in haystack:
+            score += 28
+        if "webcast" in haystack:
+            score += 16
+        if ".pdf" in haystack:
+            score += 16
+        for token in company_tokens[:3]:
+            if token in haystack:
+                score += 5
+        if score < 40:
+            continue
+        document_type = "company earnings call transcript" if "transcript" in haystack else "company investor presentation"
+        candidates.append((score, {"url": url, "title": label or f"{company.ticker} investor relations material", "document_type": document_type}))
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    deduped: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for _, item in candidates:
+        if item["url"] in seen:
+            continue
+        seen.add(item["url"])
+        deduped.append(item)
+        if len(deduped) >= 5:
+            break
+    return deduped
+
+
+def extract_public_document_url(url: str) -> tuple[str, str | None]:
+    try:
+        payload = _fetch_bytes(url, sec=False, max_bytes=12_000_000)
+    except EarningsAgentSourceError as exc:
+        return "", str(exc)
+    if url.lower().split("?", 1)[0].endswith(".pdf") or payload[:5] == b"%PDF-":
+        try:
+            return _extract_pdf_text(payload), None
+        except EarningsAgentSourceError as exc:
+            return "", str(exc)
+    return _compact_text(_html_to_text(payload.decode("utf-8", errors="replace"))), None
+
+
 def _company_ticker_records() -> list[dict[str, Any]]:
     payload = _fetch_json(SEC_COMPANY_TICKERS_URL, sec=True)
     if isinstance(payload, dict):
@@ -503,12 +741,71 @@ def _resolve_record_by_ticker(symbol: str, records: list[dict[str, Any]]) -> Ear
 
 
 def _source_status(sources: list[EarningsSource]) -> str:
-    found = sum(1 for source in sources if source.status == "found")
-    if found == len(sources):
+    text_sources = [source for source in sources if source.text.strip()]
+    has_filing_or_presentation = any(
+        source.source_type in {"sec", "sec_presentation", "company_ir"} and (source.status == "found" or source.text.strip())
+        for source in sources
+    )
+    has_transcript = any(
+        "transcript" in (source.document_type or "").lower() and source.text.strip()
+        for source in sources
+    )
+    if has_filing_or_presentation and has_transcript:
         return "complete"
-    if found:
+    if text_sources or any(source.status == "found" for source in sources):
         return "partial"
     return "missing"
+
+
+def _sec_document_role(document: dict[str, str]) -> str:
+    haystack = " ".join(str(document.get(key, "")) for key in ("type", "filename", "description")).lower()
+    if "presentation" in haystack or "slides" in haystack or "deck" in haystack:
+        return "presentation"
+    if "shareholder letter" in haystack or "letter" in haystack:
+        return "shareholder_letter"
+    if "transcript" in haystack:
+        return "transcript"
+    return "release"
+
+
+def _looks_like_earnings_material(text: str) -> bool:
+    lowered = text.lower()
+    if len(lowered) < 900:
+        return False
+    keyword_count = sum(
+        1
+        for keyword in ("earnings", "quarter", "revenue", "net income", "eps", "guidance", "conference call", "financial results")
+        if keyword in lowered
+    )
+    return keyword_count >= 3
+
+
+def _company_website(symbol: str) -> str | None:
+    try:
+        import yfinance as yf
+
+        info = yf.Ticker(symbol).get_info()
+    except Exception:
+        return None
+    if not isinstance(info, dict):
+        return None
+    for key in ("irWebsite", "website"):
+        value = str(info.get(key) or "").strip()
+        if value.startswith(("http://", "https://")):
+            return value
+    return None
+
+
+def _unique_urls(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    output: list[str] = []
+    for value in values:
+        normalized = value.strip().rstrip("/")
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        output.append(value.strip())
+    return output
 
 
 def _fetch_json(url: str, *, sec: bool) -> Any:
@@ -521,6 +818,22 @@ def _fetch_json(url: str, *, sec: bool) -> Any:
 
 def _fetch_text(url: str, *, sec: bool, max_bytes: int = 2_000_000) -> str:
     return _fetch_bytes(url, sec=sec, max_bytes=max_bytes).decode("utf-8", errors="replace")
+
+
+def _fetch_sec_submission_text(folder_url: str, accession: str) -> tuple[str, str]:
+    urls = [
+        f"{folder_url}/{accession}.txt",
+        f"{folder_url}/{accession.replace('-', '')}.txt",
+    ]
+    last_error: EarningsAgentSourceError | None = None
+    for url in urls:
+        try:
+            return _fetch_text(url, sec=True, max_bytes=8_000_000), url
+        except EarningsAgentSourceError as exc:
+            last_error = exc
+    if last_error:
+        raise last_error
+    raise EarningsAgentSourceError(f"SEC submission text was not available for {accession}.")
 
 
 def _fetch_bytes(url: str, *, sec: bool, max_bytes: int = 2_000_000) -> bytes:
