@@ -373,14 +373,14 @@ Start the backend and frontend in two separate terminals.
 Backend:
 
 ```bash
-cd /Users/deepakkumar/github/personal_finance/backend
+cd ~/github/personal_finance/backend
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
 Frontend:
 
 ```bash
-cd /Users/deepakkumar/github/personal_finance/frontend
+cd ~/github/personal_finance/frontend
 NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev -- --hostname 0.0.0.0 --port 3000
 ```
 
