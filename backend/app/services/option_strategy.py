@@ -1,9 +1,15 @@
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 import json
+import logging
 import math
+import re
+import ssl
 from typing import Any
+from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
+
+import certifi
 
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -20,14 +26,19 @@ from app.services.market_data import normalize_symbol
 from app.services.market_history import MarketHistory, MarketHistoryBar, get_market_history
 
 
+_logger = logging.getLogger(__name__)
+
 LEGACY_DEFAULT_TICKERS = ["TQQQ", "SOXL", "UPRO", "QQQ", "SPY", "SMH"]
 DEFAULT_CORE_TICKERS = ["QQQ", "SPY", "SMH", "XLE", "XLI"]
 DEFAULT_LEVERAGED_TICKERS = ["UPRO", "TQQQ", "SOXL"]
 DEFAULT_EXTRA_TICKERS = DEFAULT_CORE_TICKERS + DEFAULT_LEVERAGED_TICKERS
 DEFAULT_UNIVERSE_GROUPS = ["sp500_top_30", "nasdaq_top_30", "core_etfs", "leveraged_etfs"]
 DEFAULT_EMA_PERIODS = [8, 21, 34, 55]
-OPTION_CHAIN_SOURCE = "yfinance live option chain + cached market history"
-FALLBACK_CHAIN_SOURCE = "yfinance live option chain with deterministic fallback contracts"
+OPTION_CHAIN_SOURCE = "CBOE delayed option chain + cached market history"
+FALLBACK_CHAIN_SOURCE = "CBOE delayed option chain with deterministic fallback contracts"
+_LIVE_PROVIDERS = frozenset({"yfinance", "CBOE delayed"})
+_CBOE_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+_OCC_PATTERN = re.compile(r"^([A-Z]+)(\d{2})(\d{2})(\d{2})([CP])(\d{8})$")
 RISK_FREE_RATE = 0.045
 DEFAULT_TARGET_DELTA_MIN = 0.20
 DEFAULT_TARGET_DELTA_MAX = 0.35
@@ -82,14 +93,14 @@ _BASE_YIELD = {
 }
 
 _SYNTHETIC_BASE_PRICE = {
-    "TQQQ": 78.0,
-    "SOXL": 44.0,
-    "UPRO": 82.0,
-    "QQQ": 452.0,
-    "SPY": 526.0,
-    "SMH": 248.0,
-    "XLE": 92.0,
-    "XLI": 128.0,
+    "TQQQ": 65.0,
+    "SOXL": 22.0,
+    "UPRO": 80.0,
+    "QQQ": 730.0,
+    "SPY": 750.0,
+    "SMH": 220.0,
+    "XLE": 88.0,
+    "XLI": 140.0,
 }
 
 
@@ -150,7 +161,7 @@ def run_scan(db: Session, user_id: int, force: bool = False) -> dict[str, Any]:
     today = _market_date_today()
     if not force:
         cached = _latest_scan_run_for_date(db, user_id, today)
-        if cached:
+        if cached and not _scan_run_is_stale(cached):
             rows = db.scalars(
                 select(OptionStrategySignalCandidate)
                 .where(OptionStrategySignalCandidate.user_id == user_id, OptionStrategySignalCandidate.scan_run_id == cached.id)
@@ -509,6 +520,8 @@ def _build_symbol_candidates(db: Session, user_id: int, config: dict[str, Any], 
     earnings_days = (earnings_date - today).days if earnings_date else None
     contracts = _fetch_yfinance_put_contracts(symbol, latest_close, config, today)
     if not contracts:
+        contracts = _fetch_cboe_put_contracts(symbol, latest_close, config, today)
+    if not contracts:
         contracts = _fallback_put_contracts(symbol, latest_close, config, today)
 
     candidates: list[dict[str, Any]] = []
@@ -620,7 +633,7 @@ def _candidate_from_checks(
             f"{config['dte_min']}-{config['dte_max']} DTE, {config['target_delta_min']:.2f}-{config['target_delta_max']:.2f} delta, tight spread, OI >= {config['min_open_interest']}",
             "DTE, delta, spread, and open interest are in range." if liquidity_pass else "One or more contract-selection filters failed.",
         ),
-        _check("provider", "Provider", provider == "yfinance", provider, "yfinance", "Live option chain." if provider == "yfinance" else "Fallback contract estimate; verify manually."),
+        _check("provider", "Provider", provider in _LIVE_PROVIDERS, provider, "live chain", "Live option chain." if provider in _LIVE_PROVIDERS else "Fallback contract estimate; verify manually."),
     ]
     blocked_reasons = [
         f"RSI above {config['rsi_max']}" if not rsi_pass else "",
@@ -633,7 +646,7 @@ def _candidate_from_checks(
         f"Sector cap would exceed {_pct(config['sector_cap'])}" if not sector_pass else "",
         f"Premium yield below {_pct(config['min_premium_yield'])}" if not yield_pass else "",
         "DTE/delta/liquidity filter failed" if not liquidity_pass else "",
-        "Live option chain unavailable" if provider != "yfinance" else "",
+        "Live option chain unavailable" if provider not in _LIVE_PROVIDERS else "",
     ]
     blocked_reasons = [reason for reason in blocked_reasons if reason]
     return {
@@ -775,6 +788,20 @@ def _market_date_today() -> date:
     return datetime.now(US_MARKET_TIME_ZONE).date()
 
 
+def _is_market_hours() -> bool:
+    now = datetime.now(US_MARKET_TIME_ZONE)
+    open_time = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    close_time = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    return open_time <= now < close_time
+
+
+def _scan_run_is_stale(scan_run: OptionStrategyScanRun) -> bool:
+    if not _is_market_hours():
+        return False
+    age = datetime.now(UTC).replace(tzinfo=None) - scan_run.scanned_at
+    return age > timedelta(minutes=60)
+
+
 def _latest_scan_run_for_date(db: Session, user_id: int, scan_date: date) -> OptionStrategyScanRun | None:
     start, end = _utc_bounds_for_market_date(scan_date)
     return db.scalar(
@@ -884,7 +911,8 @@ def _fetch_yfinance_put_contracts(symbol: str, latest_close: float, config: dict
             for value in getattr(ticker, "options", [])
             if _is_iso_date(value)
         ]
-    except Exception:
+    except Exception as exc:
+        _logger.warning("yfinance options fetch failed | symbol=%s error=%s", symbol, type(exc).__name__)
         return []
 
     contracts: list[PutContract] = []
@@ -940,10 +968,88 @@ def _put_contract_from_yfinance_row(row: dict[str, Any], expiration: date, dte: 
         bid=round(bid, 2),
         ask=round(ask, 2),
         mid=round(mid, 2),
-        iv=round(max(iv, 0.01), 4),
+        iv=round(min(max(iv, 0.01), 5.0), 4),
         open_interest=open_interest,
         volume=int(volume_value) if volume_value else None,
         provider="yfinance",
+    )
+
+
+def _fetch_cboe_put_contracts(symbol: str, latest_close: float, config: dict[str, Any], today: date) -> list[PutContract]:
+    url = f"https://cdn.cboe.com/api/global/delayed_quotes/options/{symbol.upper()}.json"
+    try:
+        req = Request(url, headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", "Referer": "https://www.cboe.com"})
+        with urlopen(req, timeout=12, context=_CBOE_SSL_CONTEXT) as response:
+            data = json.loads(response.read().decode("utf-8", errors="ignore"))
+    except Exception as exc:
+        status = getattr(exc, "code", None)
+        _logger.warning("CBOE options fetch failed | symbol=%s error=%s status=%s", symbol, type(exc).__name__, status)
+        return []
+
+    opts = data.get("data", {}).get("options") or []
+    dte_min = int(config["dte_min"])
+    dte_max = int(config["dte_max"])
+    target_delta = (float(config["target_delta_min"]) + float(config["target_delta_max"])) / 2
+
+    contracts: list[PutContract] = []
+    for o in opts:
+        contract = _put_contract_from_cboe_row(o, symbol, latest_close, today, dte_min, dte_max)
+        if contract:
+            contracts.append(contract)
+
+    contracts.sort(key=lambda c: (abs(abs(_put_delta(latest_close, c.strike, c.dte, c.iv)) - target_delta), -c.mid, c.expiration))
+    return contracts[:6]
+
+
+def _put_contract_from_cboe_row(
+    o: dict[str, Any], symbol: str, latest_close: float, today: date, dte_min: int, dte_max: int
+) -> PutContract | None:
+    osym = str(o.get("option") or "")
+    m = _OCC_PATTERN.match(osym)
+    if not m:
+        return None
+    opt_sym, yy, mm, dd, cp, strike_str = m.groups()
+    if opt_sym.upper() != symbol.upper() or cp != "P":
+        return None
+    try:
+        exp = date(2000 + int(yy), int(mm), int(dd))
+    except ValueError:
+        return None
+    dte = (exp - today).days
+    if not (dte_min <= dte <= dte_max):
+        return None
+    strike = round(int(strike_str) / 1000, 2)
+    if strike <= 0 or strike >= latest_close:
+        return None
+    bid = _safe_float(o.get("bid"))
+    ask = _safe_float(o.get("ask"))
+    last_price = _safe_float(o.get("last_trade_price"))
+    iv = _safe_float(o.get("iv"))
+    open_interest = int(_safe_float(o.get("open_interest")) or 0)
+    volume_val = o.get("volume")
+    volume = int(_safe_float(volume_val)) if volume_val is not None else None
+    if bid <= 0 and ask <= 0 and last_price <= 0:
+        return None
+    if bid <= 0 or ask <= 0:
+        mid = last_price if last_price > 0 else (bid or ask)
+        bid = bid or max(0.01, mid * 0.94)
+        ask = ask or max(bid + 0.01, mid * 1.06)
+    else:
+        mid = (bid + ask) / 2
+    if mid <= 0:
+        return None
+    iv = round(min(max(iv, 0.01), 5.0), 4)
+    return PutContract(
+        strike=strike,
+        expiration=exp,
+        dte=dte,
+        bid=round(bid, 2),
+        ask=round(ask, 2),
+        mid=round(mid, 2),
+        iv=iv,
+        open_interest=open_interest,
+        volume=volume,
+        provider="CBOE delayed",
     )
 
 
@@ -1276,6 +1382,8 @@ def _scan_provider(row: OptionStrategySignalCandidate) -> str:
         source = row.scan_run.data_source
     except Exception:
         source = ""
+    if "CBOE" in source and "fallback" not in source:
+        return "CBOE delayed"
     if "yfinance" in source and "fallback" not in source:
         return "yfinance"
     if "fallback" in source:

@@ -13,10 +13,10 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Area,
   Bar,
   CartesianGrid,
   ComposedChart,
-  Legend,
   Line,
   ReferenceLine,
   ResponsiveContainer,
@@ -359,20 +359,48 @@ function BreakoutDetails({ signal }: { signal: BreakoutSignal }) {
         <div><span>Touches</span><strong>{signal.touch_count}</strong></div>
       </div>
       <div className="breakout-chart-panel">
-        <ResponsiveContainer width="100%" height={430}>
-          <ComposedChart data={signal.chart} margin={{ left: 4, right: 18, top: 10, bottom: 8 }}>
-            <CartesianGrid stroke="#17352d" strokeDasharray="3 3" />
-            <XAxis dataKey="date" minTickGap={42} tickFormatter={formatMonthDay} tick={{ fontSize: 11, fill: "#8da99e" }} axisLine={{ stroke: "#24463c" }} tickLine={{ stroke: "#24463c" }} />
-            <YAxis yAxisId="price" width={64} tickFormatter={(value) => compactCurrency(Number(value))} tick={{ fontSize: 11, fill: "#8da99e" }} axisLine={{ stroke: "#24463c" }} tickLine={{ stroke: "#24463c" }} />
-            <YAxis yAxisId="volume" orientation="right" width={58} tickFormatter={(value) => compactNumber(Number(value))} tick={{ fontSize: 11, fill: "#8da99e" }} axisLine={{ stroke: "#24463c" }} tickLine={{ stroke: "#24463c" }} />
+        <div className="breakout-chart-legend">
+          <span style={{ color: "#5eead4" }}>● Close</span>
+          <span style={{ color: "#38bdf8" }}>— SMA 20</span>
+          <span style={{ color: "#f59e0b" }}>— SMA 50</span>
+          <span style={{ color: "#c084fc" }}>— SMA 200</span>
+          {signal.resistance_level != null && <span style={{ color: "#fb7185" }}>– – Resistance</span>}
+        </div>
+        <ResponsiveContainer width="100%" height={290}>
+          <ComposedChart data={signal.chart} margin={{ left: 4, right: 18, top: 8, bottom: 0 }}>
+            <defs>
+              <linearGradient id="closeGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#5eead4" stopOpacity={0.22} />
+                <stop offset="95%" stopColor="#5eead4" stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="#17352d" strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="date" hide />
+            <YAxis yAxisId="price" width={64} tickFormatter={(v) => compactCurrency(Number(v))} tick={{ fontSize: 11, fill: "#8da99e" }} axisLine={false} tickLine={false} />
             <Tooltip content={<BreakoutTooltip />} />
-            <Legend wrapperStyle={{ color: "#b6d9cb", fontSize: 12 }} />
-            <Bar yAxisId="volume" dataKey="volume" name="Volume" fill="#164e63" opacity={0.35} />
-            <Line yAxisId="price" type="monotone" dataKey="close" name="Close" stroke="#5eead4" strokeWidth={2.5} dot={false} />
-            <Line yAxisId="price" type="monotone" dataKey="sma20" name="SMA 20" stroke="#38bdf8" strokeWidth={1.4} dot={false} connectNulls />
-            <Line yAxisId="price" type="monotone" dataKey="sma50" name="SMA 50" stroke="#f59e0b" strokeWidth={1.5} dot={false} connectNulls />
-            <Line yAxisId="price" type="monotone" dataKey="sma200" name="SMA 200" stroke="#c084fc" strokeWidth={1.5} dot={false} connectNulls />
-            {signal.resistance_level != null && <ReferenceLine yAxisId="price" y={signal.resistance_level} stroke="#fb7185" strokeDasharray="5 5" label={{ value: "Resistance", fill: "#fb7185", fontSize: 11 }} />}
+            <Area yAxisId="price" type="monotoneX" dataKey="close" name="Close" stroke="#5eead4" strokeWidth={2} fill="url(#closeGradient)" dot={false} isAnimationActive={false} />
+            <Line yAxisId="price" type="monotoneX" dataKey="sma20" name="SMA 20" stroke="#38bdf8" strokeWidth={1.2} dot={false} connectNulls isAnimationActive={false} />
+            <Line yAxisId="price" type="monotoneX" dataKey="sma50" name="SMA 50" stroke="#f59e0b" strokeWidth={1.2} dot={false} connectNulls isAnimationActive={false} />
+            <Line yAxisId="price" type="monotoneX" dataKey="sma200" name="SMA 200" stroke="#c084fc" strokeWidth={1.2} dot={false} connectNulls isAnimationActive={false} />
+            {signal.resistance_level != null && (
+              <ReferenceLine
+                yAxisId="price"
+                y={signal.resistance_level}
+                stroke="#fb7185"
+                strokeDasharray="5 3"
+                strokeWidth={1.5}
+                label={{ value: `R ${currencyCents(signal.resistance_level)}`, fill: "#fb7185", fontSize: 10, position: "insideTopRight" }}
+              />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+        <ResponsiveContainer width="100%" height={78}>
+          <ComposedChart data={signal.chart} margin={{ left: 4, right: 18, top: 2, bottom: 8 }}>
+            <CartesianGrid stroke="#17352d" strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="date" minTickGap={40} tickFormatter={formatMonthDay} tick={{ fontSize: 10, fill: "#8da99e" }} axisLine={{ stroke: "#1e3a34" }} tickLine={false} />
+            <YAxis width={64} tickFormatter={(v) => compactNumber(Number(v))} tick={{ fontSize: 10, fill: "#8da99e" }} axisLine={false} tickLine={false} tickCount={2} />
+            <Tooltip content={<VolumeTooltip />} />
+            <Bar dataKey="volume" name="Volume" fill="#2dd4bf" opacity={0.45} radius={[1, 1, 0, 0]} isAnimationActive={false} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -436,6 +464,16 @@ function BreakoutTooltip({ active, payload, label }: { active?: boolean; payload
           {item.name}: {item.name === "Volume" ? compactNumber(Number(item.value)) : currencyCents(Number(item.value))}
         </span>
       ))}
+    </div>
+  );
+}
+
+function VolumeTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number }>; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="option-chart-tooltip">
+      <strong>{formatShortDate(label)}</strong>
+      <span style={{ color: "#2dd4bf" }}>Volume: {compactNumber(Number(payload[0]?.value))}</span>
     </div>
   );
 }

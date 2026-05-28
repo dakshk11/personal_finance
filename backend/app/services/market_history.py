@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime, date, timedelta
-import csv
-import io
 import json
+import logging
 import ssl
 from typing import Literal, cast
 from urllib.parse import urlencode
@@ -172,6 +171,7 @@ HIGH_YIELD_FUNDS: tuple[HighYieldFund, ...] = (
 
 HIGH_YIELD_BY_SYMBOL = {item.symbol: item for item in HIGH_YIELD_FUNDS}
 PROVIDER_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+_logger = logging.getLogger(__name__)
 
 
 def list_major_indexes() -> list[MajorIndex]:
@@ -550,7 +550,6 @@ def _fetch_provider_history(symbol: str, start_date: date, end_date: date) -> li
     return (
         _fetch_yahoo_chart_history(symbol, start_date, end_date)
         or _fetch_yfinance_history(symbol, start_date, end_date)
-        or _fetch_stooq_history(symbol, start_date, end_date)
     )
 
 
@@ -573,7 +572,9 @@ def _fetch_yahoo_chart_history(symbol: str, start_date: date, end_date: date) ->
     try:
         with urlopen(request, timeout=12, context=PROVIDER_SSL_CONTEXT) as response:
             payload = json.loads(response.read().decode("utf-8", errors="ignore"))
-    except Exception:
+    except Exception as exc:
+        status = getattr(exc, "code", None)
+        _logger.warning("Yahoo chart history fetch failed | symbol=%s error=%s status=%s", symbol, type(exc).__name__, status)
         return []
 
     result = ((payload.get("chart") or {}).get("result") or [None])[0]
@@ -660,42 +661,6 @@ def _fetch_yfinance_history(symbol: str, start_date: date, end_date: date) -> li
         )
     return bars
 
-
-def _fetch_stooq_history(symbol: str, start_date: date, end_date: date) -> list[MarketHistoryBar]:
-    query = urlencode(
-        {
-            "s": f"{_provider_symbol(symbol).lower()}.us",
-            "i": "d",
-            "d1": start_date.strftime("%Y%m%d"),
-            "d2": end_date.strftime("%Y%m%d"),
-        }
-    )
-    url = f"https://stooq.com/q/d/l/?{query}"
-    try:
-        with urlopen(url, timeout=12, context=PROVIDER_SSL_CONTEXT) as response:
-            payload = response.read().decode("utf-8", errors="ignore")
-    except Exception:
-        return []
-
-    bars: list[MarketHistoryBar] = []
-    for row in csv.DictReader(io.StringIO(payload)):
-        try:
-            price_date = date.fromisoformat(str(row.get("Date", "")))
-            close = float(str(row.get("Close", "")).replace(",", ""))
-        except ValueError:
-            continue
-        if close <= 0:
-            continue
-        bars.append(
-            MarketHistoryBar(
-                date=price_date,
-                close=round(close, 4),
-                adjusted_close=round(close, 4),
-                dividend=0,
-                source="stooq daily close cache",
-            )
-        )
-    return bars
 
 
 def _upsert_price_bars(db: Session, symbol: str, bars: list[MarketHistoryBar]) -> None:

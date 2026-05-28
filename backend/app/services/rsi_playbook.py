@@ -12,7 +12,6 @@ from app.models.entities import PortfolioSyncSnapshot, utc_now
 from app.services.market_data import normalize_symbol
 from app.services.market_history import MarketHistory, MarketHistoryBar, get_market_history
 from app.services.option_strategy import default_universe
-from app.services.price_math import deterministic_price
 
 
 @dataclass
@@ -43,8 +42,7 @@ def scan_rsi_playbook(
     for item in symbols:
         history = get_market_history(db, item.symbol, start_date, end_date, force_refresh=force_refresh)
         if not history.bars:
-            history = _fallback_history(item.symbol, start_date, end_date)
-            warnings.append(f"{item.symbol}: provider history unavailable; deterministic fallback chart used.")
+            warnings.append(f"{item.symbol}: provider history unavailable; RSI and chart data not shown.")
         signal = _signal_for_item(item, history)
         signals.append(signal)
         warnings.extend([f"{item.symbol}: {warning}" for warning in history.warnings[:2]])
@@ -222,27 +220,6 @@ def _chart_points(
         )
     return rows
 
-
-def _fallback_history(symbol: str, start_date: date, end_date: date) -> MarketHistory:
-    bars: list[MarketHistoryBar] = []
-    current = start_date
-    while current <= end_date:
-        if current.weekday() < 5:
-            price = deterministic_price(symbol, current)
-            bars.append(MarketHistoryBar(date=current, close=price, adjusted_close=price, dividend=0, source="deterministic offline fallback"))
-        current += timedelta(days=1)
-    return MarketHistory(
-        symbol=symbol,
-        name=f"{symbol} market history",
-        benchmark=symbol,
-        category="RSI Playbook fallback",
-        requested_start_date=start_date,
-        requested_end_date=end_date,
-        start_date=bars[0].date if bars else None,
-        end_date=bars[-1].date if bars else None,
-        bars=bars,
-        warnings=["Provider history unavailable; deterministic fallback chart used."],
-    )
 
 
 def _ema(values: list[float], period: int) -> list[float | None]:

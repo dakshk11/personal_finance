@@ -6179,6 +6179,16 @@ button.breakout-row.active {
   min-width: 0;
 }
 
+.breakout-chart-legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  padding: 4px 18px 10px 68px;
+  color: #8da99e;
+  letter-spacing: 0.01em;
+}
+
 .breakout-empty-detail {
   display: grid;
   min-height: 420px;

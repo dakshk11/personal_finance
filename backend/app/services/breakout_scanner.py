@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from contextlib import redirect_stderr, redirect_stdout
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from hashlib import sha256
 from html.parser import HTMLParser
 import io
 import json
+import logging
 import math
 import ssl
 from statistics import median
+import threading
+import time
 from typing import Any
 from urllib.request import Request, urlopen
 
@@ -20,8 +24,9 @@ from sqlalchemy.orm import Session
 from app.models.entities import BreakoutOhlcvBar, BreakoutScannerScanRun, BreakoutUniverseMember, utc_now
 from app.services.index_data import INDEX_DEFINITIONS
 from app.services.market_data import normalize_symbol
-from app.services.price_math import deterministic_price
 
+
+_logger = logging.getLogger(__name__)
 
 SP500_SOURCE_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
 SP500_SOURCE_NAME = "Wikipedia S&P 500 constituents"
@@ -267,13 +272,28 @@ def load_ohlcv_histories(
                 _upsert_ohlcv(db, symbol, bars)
         if fetched:
             db.commit()
+
+        still_missing: list[str] = []
         for symbol in missing:
             rows = _cached_ohlcv(db, symbol, start_date, end_date)
             if rows and _history_sufficient(rows, start_date, end_date):
                 histories[symbol] = rows
-                continue
-            histories[symbol] = _fallback_history(symbol, start_date, end_date)
-            warnings.append(f"{symbol}: yfinance OHLCV unavailable; deterministic fallback history used.")
+            else:
+                still_missing.append(symbol)
+
+        if still_missing:
+            stooq_fetched = _fetch_stooq_ohlcv_batch(still_missing, start_date, end_date)
+            for symbol, bars in stooq_fetched.items():
+                if bars:
+                    _upsert_ohlcv(db, symbol, bars)
+            if stooq_fetched:
+                db.commit()
+            for symbol in still_missing:
+                rows = _cached_ohlcv(db, symbol, start_date, end_date)
+                if rows and _history_sufficient(rows, start_date, end_date):
+                    histories[symbol] = rows
+                    continue
+                warnings.append(f"{symbol}: Yahoo Finance v8 OHLCV unavailable; symbol skipped.")
 
     return histories, _unique(warnings)
 
@@ -512,7 +532,7 @@ def _setup_out(
 
 def _chart_points(context: dict[str, Any]) -> list[dict[str, Any]]:
     bars: list[BreakoutBar] = context["bars"]
-    start = max(0, len(bars) - 180)
+    start = max(0, len(bars) - 130)
     rows: list[dict[str, Any]] = []
     for index in range(start, len(bars)):
         rows.append(
@@ -713,6 +733,94 @@ def _bars_from_yfinance_frame(symbol: str, provider_symbol: str, frame: Any) -> 
         return []
 
 
+def _fetch_stooq_ohlcv_batch(symbols: list[str], start_date: date, end_date: date) -> dict[str, list[BreakoutBar]]:
+    """Fallback fetcher using Yahoo Finance v8 chart API with parallel requests."""
+    period1 = int(datetime.combine(start_date, datetime.min.time()).timestamp())
+    period2 = int(datetime.combine(end_date + timedelta(days=1), datetime.min.time()).timestamp())
+    output: dict[str, list[BreakoutBar]] = {}
+
+    _rate_lock = threading.Lock()
+    _rate_last: list[float] = [0.0]
+
+    def _fetch_one(symbol: str) -> tuple[str, list[BreakoutBar]]:
+        with _rate_lock:
+            wait = 0.05 - (time.monotonic() - _rate_last[0])
+            if wait > 0:
+                time.sleep(wait)
+            _rate_last[0] = time.monotonic()
+        yf_symbol = symbol.replace(".", "-")
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{yf_symbol}?period1={period1}&period2={period2}&interval=1d"
+        try:
+            request = Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                    "Accept": "application/json",
+                },
+            )
+            with urlopen(request, timeout=12, context=PROVIDER_SSL_CONTEXT) as response:
+                payload = json.loads(response.read().decode("utf-8", errors="ignore"))
+            return symbol, _bars_from_yfinance_v8(symbol, payload)
+        except Exception as exc:
+            status = getattr(exc, "code", None)
+            _logger.warning("Yahoo v8 OHLCV fetch failed | symbol=%s error=%s status=%s", symbol, type(exc).__name__, status)
+            return symbol, []
+
+    with ThreadPoolExecutor(max_workers=15) as pool:
+        futures = {pool.submit(_fetch_one, symbol): symbol for symbol in symbols}
+        for future in as_completed(futures):
+            try:
+                symbol, bars = future.result()
+                if bars:
+                    output[symbol] = bars
+            except Exception:
+                pass
+    return output
+
+
+def _bars_from_yfinance_v8(symbol: str, payload: Any) -> list[BreakoutBar]:
+    del symbol
+    try:
+        result = (payload.get("chart") or {}).get("result") or []
+        if not result:
+            return []
+        result = result[0]
+        timestamps = result.get("timestamp") or []
+        quote = ((result.get("indicators") or {}).get("quote") or [{}])[0]
+        adjclose_list = (((result.get("indicators") or {}).get("adjclose") or [{}])[0]).get("adjclose") or []
+        opens = quote.get("open") or []
+        highs = quote.get("high") or []
+        lows = quote.get("low") or []
+        closes = quote.get("close") or []
+        volumes = quote.get("volume") or []
+        bars: list[BreakoutBar] = []
+        for i, ts in enumerate(timestamps):
+            close = _number(closes[i] if i < len(closes) else None)
+            high = _number(highs[i] if i < len(highs) else None)
+            low = _number(lows[i] if i < len(lows) else None)
+            if close <= 0 or high <= 0 or low <= 0:
+                continue
+            open_price = _number(opens[i] if i < len(opens) else None)
+            volume = _number(volumes[i] if i < len(volumes) else None)
+            adjusted_close = _number(adjclose_list[i] if i < len(adjclose_list) else None) or close
+            price_date = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+            bars.append(
+                BreakoutBar(
+                    date=price_date,
+                    open=round(open_price or close, 4),
+                    high=round(high, 4),
+                    low=round(low, 4),
+                    close=round(close, 4),
+                    adjusted_close=round(adjusted_close, 4),
+                    volume=round(max(0, volume), 2),
+                    source="Yahoo Finance v8 OHLCV",
+                )
+            )
+        return bars
+    except Exception:
+        return []
+
+
 def _upsert_ohlcv(db: Session, symbol: str, bars: list[BreakoutBar]) -> None:
     for bar in bars:
         row = db.scalar(select(BreakoutOhlcvBar).where(BreakoutOhlcvBar.symbol == symbol, BreakoutOhlcvBar.price_date == bar.date))
@@ -765,35 +873,6 @@ def _cached_ohlcv(db: Session, symbol: str, start_date: date, end_date: date) ->
     ]
 
 
-def _fallback_history(symbol: str, start_date: date, end_date: date) -> list[BreakoutBar]:
-    bars: list[BreakoutBar] = []
-    current = start_date
-    previous = deterministic_price(symbol, start_date)
-    day_index = 0
-    while current <= end_date:
-        if current.weekday() < 5:
-            close = deterministic_price(symbol, current)
-            spread = max(0.2, close * (0.008 + (day_index % 5) * 0.001))
-            high = max(close, previous) + spread
-            low = max(0.01, min(close, previous) - spread)
-            volume_seed = int(sha256(f"{symbol}:{current.isoformat()}".encode("utf-8")).hexdigest()[:8], 16)
-            volume = 2_000_000 + (volume_seed % 4_000_000)
-            bars.append(
-                BreakoutBar(
-                    date=current,
-                    open=round(previous, 4),
-                    high=round(high, 4),
-                    low=round(low, 4),
-                    close=round(close, 4),
-                    adjusted_close=round(close, 4),
-                    volume=float(volume),
-                    source="deterministic breakout fallback",
-                )
-            )
-            previous = close
-            day_index += 1
-        current += timedelta(days=1)
-    return bars
 
 
 def _replace_universe_cache(db: Session, items: list[BreakoutUniverseItem]) -> None:
@@ -873,8 +952,8 @@ def _universe_items_from_out(universe: dict[str, Any]) -> list[BreakoutUniverseI
 
 def _data_source_label(universe: dict[str, Any], history_warnings: list[str]) -> str:
     if universe.get("cache_status") == "fallback" or history_warnings:
-        return "S&P 500 universe + yfinance OHLCV cache with labeled fallbacks"
-    return "S&P 500 universe + yfinance OHLCV cache"
+        return "S&P 500 universe + yfinance/Yahoo Finance v8 OHLCV cache with labeled fallbacks"
+    return "S&P 500 universe + yfinance/Yahoo Finance v8 OHLCV cache"
 
 
 def _history_sufficient(rows: list[BreakoutBar], start_date: date, end_date: date) -> bool:

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 import csv
 import io
+import logging
 import ssl
 from urllib.request import urlopen
 
@@ -15,6 +16,7 @@ from app.services.index_data import INDEX_DEFINITIONS, get_index_definition
 from app.services.price_math import deterministic_price
 
 PROVIDER_SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -217,7 +219,9 @@ def _fetch_stooq_latest_prices(symbols: list[str]) -> dict[str, float]:
             value = float(close)
             if 0 < value < 100000:
                 prices[normalize_symbol(symbol)] = round(value, 4)
-        except Exception:
+        except Exception as exc:
+            status = getattr(exc, "code", None)
+            _logger.warning("stooq spot price fetch failed | symbol=%s error=%s status=%s", symbol, type(exc).__name__, status)
             continue
     return prices
 
@@ -302,26 +306,24 @@ def _fetch_yfinance_forward_pe(symbols: list[str]) -> dict[str, float]:
 def _build_security_metric_snapshot(db: Session, symbol: str, metric_date: date, fetched_forward_pe: float | None) -> SecurityMetricSnapshot:
     normalized = normalize_symbol(symbol)
     if fetched_forward_pe and fetched_forward_pe > 0:
-        forward_pe = fetched_forward_pe
+        forward_pe: float | None = fetched_forward_pe
         source = "yfinance forward PE daily cache"
-        warning = "5Y and 10Y forward P/E averages are estimated until enough local valuation history is cached."
+        warning: str | None = "5Y and 10Y forward P/E averages are estimated until enough local valuation history is cached."
     else:
-        forward_pe = _deterministic_forward_pe(normalized)
-        source = "deterministic valuation fallback"
-        warning = "Live forward P/E was unavailable; deterministic fallback valuation metrics were used."
+        forward_pe = None
+        source = "unavailable"
+        warning = "Live forward P/E data unavailable; valuation metrics not shown."
 
-    five_year_adjustment = _symbol_adjustment(normalized, 5)
-    ten_year_adjustment = _symbol_adjustment(normalized, 10)
     cached_5y_average = _historical_forward_pe_average(db, normalized, metric_date, 5)
     cached_10y_average = _historical_forward_pe_average(db, normalized, metric_date, 10)
-    if cached_5y_average is not None and cached_10y_average is not None:
-        warning = None if source.startswith("yfinance") else warning
+    if forward_pe is not None and cached_5y_average is not None and cached_10y_average is not None:
+        warning = None
     return SecurityMetricSnapshot(
         symbol=normalized,
         metric_date=metric_date,
-        forward_pe=round(forward_pe, 2),
-        forward_pe_5y_avg=round(cached_5y_average if cached_5y_average is not None else max(3, forward_pe * (1 + five_year_adjustment)), 2),
-        forward_pe_10y_avg=round(cached_10y_average if cached_10y_average is not None else max(3, forward_pe * (1 + ten_year_adjustment)), 2),
+        forward_pe=round(forward_pe, 2) if forward_pe is not None else None,
+        forward_pe_5y_avg=round(cached_5y_average, 2) if cached_5y_average is not None else None,
+        forward_pe_10y_avg=round(cached_10y_average, 2) if cached_10y_average is not None else None,
         source=source,
         warning=warning,
     )
