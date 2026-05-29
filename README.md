@@ -1,5 +1,12 @@
 # FinanceOS
 
+[![License: MIT](https://img.shields.io/github/license/dakshk11/personal_finance)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/dakshk11/personal_finance?style=social)](https://github.com/dakshk11/personal_finance/stargazers)
+[![Last Commit](https://img.shields.io/github/last-commit/dakshk11/personal_finance)](https://github.com/dakshk11/personal_finance/commits/main)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
+**An open-source, AI-powered personal finance command center** — direct indexing, tax-loss harvesting, retirement planning, options research, equity analysis, and AI-assisted planning workflows, all in one self-hosted platform.
+
 FinanceOS is a simulation-only household personal finance command center for planning, portfolios, market research, and advisor workflows. It includes tax-aware portfolio analysis, direct indexing, tax-loss harvesting research, portfolio transition planning, 13F manager research, retirement income analysis, AI-assisted planning workflows, equity research, earnings research, and educational options research.
 
 The product is designed to help users understand tradeoffs before taking action: tracking error versus tax-loss value, taxable account transitions versus embedded gains, individual-stock valuation versus cost basis, Roth conversion windows versus future RMD pressure, and retirement spending needs versus portfolio durability.
@@ -361,6 +368,20 @@ Backtest and trade outputs are hypothetical. They depend on cached data, simplif
 FinanceOS is educational planning software only. It is not a registered investment adviser, broker-dealer, law firm, CPA firm, tax preparer, fiduciary, custodian, or trading system.
 
 Nothing in the app, README, backtests, tax-loss-harvesting output, transition plans, retirement analyzer, FinanceOS Studio reports, Personal CFO output, Wheel Strategy scans, RSI Playbook outputs, Breakout Scanner outputs, Equity Research analyses, Earnings Agent digests, Portfolio Sync snapshots, exports, or data displays is tax, legal, accounting, investment, fiduciary, brokerage, or trading advice. Consult qualified professionals before making financial decisions.
+
+## Contributing
+
+Contributions are welcome — bug fixes, new data sources, UI improvements, or documentation. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a history of releases and notable changes.
+
+## Support
+
+If you find FinanceOS useful, consider giving it a star on GitHub — it helps others discover the project.
+
+[![Star on GitHub](https://img.shields.io/github/stars/dakshk11/personal_finance?style=social)](https://github.com/dakshk11/personal_finance/stargazers)
 
 ## License
 
