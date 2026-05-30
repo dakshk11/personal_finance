@@ -17,5 +17,6 @@ coverage/
 postgres-data/
 redis-data/
 data-cache/
+backend/ibkr/data/cboe_daily_cache.json
 artifacts/
 AGENTS.md

@@ -4,6 +4,8 @@ import {
   Bot,
   CandlestickChart,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   FileText,
   FolderArchive,
   Gauge,
@@ -30,6 +32,7 @@ import { PersonalCFOTool } from "@/components/PersonalCFOTool";
 import { PortfolioSyncTool } from "@/components/PortfolioSyncTool";
 import { RSIPlaybookTool } from "@/components/RSIPlaybookTool";
 import { StockAnalysisTool } from "@/components/StockAnalysisTool";
+import { WheelScannerTool } from "@/components/WheelScannerTool";
 import {
   AIAdvisorOpenAIKeyStatus,
   AIAdvisorReport,
@@ -39,7 +42,7 @@ import {
 } from "@/lib/api";
 
 type AIModel = AIAdvisorRetirementRunRequest["model"];
-type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook" | "breakout-scanner" | "earnings-agent" | "equity-research";
+type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook" | "breakout-scanner" | "earnings-agent" | "equity-research" | "wheel-scanner";
 
 type RetirementField = {
   id: string;
@@ -153,6 +156,7 @@ export default function AIAdvisorPage() {
   const [keyMessage, setKeyMessage] = useState("");
   const [activeModuleId, setActiveModuleId] = useState(modules[0].id);
   const [activeTab, setActiveTab] = useState<AdvisorTab>("retirement-plan");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [model, setModel] = useState<AIModel>("gpt-5.4");
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [reports, setReports] = useState<AIAdvisorReportSummary[]>([]);
@@ -352,10 +356,27 @@ export default function AIAdvisorPage() {
         >
           <Newspaper size={16} /> Earnings Agent
         </button>
+        <button
+          className={activeTab === "wheel-scanner" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "wheel-scanner"}
+          onClick={() => setActiveTab("wheel-scanner")}
+        >
+          <TrendingUp size={16} /> Wheel Scanner
+        </button>
       </div>
 
-      <div className="ai-advisor-layout">
+      <div className={`ai-advisor-layout${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
         <aside className="ai-advisor-sidebar">
+          <button
+            type="button"
+            className="sidebar-toggle-btn"
+            onClick={() => setSidebarCollapsed((v) => !v)}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
           <section className="dashboard-panel">
             <div className="panel-header">
               <h2>OpenAI key</h2>
@@ -516,6 +537,8 @@ export default function AIAdvisorPage() {
             <BreakoutScannerTool />
           ) : activeTab === "equity-research" ? (
             <StockAnalysisTool keyStatus={keyStatus} />
+          ) : activeTab === "wheel-scanner" ? (
+            <WheelScannerTool />
           ) : (
             <EarningsAgentTool keyStatus={keyStatus} />
           )}

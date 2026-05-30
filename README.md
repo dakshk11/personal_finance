@@ -27,8 +27,9 @@ The product is designed to help users understand tradeoffs before taking action:
 | Ideas Workspace | Review self-managed investor playbooks for sector ETF TLH, asset location, retirement buckets, TIPS ladders, charitable giving, Roth windows, and rebalancing bands. |
 | Research Center | Explain the methodology, tax-loss harvesting assumptions, wash-sale safeguards, model design, and source references in plain language. |
 | 13F Research | Search investment managers, watch filings, download holdings, and simulate copycat performance from SEC 13F data. |
-| FinanceOS Studio | Save an encrypted OpenAI API key, generate saved AI Planner reports, run Personal CFO projects, review Wheel Strategy, RSI Playbook, and Breakout Scanner, open Portfolio Sync, and run Equity Research and Earnings Agent digests. |
+| FinanceOS Studio | Save an encrypted OpenAI API key, generate saved AI Planner reports, run Personal CFO projects, review Wheel Strategy, RSI Playbook, and Breakout Scanner, open Portfolio Sync, run Equity Research and Earnings Agent digests, and use the live IBKR Wheel Scanner. |
 | Wheel Strategy | Run a daily educational wheel-strategy scan for S&P 500 top holdings, Nasdaq top holdings, core ETFs, and leveraged ETFs using live yfinance option chains when available. |
+| Wheel Scanner (IBKR) | Live Nasdaq-100 + leveraged ETF scanner powered by IBKR TWS real-time quotes and CBOE 15-min delayed option chains. Combines a full sortable watchlist with RSI(14), Bollinger Band%, 30Δ CSP/CC annualised yields, and a Wheel Hub view showing the 4-stage cycle (Sell CSP → Manage → Sell CC → Exit & Repeat) with signal-filtered candidates. Falls back to CBOE delayed prices when TWS is offline. |
 | RSI Playbook | Combine Wheel Strategy and Portfolio Sync symbols, compute RSI/EMA history, and map every stock to the requested RSI action zone with chart details. |
 | Breakout Scanner | Scan S&P 500 stocks only for ceiling breakouts, momentum breakouts, and near-breakout watch setups with relative-volume, trend, and backtest context. |
 | Equity Research | Enter a ticker or company, pull free market and five-year financial data, run peer/DCF context, and generate an educational Wall Street-style research stance. |
@@ -164,7 +165,20 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
 
 ```text
 .
-├── backend/                  FastAPI app, services, models, schemas, tests
+├── backend/                  Main FastAPI app, services, models, schemas, tests
+│   └── ibkr/                 Standalone IBKR Wheel Scanner backend (port 8002)
+│       ├── main.py           FastAPI app — status, watchlist, options, scanner, WebSocket
+│       ├── config.py         Pydantic settings (TWS host/port, CBOE URL, cache TTLs)
+│       ├── requirements.txt  Python deps including ib_insync
+│       ├── .env.example      Environment template (copy to .env before starting)
+│       ├── data/
+│       │   ├── tickers.py    Nasdaq-100 + SOXL/TQQQ/UPRO universe (107 symbols)
+│       │   └── cboe_daily_cache.json  Persistent daily option-chain cache
+│       └── services/
+│           ├── ibkr_service.py       TWS connection, contract qualification, snapshot poll
+│           ├── cboe_service.py       CBOE chain fetch, parse, disk+memory cache
+│           ├── analytics_service.py  RSI(14) and BB%(20) from IBKR daily bars
+│           └── scanner_service.py    CSP and CC filter logic
 ├── frontend/                 Next.js app and shared API client
 ├── docs/
 │   ├── USABILITY_GUIDE.md    Product walkthrough and demo guide
@@ -274,6 +288,16 @@ The backend exposes the main planning workflows through FastAPI routes:
 - `/rsi-playbook/scan?force=false` supports the combined Wheel Strategy + Portfolio Sync RSI action workspace.
 - `/breakout-scanner/universe`, `/breakout-scanner/scan?force=false`, and `/breakout-scanner/backtest` support the S&P 500-only Breakout Scanner workspace.
 
+The **IBKR Wheel Scanner backend** (port 8002) exposes its own set of routes:
+
+- `/api/status` — IBKR connection state, quote count, price source (`ibkr` or `cboe_delayed`)
+- `/api/watchlist` — All 107 Nasdaq-100 + leveraged ETF symbols with live quotes, RSI(14), BB%(20), 30Δ CSP/CC annualised yields, ATM IV, and signals
+- `/api/quotes?symbols=SYM1,SYM2` — On-demand quotes for up to 20 custom tickers
+- `/api/options/{symbol}` — Full CBOE option chain split into puts and calls with Greeks, DTE, yields, and PoP
+- `/api/scanner/csp` — Cash-Secured Put scan (params: `dte_min`, `dte_max`, `delta_min`, `delta_max`, `min_ann_yield`, `min_oi`, `limit`)
+- `/api/scanner/cc` — Covered Call scan (same params)
+- `/ws/quotes` — WebSocket streaming: snapshot on connect, then 1 s diffs of changed quotes
+
 See [docs/WHEEL_STRATEGY.md](docs/WHEEL_STRATEGY.md) for the Wheel Strategy API contract and scoring details.
 See [docs/PORTFOLIO_SYNC.md](docs/PORTFOLIO_SYNC.md) for Portfolio Sync setup, API contract, normalization, and test notes.
 See [docs/EARNINGS_AGENT.md](docs/EARNINGS_AGENT.md) for Earnings Agent source retrieval, API contract, storage behavior, and test notes.
@@ -304,6 +328,53 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 
 If the backend is run without `DATABASE_URL`, it falls back to a local SQLite database. Background workflows still require Redis and Celery.
 For backend-only local runs, place API-specific overrides such as `AI_ADVISOR_KEY_ENCRYPTION_SECRET` in `backend/.env` or export them in the shell; the repo-root `.env` is intended for Docker Compose.
+
+### IBKR Wheel Scanner Backend (port 8002)
+
+The Wheel Scanner tab in FinanceOS Studio is powered by a separate lightweight FastAPI service that connects to Interactive Brokers TWS for live quotes and CBOE for delayed option chains. It runs independently of the main backend and does not require Postgres, Redis, or Celery.
+
+Requirements: **Python 3.11 or 3.12**. Check with `python3 --version`. If you have both, prefer `python3.12`.
+
+**Step 1 — Create the virtual environment and install dependencies (run once):**
+
+```bash
+cd backend/ibkr
+python3.12 -m venv .venv          # or python3.11 if 3.12 is not installed
+.venv/bin/pip install -r requirements.txt
+cp .env.example .env
+```
+
+> Do **not** use `source .venv/bin/activate` before running the server. Instead, always call the venv binaries directly by path (`.venv/bin/uvicorn`, `.venv/bin/python`). This avoids the `ModuleNotFoundError: No module named 'pydantic_settings'` error that occurs when the system `uvicorn` is used instead of the venv one.
+
+**Step 2 — Start the IBKR backend:**
+
+```bash
+cd backend/ibkr
+.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+```
+
+Verify it is running: open http://localhost:8002/api/status — you should see a JSON response.
+
+**Step 3 — IBKR TWS configuration (optional — only needed for live quotes):**
+
+TWS is not required. Without it the backend starts normally and all prices fall back to CBOE 15-minute delayed data. The connection status is shown in the Wheel Scanner tab header.
+
+To enable live IBKR quotes:
+
+1. Open TWS (Trader Workstation) or IB Gateway
+2. Go to **Edit → Global Configuration → API → Settings**
+3. Enable **ActiveX and Socket Clients**
+4. Set **Socket port** to `7496` (live) or `7497` (paper trading)
+5. Add `127.0.0.1` to **Trusted IP Addresses**
+6. Click **OK** and restart TWS
+
+Then edit `backend/ibkr/.env` to match your port:
+
+```
+TWS_HOST=127.0.0.1
+TWS_PORT=7496        # change to 7497 for paper trading
+TWS_CLIENT_ID=1
+```
 
 ## Tests and Checks
 
@@ -389,20 +460,40 @@ MIT. See [LICENSE](LICENSE).
 
 ## Exact Start Commands
 
-Start the backend and frontend in two separate terminals.
+Start all three services in separate terminals.
 
-Backend:
+**Terminal 1 — Main backend (port 8000):**
 
 ```bash
 cd ~/github/personal_finance/backend
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Frontend:
+**Terminal 2 — IBKR Wheel Scanner backend (port 8002):**
+
+```bash
+cd ~/github/personal_finance/backend/ibkr
+.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+```
+
+> **First-time only:** `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt && cp .env.example .env`
+> Always use `.venv/bin/uvicorn` — never bare `uvicorn` — or you will get `ModuleNotFoundError: No module named 'pydantic_settings'`.
+
+**Terminal 3 — Frontend (port 3000):**
 
 ```bash
 cd ~/github/personal_finance/frontend
 NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev -- --hostname 0.0.0.0 --port 3000
 ```
 
-Open the app at http://localhost:3000 and check the API at http://localhost:8000/health.
+**Service URLs:**
+
+| Service | URL | Notes |
+|---|---|---|
+| Frontend | http://localhost:3000 | FinanceOS Studio UI |
+| Main API | http://localhost:8000/health | Portfolios, AI Advisor, etc. |
+| IBKR Scanner API | http://localhost:8002/api/status | Wheel Scanner backend |
+| API docs | http://localhost:8000/docs | Main backend OpenAPI |
+| Scanner docs | http://localhost:8002/docs | IBKR backend OpenAPI |
+
+The Wheel Scanner tab at http://localhost:3000/ai-advisor connects to the IBKR backend at port 8002. It works without TWS — CBOE delayed prices load automatically as fallback.
