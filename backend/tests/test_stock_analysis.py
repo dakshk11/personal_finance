@@ -326,7 +326,7 @@ class StockAnalysisTests(unittest.TestCase):
         service.assert_not_called()
         self.assertEqual(result.id, run.id)
         self.assertTrue(result.reused_from_cache)
-        self.assertIn("no new OpenAI tokens", result.cache_message or "")
+        self.assertIn("no new", result.cache_message or "")
 
     def test_run_persists_analysis_without_full_source_text(self) -> None:
         db, user = self._seed_user()
@@ -334,7 +334,7 @@ class StockAnalysisTests(unittest.TestCase):
             patch("app.services.stock_analysis.resolve_stock_company", return_value=StockAnalysisCompany("AAPL", "Apple Inc.", "0000320193")),
             patch("app.services.stock_analysis.collect_stock_analysis_context", return_value=_context()),
             patch(
-                "app.services.stock_analysis.create_openai_response",
+                "app.services.stock_analysis.generate_text",
                 return_value=(
                     json.dumps(
                         {
@@ -419,7 +419,7 @@ class StockAnalysisTests(unittest.TestCase):
             patch("app.api.stock_analysis.get_settings", return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET)),
             patch("app.api.stock_analysis.run_stock_analysis") as service,
         ):
-            service.side_effect = lambda db_arg, user_id, query, model, api_key: StockAnalysisRun(
+            service.side_effect = lambda db_arg, user_id, query, model, api_key, ollama_base_url=None: StockAnalysisRun(
                 id=7,
                 user_id=user_id,
                 query=query,

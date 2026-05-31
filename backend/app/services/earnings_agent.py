@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.models.entities import EarningsAgentRun, utc_now
-from app.services.ai_advisor import create_openai_response, response_usage
+from app.services.ai_advisor import generate_text, response_usage
 from app.services.index_data import INDEX_DEFINITIONS
 
 
@@ -25,13 +25,34 @@ SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUBMISSIONS_BASE = "https://data.sec.gov/submissions"
 SEC_ARCHIVES_BASE = "https://www.sec.gov/Archives/edgar/data"
 FOOL_TRANSCRIPTS_BASE = "https://www.fool.com/earnings-call-transcripts/"
+SEEKING_ALPHA_BASE = "https://seekingalpha.com"
+SEEKING_ALPHA_TRANSCRIPTS_PATH = "/symbol/{ticker}/earnings/transcripts"
 YOUTUBE_SEARCH_BASE = "https://www.youtube.com/results"
 MAX_SOURCE_CHARS = 55_000
 MAX_PROMPT_SOURCE_CHARS = 24_000
 MAX_EXCERPT_CHARS = 900
 MAX_COMPANY_IR_SOURCES = 2
 
+# Headers that mimic a real browser to avoid Seeking Alpha's bot detection.
+_SA_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "identity",
+    "DNT": "1",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Cache-Control": "max-age=0",
+}
+
 KNOWN_IR_URLS = {
+    # Mega-cap tech
     "AAPL": "https://investor.apple.com/",
     "MSFT": "https://www.microsoft.com/en-us/Investor",
     "NVDA": "https://investor.nvidia.com/",
@@ -42,6 +63,147 @@ KNOWN_IR_URLS = {
     "TSLA": "https://ir.tesla.com/",
     "AVGO": "https://investors.broadcom.com/",
     "CSCO": "https://investor.cisco.com/",
+    # Large-cap tech
+    "ORCL": "https://investor.oracle.com/",
+    "INTC": "https://www.intc.com/",
+    "AMD": "https://ir.amd.com/",
+    "QCOM": "https://investor.qualcomm.com/",
+    "TXN": "https://ir.ti.com/",
+    "MU": "https://investors.micron.com/",
+    "AMAT": "https://ir.appliedmaterials.com/",
+    "LRCX": "https://ir.lamresearch.com/",
+    "KLAC": "https://ir.kla.com/",
+    "ADI": "https://investor.analog.com/",
+    "MRVL": "https://investor.marvell.com/",
+    "NXPI": "https://investors.nxp.com/",
+    "ON": "https://investor.onsemi.com/",
+    "MPWR": "https://investor.monolithicpower.com/",
+    "MCHP": "https://ir.microchip.com/",
+    "IBM": "https://www.ibm.com/investor/",
+    "HPQ": "https://investor.hp.com/",
+    "HPE": "https://h30261.www3.hp.com/",
+    "DELL": "https://investors.delltechnologies.com/",
+    "STX": "https://investors.seagate.com/",
+    "WDC": "https://investor.wdc.com/",
+    "NTAP": "https://investors.netapp.com/",
+    # Cloud / software
+    "CRM": "https://investor.salesforce.com/",
+    "NOW": "https://investors.servicenow.com/",
+    "SNOW": "https://investors.snowflake.com/",
+    "PLTR": "https://investors.palantir.com/",
+    "DDOG": "https://ir.datadoghq.com/",
+    "MDB": "https://ir.mongodb.com/",
+    "ESTC": "https://ir.elastic.co/",
+    "ZS": "https://ir.zscaler.com/",
+    "CRWD": "https://ir.crowdstrike.com/",
+    "PANW": "https://investors.paloaltonetworks.com/",
+    "FTNT": "https://investor.fortinet.com/",
+    "NET": "https://cloudflare.net/",
+    "SHOP": "https://investors.shopify.com/",
+    "ADSK": "https://investors.autodesk.com/",
+    "ANSS": "https://ir.ansys.com/",
+    "CDNS": "https://investors.cadence.com/",
+    "SNPS": "https://investor.synopsys.com/",
+    "WDAY": "https://investor.workday.com/",
+    "VEEV": "https://ir.veeva.com/",
+    "TTD": "https://investors.thetradedesk.com/",
+    "RBLX": "https://ir.roblox.com/",
+    "UBER": "https://investor.uber.com/",
+    "LYFT": "https://investor.lyft.com/",
+    "DASH": "https://ir.doordash.com/",
+    "ABNB": "https://investors.airbnb.com/",
+    "PINS": "https://investor.pinterest.com/",
+    "SNAP": "https://investor.snap.com/",
+    "TWTR": "https://investor.twitterinc.com/",
+    "ZM": "https://investors.zoom.us/",
+    "DOCN": "https://investors.digitalocean.com/",
+    # Financials
+    "JPM": "https://www.jpmorganchase.com/ir",
+    "BAC": "https://investor.bankofamerica.com/",
+    "WFC": "https://www.wellsfargo.com/about/investor-relations/",
+    "GS": "https://www.goldmansachs.com/investor-relations/",
+    "MS": "https://www.morganstanley.com/about-us/investor-relations",
+    "BLK": "https://ir.blackrock.com/",
+    "SCHW": "https://www.aboutschwab.com/investor-relations",
+    "C": "https://www.citigroup.com/citi/investor/",
+    "USB": "https://ir.usbank.com/",
+    "PNC": "https://investor.pnc.com/",
+    "COF": "https://investor.capitalone.com/",
+    "AXP": "https://ir.americanexpress.com/",
+    "V": "https://investor.visa.com/",
+    "MA": "https://investor.mastercard.com/",
+    "PYPL": "https://investor.pypl.com/",
+    "SQ": "https://investors.block.xyz/",
+    "AFRM": "https://investors.affirm.com/",
+    # Healthcare
+    "JNJ": "https://investor.jnj.com/",
+    "UNH": "https://www.unitedhealthgroup.com/investor-relations.html",
+    "PFE": "https://investors.pfizer.com/",
+    "ABBV": "https://investors.abbvie.com/",
+    "LLY": "https://investor.lilly.com/",
+    "MRK": "https://www.merck.com/investor-relations/",
+    "BMY": "https://investors.bms.com/",
+    "AMGN": "https://investors.amgen.com/",
+    "GILD": "https://www.gilead.com/investors",
+    "BIIB": "https://investors.biogen.com/",
+    "REGN": "https://investor.regeneron.com/",
+    "VRTX": "https://investors.vrtx.com/",
+    "TMO": "https://ir.thermofisher.com/",
+    "DHR": "https://investors.danaher.com/",
+    "MDT": "https://investorrelations.medtronic.com/",
+    "ABT": "https://investors.abbott.com/",
+    "SYK": "https://www.stryker.com/us/en/investors.html",
+    "ISRG": "https://isrg.com/investor-relations/",
+    "HCA": "https://investor.hcahealthcare.com/",
+    "CVS": "https://investors.cvshealth.com/",
+    "CI": "https://www.cignagroup.com/investor-relations/",
+    "HUM": "https://humana.com/investor-relations",
+    # Consumer / retail
+    "AMZN": "https://ir.aboutamazon.com/",
+    "WMT": "https://stock.walmart.com/",
+    "COST": "https://investor.costco.com/",
+    "TGT": "https://investors.target.com/",
+    "HD": "https://ir.homedepot.com/",
+    "LOW": "https://ir.lowes.com/",
+    "NKE": "https://investors.nike.com/",
+    "SBUX": "https://investor.starbucks.com/",
+    "MCD": "https://corporate.mcdonalds.com/corpmcd/investors.html",
+    "YUM": "https://www.yum.com/wps/portal/yumbrands/Yumbrands/investors",
+    "DPZ": "https://ir.dominos.com/",
+    "CMG": "https://ir.chipotle.com/",
+    "DKNG": "https://ir.draftkings.com/",
+    # Energy
+    "XOM": "https://investor.exxonmobil.com/",
+    "CVX": "https://www.chevron.com/investors",
+    "COP": "https://ir.conocophillips.com/",
+    "EOG": "https://investors.eog.com/",
+    "SLB": "https://investorcenter.slb.com/",
+    # Industrial / other
+    "CAT": "https://investors.caterpillar.com/",
+    "DE": "https://investor.deere.com/",
+    "BA": "https://investors.boeing.com/",
+    "RTX": "https://www.rtx.com/investors",
+    "LMT": "https://www.lockheedmartin.com/en-us/investors.html",
+    "GE": "https://www.ge.com/investor-relations",
+    "HON": "https://www.honeywell.com/us/en/investors",
+    "MMM": "https://investors.mmm.com/",
+    "UPS": "https://ir.ups.com/",
+    "FDX": "https://investors.fedex.com/",
+    # Telecom / media
+    "T": "https://investors.att.com/",
+    "VZ": "https://www.verizon.com/about/investors/",
+    "TMUS": "https://investor.t-mobile.com/",
+    "CMCSA": "https://corporate.comcast.com/investors",
+    "DIS": "https://thewaltdisneycompany.com/investor-relations/",
+    "NFLX": "https://ir.netflix.net/",
+    "PARA": "https://ir.paramount.com/",
+    "WBD": "https://ir.wbd.com/",
+    "FOXA": "https://investor.foxcorporation.com/",
+    # Semiconductors / EDA
+    "ARM": "https://ir.arm.com/",
+    "SMCI": "https://ir.supermicro.com/",
+    "ASML": "https://www.asml.com/en/investors",
+    "TSM": "https://investor.tsmc.com/english",
 }
 
 
@@ -85,14 +247,126 @@ class EarningsSource:
         }
 
 
-def run_earnings_agent(db: Session, user_id: int, query: str, model: str, api_key: str) -> EarningsAgentRun:
+def llm_suggest_ir_urls(
+    company: EarningsCompany,
+    model: str,
+    api_key: str | None,
+    ollama_base_url: str | None,
+) -> list[str]:
+    """Ask the LLM to generate candidate investor-relations page URLs for a company.
+
+    Used as a fallback when hardcoded patterns and yfinance both fail to find IR pages.
+    Returns a list of https:// URLs (unvalidated — callers must still fetch and check).
+    """
+    cik_hint = f" (SEC CIK: {company.cik})" if company.cik else ""
+    prompt = (
+        f"You are a financial data researcher. Given the company below, return the 6 most likely"
+        f" URLs where an investor could find the most recent quarterly earnings press release,"
+        f" earnings call transcript, or investor presentation.\n\n"
+        f"Company: {company.company_name} ({company.ticker}){cik_hint}\n\n"
+        f"Rules:\n"
+        f"- Only real, publicly accessible URLs\n"
+        f"- Prefer investor.company.com, ir.company.com, investors.company.com patterns\n"
+        f"- Include the company's SEC EDGAR filing index if CIK is known\n"
+        f"- Do NOT include search engines, social media, or paywalled sites\n\n"
+        f"Return ONLY a JSON array of URL strings. Example:\n"
+        f'["https://investor.example.com/", "https://ir.example.com/news-releases/"]'
+    )
+    try:
+        response_text, _ = generate_text(model, prompt, api_key=api_key, ollama_base_url=ollama_base_url)
+        payload = _json_from_response(response_text)
+        urls = json.loads(payload) if isinstance(payload, str) else payload
+        if isinstance(urls, list):
+            return [str(u).strip() for u in urls if isinstance(u, str) and str(u).strip().startswith("https://")][:8]
+    except Exception:
+        pass
+    return []
+
+
+def llm_extract_ir_links(
+    page_text: str,
+    base_url: str,
+    company: EarningsCompany,
+    model: str,
+    api_key: str | None,
+    ollama_base_url: str | None,
+) -> list[dict[str, str]]:
+    """Ask the LLM to pull earnings-related links from a fetched IR page.
+
+    Falls back to the regex scorer when the LLM returns nothing useful.
+    Returns list of {"url": str, "title": str, "document_type": str}.
+    """
+    snippet = page_text[:6000]
+    prompt = (
+        f"You are a financial data researcher. From the investor-relations page text below,"
+        f" identify links to the most recent quarterly earnings press release, earnings call"
+        f" transcript, or earnings presentation for {company.company_name} ({company.ticker}).\n\n"
+        f"Base URL of the page: {base_url}\n\n"
+        f"Page text (truncated):\n{snippet}\n\n"
+        f"Rules:\n"
+        f"- Only include links that look like real, absolute URLs or resolvable relative paths\n"
+        f"- Prefer recent filings (look for quarter/year keywords)\n"
+        f"- Exclude generic nav links, home pages, contact pages, and social media\n\n"
+        f"Return ONLY a JSON array with objects having keys: url, title, document_type.\n"
+        f'Example: [{{"url": "https://...", "title": "Q1 2025 Earnings Release", "document_type": "press release"}}]'
+    )
+    try:
+        response_text, _ = generate_text(model, prompt, api_key=api_key, ollama_base_url=ollama_base_url)
+        payload = _json_from_response(response_text)
+        items = json.loads(payload) if isinstance(payload, str) else payload
+        if not isinstance(items, list):
+            return []
+        results: list[dict[str, str]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            raw_url = str(item.get("url") or "").strip()
+            if not raw_url:
+                continue
+            full_url = urljoin(base_url, raw_url) if not raw_url.startswith("http") else raw_url
+            if not full_url.startswith("https://"):
+                continue
+            results.append({
+                "url": full_url,
+                "title": str(item.get("title") or f"{company.ticker} earnings material").strip(),
+                "document_type": str(item.get("document_type") or "earnings document").strip(),
+            })
+        return results[:6]
+    except Exception:
+        return []
+
+
+def run_earnings_agent(db: Session, user_id: int, query: str, model: str, api_key: str | None, ollama_base_url: str | None = None) -> EarningsAgentRun:
     company = resolve_company(query)
     sec_sources = fetch_sec_earnings_sources(company)
-    transcript_source = fetch_motley_transcript_source(company)
-    existing_urls = {source.url for source in [*sec_sources, transcript_source] if source.url}
-    company_ir_sources = fetch_company_ir_sources(company, existing_urls=existing_urls)
-    sources = [*sec_sources, transcript_source, *company_ir_sources]
+
+    # Fetch transcripts from both Motley Fool and Seeking Alpha in parallel (sequentially here
+    # but both are always attempted so the best available text wins).
+    motley_source = fetch_motley_transcript_source(company)
+    sa_source = fetch_seeking_alpha_transcript_source(company)
+    transcript_sources = _pick_best_transcript_sources(motley_source, sa_source)
+
+    existing_urls = {s.url for s in [*sec_sources, *transcript_sources] if s.url}
+    company_ir_sources = fetch_company_ir_sources(company, existing_urls=existing_urls, model=model, api_key=api_key, ollama_base_url=ollama_base_url)
+    sources = [*sec_sources, *transcript_sources, *company_ir_sources]
     discovery_sources: list[EarningsSource] = []
+
+    # If still sparse after standard fetching, ask the LLM to suggest IR page URLs and try them.
+    usable_after_standard = [s for s in sources if s.text.strip()]
+    if len(usable_after_standard) < 2:
+        existing_urls_now = {s.url for s in sources if s.url}
+        llm_urls = llm_suggest_ir_urls(company, model, api_key, ollama_base_url)
+        llm_ir_sources = fetch_company_ir_sources(
+            company,
+            existing_urls=existing_urls_now,
+            candidate_urls=llm_urls,
+            model=model,
+            api_key=api_key,
+            ollama_base_url=ollama_base_url,
+        )
+        company_ir_sources = [*company_ir_sources, *llm_ir_sources]
+        sources = [*sec_sources, *transcript_sources, *company_ir_sources]
+
     if not any("transcript" in (source.document_type or "").lower() and source.text.strip() for source in sources):
         discovery_sources.append(fetch_youtube_discovery_source(company))
         discovery_sources.append(fetch_quartr_status_source(company))
@@ -101,14 +375,15 @@ def run_earnings_agent(db: Session, user_id: int, query: str, model: str, api_ke
     usable_sources = [source for source in sources if source.text.strip()]
     if not usable_sources:
         raise EarningsAgentSourceError(
-            "No earnings source text was available from SEC EDGAR, company investor relations, or Motley Fool for this query. Try a public US ticker with recent earnings materials."
+            "No earnings source text was available from SEC EDGAR, Seeking Alpha, Motley Fool, or company IR for this query. Try a public US ticker with recent earnings materials."
         )
 
     prompt_text = build_earnings_prompt(company, usable_sources)
-    response_text, response_payload = create_openai_response(
-        api_key,
+    response_text, response_payload = generate_text(
         model,
         prompt_text,
+        api_key=api_key,
+        ollama_base_url=ollama_base_url,
         instructions=(
             "You are an educational earnings research assistant. Return strict JSON only. "
             "Do not provide buy/sell recommendations, investment advice, price targets, or order instructions."
@@ -126,7 +401,7 @@ def run_earnings_agent(db: Session, user_id: int, query: str, model: str, api_ke
         model=model,
         source_status=status,
         sec_source_json=json.dumps([source.public_dict() for source in [*sec_sources, *company_ir_sources]], separators=(",", ":"), sort_keys=True),
-        transcript_source_json=json.dumps([source.public_dict() for source in [transcript_source, *discovery_sources]], separators=(",", ":"), sort_keys=True),
+        transcript_source_json=json.dumps([source.public_dict() for source in [*transcript_sources, *discovery_sources]], separators=(",", ":"), sort_keys=True),
         digest_json=json.dumps(digest, separators=(",", ":"), sort_keys=True),
         warnings_json=json.dumps(_unique([warning for warning in warnings if warning]), separators=(",", ":"), sort_keys=True),
         prompt_text=build_stored_prompt_snapshot(company, sources),
@@ -288,11 +563,19 @@ def fetch_sec_earnings_sources(company: EarningsCompany) -> list[EarningsSource]
     ]
 
 
-def fetch_company_ir_sources(company: EarningsCompany, existing_urls: set[str] | None = None) -> list[EarningsSource]:
+def fetch_company_ir_sources(
+    company: EarningsCompany,
+    existing_urls: set[str] | None = None,
+    candidate_urls: list[str] | None = None,
+    model: str | None = None,
+    api_key: str | None = None,
+    ollama_base_url: str | None = None,
+) -> list[EarningsSource]:
     existing_urls = existing_urls or set()
     sources: list[EarningsSource] = []
     warnings: list[str] = []
-    for page_url in company_ir_candidate_pages(company):
+    pages = candidate_urls if candidate_urls is not None else company_ir_candidate_pages(company)
+    for page_url in pages:
         if len(sources) >= MAX_COMPANY_IR_SOURCES:
             break
         try:
@@ -300,9 +583,14 @@ def fetch_company_ir_sources(company: EarningsCompany, existing_urls: set[str] |
         except EarningsAgentSourceError as exc:
             warnings.append(str(exc))
             continue
+        page_text = _compact_text(_html_to_text(html))
+
+        # Try regex-based link extraction first; fall back to LLM if it finds nothing useful.
         links = best_company_ir_links(html, page_url, company)
+        if not links and model:
+            links = llm_extract_ir_links(page_text, page_url, company, model, api_key, ollama_base_url)
+
         if not links:
-            page_text = _compact_text(_html_to_text(html))
             if _looks_like_earnings_material(page_text) and page_url not in existing_urls:
                 sources.append(
                     EarningsSource(
@@ -447,6 +735,250 @@ def fetch_motley_transcript_source(company: EarningsCompany) -> EarningsSource:
         document_type="earnings call transcript",
         warning=warning,
     )
+
+
+def fetch_seeking_alpha_transcript_source(company: EarningsCompany) -> EarningsSource:
+    """Fetch the most recent earnings call transcript from Seeking Alpha.
+
+    Seeking Alpha serves its listing pages as server-side HTML (article slugs are
+    embedded in <a> tags and in a JSON state blob) but article pages are
+    partially paywalled.  We attempt three layers:
+      1. Parse transcript links from the listing page JSON blob.
+      2. Fall back to regex link extraction from the HTML.
+      3. Fetch the article page and strip the visible transcript text.
+    A "partial" source (URL only, no text) is returned when bot-detection or the
+    paywall prevents full text extraction — the URL is still useful for the UI.
+    """
+    listing_url = f"{SEEKING_ALPHA_BASE}{SEEKING_ALPHA_TRANSCRIPTS_PATH.format(ticker=company.ticker.upper())}"
+    try:
+        listing_html = _fetch_sa_text(listing_url, max_bytes=3_000_000)
+    except EarningsAgentSourceError as exc:
+        return EarningsSource(
+            source_type="seeking_alpha",
+            title=f"Seeking Alpha transcripts for {company.ticker}",
+            status="missing",
+            url=listing_url,
+            document_type="earnings call transcript",
+            warning=f"Seeking Alpha transcript listing could not be fetched: {exc}",
+        )
+
+    link = _best_seeking_alpha_transcript_link(listing_html, company)
+    if not link:
+        return EarningsSource(
+            source_type="seeking_alpha",
+            title=f"Seeking Alpha {company.ticker} transcripts",
+            status="partial",
+            url=listing_url,
+            document_type="earnings call transcript",
+            warning=(
+                "Seeking Alpha transcript listing was fetched but no article links were found. "
+                "The page may require JavaScript to render article lists."
+            ),
+        )
+
+    article_url = link["url"] if link["url"].startswith("http") else f"{SEEKING_ALPHA_BASE}{link['url']}"
+    try:
+        article_html = _fetch_sa_text(article_url, max_bytes=6_000_000)
+    except EarningsAgentSourceError as exc:
+        return EarningsSource(
+            source_type="seeking_alpha",
+            title=link["title"],
+            status="partial",
+            url=article_url,
+            document_type="earnings call transcript",
+            warning=f"Seeking Alpha transcript article was found but could not be fetched: {exc}",
+        )
+
+    text = _extract_seeking_alpha_transcript_text(article_html)
+    if not text:
+        return EarningsSource(
+            source_type="seeking_alpha",
+            title=link["title"],
+            status="partial",
+            url=article_url,
+            document_type="earnings call transcript",
+            warning=(
+                "Seeking Alpha transcript page was reached but full text could not be extracted "
+                "(paywall or bot-protection may have limited the response)."
+            ),
+        )
+    return EarningsSource(
+        source_type="seeking_alpha",
+        title=link["title"],
+        status="found",
+        url=article_url,
+        document_type="earnings call transcript",
+        excerpt=_excerpt(text),
+        text=text[:MAX_SOURCE_CHARS],
+    )
+
+
+def _fetch_sa_text(url: str, max_bytes: int = 3_000_000) -> str:
+    """Fetch a Seeking Alpha URL with browser-like headers."""
+    req = Request(url, headers={**_SA_HEADERS, "Referer": SEEKING_ALPHA_BASE + "/"})
+    try:
+        with urlopen(req, timeout=20, context=_ssl_context()) as response:  # noqa: S310
+            raw = response.read(max_bytes + 1)[:max_bytes]
+            return raw.decode("utf-8", errors="replace")
+    except HTTPError as exc:
+        raise EarningsAgentSourceError(f"Seeking Alpha {url} returned HTTP {exc.code}") from exc
+    except URLError as exc:
+        raise EarningsAgentSourceError(f"Seeking Alpha {url} could not be reached") from exc
+    except TimeoutError as exc:
+        raise EarningsAgentSourceError(f"Seeking Alpha {url} timed out") from exc
+
+
+def _best_seeking_alpha_transcript_link(html: str, company: EarningsCompany) -> dict[str, str] | None:
+    """Find the most recent transcript article link on a Seeking Alpha transcripts listing page.
+
+    Strategy:
+    1. Parse the embedded JSON state blob (SA embeds article slugs in __NEXT_DATA__ or
+       similar patterns) — gives the most reliable structured data.
+    2. Fall back to regex <a> tag scanning.
+    """
+    ticker = company.ticker.upper()
+
+    # --- Strategy 1: extract from embedded JSON blobs ---
+    # SA embeds page data in <script id="__NEXT_DATA__"> or window.__SA_STORE__
+    best_from_json = _sa_json_transcript_link(html, ticker)
+    if best_from_json:
+        return best_from_json
+
+    # --- Strategy 2: regex link scan ---
+    candidates: list[tuple[int, dict[str, str]]] = []
+    for match in re.finditer(
+        r'<a[^>]+href=["\'](?P<href>/article/\d+[^"\'#\s]*)["\'][^>]*>(?P<label>.*?)</a>',
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    ):
+        href = unescape(match.group("href"))
+        label = _compact_text(_html_to_text(match.group("label")))
+        haystack = f"{href} {label}".lower()
+        if "transcript" not in haystack:
+            continue
+        score = 60  # already passed transcript filter
+        if ticker.lower() in haystack:
+            score += 20
+        if "earnings" in haystack or "call" in haystack:
+            score += 10
+        # Higher SA article numbers = more recent articles
+        num_match = re.search(r"/article/(\d+)", href)
+        if num_match:
+            score += min(int(num_match.group(1)) // 1_000_000, 10)
+        candidates.append((score, {
+            "url": href,
+            "title": label or f"{ticker} earnings call transcript",
+        }))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    return candidates[0][1]
+
+
+def _sa_json_transcript_link(html: str, ticker: str) -> dict[str, str] | None:
+    """Extract the most recent transcript slug from Seeking Alpha's embedded JSON blobs."""
+    # SA embeds data in several patterns; try each
+    json_blobs: list[str] = []
+
+    # Pattern 1: <script id="__NEXT_DATA__" ...>{ ... }</script>
+    for m in re.finditer(r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', html, re.DOTALL | re.IGNORECASE):
+        json_blobs.append(m.group(1))
+
+    # Pattern 2: window.__SA_STORE__ = {...}
+    for m in re.finditer(r'window\.__SA_STORE__\s*=\s*(\{.*?\});?\s*(?:window|</script>)', html, re.DOTALL):
+        json_blobs.append(m.group(1))
+
+    # Pattern 3: any large inline JSON that mentions "transcripts"
+    for m in re.finditer(r'<script[^>]*type=["\']application/json["\'][^>]*>(.*?)</script>', html, re.DOTALL | re.IGNORECASE):
+        blob = m.group(1).strip()
+        if "transcript" in blob.lower() and len(blob) > 200:
+            json_blobs.append(blob)
+
+    best_num = -1
+    best_link: dict[str, str] | None = None
+
+    for blob in json_blobs:
+        try:
+            data = json.loads(blob)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        # Walk all string values in the parsed JSON looking for article slugs
+        for slug, title in _walk_sa_json_for_slugs(data, ticker):
+            num_match = re.search(r"/article/(\d+)", slug)
+            article_num = int(num_match.group(1)) if num_match else 0
+            if article_num > best_num:
+                best_num = article_num
+                best_link = {"url": slug, "title": title}
+
+    return best_link
+
+
+def _walk_sa_json_for_slugs(data: Any, ticker: str, _depth: int = 0) -> list[tuple[str, str]]:
+    """Recursively walk a JSON structure to find SA transcript article slugs."""
+    if _depth > 8:
+        return []
+    results: list[tuple[str, str]] = []
+    if isinstance(data, dict):
+        slug = str(data.get("slug") or data.get("uri") or data.get("url") or "")
+        title = str(data.get("title") or data.get("headline") or "")
+        if re.match(r"/article/\d+", slug) and "transcript" in (slug + title).lower():
+            results.append((slug, title or f"{ticker} earnings call transcript"))
+        for v in data.values():
+            results.extend(_walk_sa_json_for_slugs(v, ticker, _depth + 1))
+    elif isinstance(data, list):
+        for item in data[:50]:
+            results.extend(_walk_sa_json_for_slugs(item, ticker, _depth + 1))
+    return results
+
+
+def _extract_seeking_alpha_transcript_text(html: str) -> str:
+    """Extract transcript body text from a Seeking Alpha article page.
+
+    SA transcript pages embed the text inside a <div data-test-id="article-content">
+    or similar container.  Because these divs span many lines and contain deeply
+    nested children, a greedy-to-end-of-page strategy works better than a lazy
+    regex that stops at the first closing tag.
+    """
+    transcript_keywords = ("operator", "ceo", "cfo", "quarter", "revenue", "earnings", "guidance")
+
+    # Strategy 1: slice the HTML from the article container open-tag to end, then
+    # strip all HTML to get the body text.  Works for any nesting depth.
+    anchor_patterns = [
+        r'data-test-id=["\']article-content["\']',
+        r'class=["\'][^"\']*paywall-content[^"\']*["\']',
+        r'class=["\'][^"\']*article-content[^"\']*["\']',
+        r'id=["\']article-content["\']',
+        r'data-test-id=["\']article-body["\']',
+    ]
+    for anchor in anchor_patterns:
+        m = re.search(anchor, html, re.IGNORECASE)
+        if m:
+            # Find the enclosing <div …> open tag that contains the anchor, then
+            # take everything from that point forward.
+            start = html.rfind("<div", 0, m.start())
+            if start == -1:
+                start = m.start()
+            text = _compact_text(_html_to_text(html[start:]))
+            if len(text) >= 100 and any(kw in text.lower() for kw in transcript_keywords):
+                return text
+
+    # Strategy 2: gather every <p>…</p> block in the whole page.
+    # SA transcripts are structured as plain paragraphs (speaker name + dialogue).
+    paragraphs: list[str] = []
+    for chunk in re.findall(r"<p[^>]*>(.*?)</p>", html, re.IGNORECASE | re.DOTALL):
+        text = _compact_text(_html_to_text(chunk))
+        if text and len(text) > 15:
+            paragraphs.append(text)
+    full_p = "\n".join(paragraphs)
+    if len(full_p) >= 100 and any(kw in full_p.lower() for kw in transcript_keywords):
+        return full_p
+
+    # Strategy 3: full page strip as last resort.
+    page_text = _compact_text(_html_to_text(html))
+    if len(page_text) >= 200 and any(kw in page_text.lower() for kw in transcript_keywords):
+        return page_text
+    return ""
 
 
 def build_earnings_prompt(company: EarningsCompany, sources: list[EarningsSource]) -> str:
@@ -738,6 +1270,25 @@ def _resolve_record_by_ticker(symbol: str, records: list[dict[str, Any]]) -> Ear
                 cik=_normalize_cik(record.get("cik_str")),
             )
     return None
+
+
+def _pick_best_transcript_sources(
+    motley: EarningsSource,
+    seeking_alpha: EarningsSource,
+) -> list[EarningsSource]:
+    """Return transcript sources in priority order.
+
+    - If both have text, include both (more context for the LLM is better).
+    - If only one has text, include both so the UI shows the missing source card.
+    - Order: whichever has text comes first (so it's prioritised in the prompt).
+    """
+    has_motley = bool(motley.text.strip())
+    has_sa = bool(seeking_alpha.text.strip())
+
+    if has_sa and not has_motley:
+        return [seeking_alpha, motley]
+    # Default: Motley first (or SA second when both found)
+    return [motley, seeking_alpha]
 
 
 def _source_status(sources: list[EarningsSource]) -> str:

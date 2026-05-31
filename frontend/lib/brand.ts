@@ -7,6 +7,7 @@ export const PRIMARY_NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/retirement-analyzer", label: "Plan" },
   { href: "/portfolio", label: "Portfolio" },
+  { href: "/diversify", label: "Diversify" },
   { href: "/ai-advisor", label: "Studio" },
   { href: "/research", label: "Research" }
 ];

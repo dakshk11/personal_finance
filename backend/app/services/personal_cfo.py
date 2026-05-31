@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.entities import PersonalCFOFile, PersonalCFOMessage, PersonalCFOProject, PersonalCFOUpload
-from app.services.ai_advisor import create_openai_response, now_utc_naive, valid_ai_advisor_model
+from app.services.ai_advisor import generate_text, now_utc_naive, valid_ai_advisor_model
 
 
 OPENING_MESSAGE = "Let's build your investor one-pager. Start by telling me where you live, what you do for income, and what the portfolio is for."
@@ -173,7 +173,7 @@ def create_project(db: Session, user_id: int, name: str) -> PersonalCFOProject:
     return project
 
 
-def submit_interview_message(db: Session, project: PersonalCFOProject, api_key: str, model: str, content: str) -> PersonalCFOProject:
+def submit_interview_message(db: Session, project: PersonalCFOProject, api_key: str | None, model: str, content: str, ollama_base_url: str | None = None) -> PersonalCFOProject:
     if not valid_ai_advisor_model(model):
         raise ValueError("Unsupported OpenAI model.")
     if project.one_pager_generated:
@@ -194,10 +194,11 @@ def submit_interview_message(db: Session, project: PersonalCFOProject, api_key: 
     if phase_complete(project):
         assistant_text = "All seven phases are complete. Generate the one-pager when you're ready."
     else:
-        response_text, _payload = create_openai_response(
-            api_key,
+        response_text, _payload = generate_text(
             model,
             _build_interview_prompt(db, project),
+            api_key=api_key,
+            ollama_base_url=ollama_base_url,
             instructions=INVESTOR_STRATEGY_SYSTEM_PROMPT,
         )
         assistant_text = _one_question_only(response_text)
@@ -208,7 +209,7 @@ def submit_interview_message(db: Session, project: PersonalCFOProject, api_key: 
     return project
 
 
-def generate_one_pager(db: Session, project: PersonalCFOProject, api_key: str, model: str) -> PersonalCFOProject:
+def generate_one_pager(db: Session, project: PersonalCFOProject, api_key: str | None, model: str, ollama_base_url: str | None = None) -> PersonalCFOProject:
     if not valid_ai_advisor_model(model):
         raise ValueError("Unsupported OpenAI model.")
     if not phase_complete(project):
@@ -216,10 +217,11 @@ def generate_one_pager(db: Session, project: PersonalCFOProject, api_key: str, m
     if project.one_pager_generated:
         raise PersonalCFOStateError("The investor one-pager has already been generated. Use the single refinement round instead.")
 
-    response_text, _payload = create_openai_response(
-        api_key,
+    response_text, _payload = generate_text(
         model,
         _build_one_pager_prompt(db, project),
+        api_key=api_key,
+        ollama_base_url=ollama_base_url,
         instructions=INVESTOR_STRATEGY_SYSTEM_PROMPT,
     )
     one_pager = _ensure_one_pager_structure(response_text, project.name)
@@ -236,7 +238,7 @@ def generate_one_pager(db: Session, project: PersonalCFOProject, api_key: str, m
     return project
 
 
-def refine_one_pager(db: Session, project: PersonalCFOProject, api_key: str, model: str, feedback: str) -> PersonalCFOProject:
+def refine_one_pager(db: Session, project: PersonalCFOProject, api_key: str | None, model: str, feedback: str, ollama_base_url: str | None = None) -> PersonalCFOProject:
     if not valid_ai_advisor_model(model):
         raise ValueError("Unsupported OpenAI model.")
     if not project.one_pager_generated:
@@ -250,7 +252,7 @@ def refine_one_pager(db: Session, project: PersonalCFOProject, api_key: str, mod
         "Return only the full updated markdown file using the exact required section order and headings.\n\n"
         f"User refinement:\n{feedback.strip()}\n\nExisting one-pager:\n{existing}"
     )
-    response_text, _payload = create_openai_response(api_key, model, prompt, instructions=INVESTOR_STRATEGY_SYSTEM_PROMPT)
+    response_text, _payload = generate_text(model, prompt, api_key=api_key, ollama_base_url=ollama_base_url, instructions=INVESTOR_STRATEGY_SYSTEM_PROMPT)
     one_pager = _ensure_one_pager_structure(response_text, project.name)
     _ensure_file(db, project, FILE_INVESTOR_ONE_PAGER).content = one_pager
     _append_memory_event(db, project, "Investor one-pager refined once from user feedback.")

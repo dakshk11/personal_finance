@@ -36,8 +36,11 @@ import {
   apiFetch,
   percent
 } from "@/lib/api";
+import { OllamaConfigStrip, OllamaModelButton, effectiveModelId } from "@/components/OllamaModelPicker";
 
-const models: Array<{ id: StockAnalysisModel; label: string; helper: string }> = [
+type ModelPicker = StockAnalysisModel | "ollama";
+
+const openAIModels: Array<{ id: StockAnalysisModel; label: string; helper: string }> = [
   { id: "gpt-5.5", label: "Quality", helper: "gpt-5.5" },
   { id: "gpt-5.4", label: "Balanced", helper: "gpt-5.4" },
   { id: "gpt-5.4-mini", label: "Cost", helper: "gpt-5.4-mini" }
@@ -45,13 +48,17 @@ const models: Array<{ id: StockAnalysisModel; label: string; helper: string }> =
 
 export function StockAnalysisTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyStatus | null }) {
   const [query, setQuery] = useState("");
-  const [model, setModel] = useState<StockAnalysisModel>("gpt-5.4");
+  const [model, setModel] = useState<ModelPicker>("gpt-5.4");
+  const [ollamaModelName, setOllamaModelName] = useState("llama3");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
+  const [useGoose, setUseGoose] = useState(false);
   const [activeRun, setActiveRun] = useState<StockAnalysisRun | null>(null);
   const [history, setHistory] = useState<StockAnalysisRunSummary[]>([]);
   const [loading, setLoading] = useState("history");
   const [error, setError] = useState("");
   const [runMessage, setRunMessage] = useState("");
-  const hasKey = Boolean(keyStatus?.has_key);
+  const isOllama = model === "ollama";
+  const hasKey = isOllama || Boolean(keyStatus?.has_key);
 
   useEffect(() => {
     void loadHistory();
@@ -106,7 +113,11 @@ export function StockAnalysisTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
     try {
       const result = await apiFetch<StockAnalysisRun>("/stock-analysis/run", {
         method: "POST",
-        body: JSON.stringify({ query: cleanQuery, model })
+        body: JSON.stringify({
+          query: cleanQuery,
+          model: effectiveModelId(model, ollamaModelName, useGoose),
+          ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://localhost:11434" } : {})
+        })
       });
       setActiveRun(result);
       setHistory((current) => [result, ...current.filter((item) => item.id !== result.id)].slice(0, 30));
@@ -132,7 +143,7 @@ export function StockAnalysisTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
           </div>
         </div>
         <div className="stock-analysis-status">
-          <span className={hasKey ? "status-pill" : "risk-pill"}>{hasKey ? "OpenAI key ready" : "Key required"}</span>
+          <span className={hasKey ? "status-pill" : "risk-pill"}>{isOllama ? (useGoose ? "Goose + tools" : "Ollama (local)") : hasKey ? "OpenAI key ready" : "Key required"}</span>
           <span className="status-pill">{sourceStatus}</span>
         </div>
       </section>
@@ -151,14 +162,25 @@ export function StockAnalysisTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
             />
           </div>
         </div>
-        <div className="stock-analysis-model-control" role="radiogroup" aria-label="OpenAI model">
-          {models.map((item) => (
+        <div className="stock-analysis-model-control" role="radiogroup" aria-label="AI model">
+          {openAIModels.map((item) => (
             <button type="button" key={item.id} className={model === item.id ? "active" : ""} onClick={() => setModel(item.id)}>
               <strong>{item.label}</strong>
               <span>{item.helper}</span>
             </button>
           ))}
+          <OllamaModelButton active={isOllama} onClick={() => setModel("ollama")} />
         </div>
+        {isOllama && (
+          <OllamaConfigStrip
+            modelName={ollamaModelName}
+            baseUrl={ollamaBaseUrl}
+            useGoose={useGoose}
+            onModelNameChange={setOllamaModelName}
+            onBaseUrlChange={setOllamaBaseUrl}
+            onUseGooseChange={setUseGoose}
+          />
+        )}
         <button className="primary-button stock-analysis-run-button" type="submit" disabled={loading === "run" || !hasKey}>
           {loading === "run" ? <Loader2 size={16} className="spin-icon" /> : <Sparkles size={16} />}
           {loading === "run" ? "Building analysis" : "Generate analysis"}

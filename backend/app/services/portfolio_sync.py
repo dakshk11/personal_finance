@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from base64 import urlsafe_b64encode
+from base64 import b64encode, urlsafe_b64encode
 from dataclasses import dataclass
 from datetime import datetime
 import hashlib
+import hmac
 import json
+import time
 from typing import Any
+import urllib.parse
+import urllib.request
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
@@ -382,7 +386,24 @@ def _get_or_register_credential(
 
     snaptrade = client or _snaptrade_client(provider_credentials)
     provider_user_id = snaptrade_user_id(user_id)
-    body = _response_body(snaptrade.authentication.register_snap_trade_user(user_id=provider_user_id))
+    try:
+        body = _response_body(snaptrade.authentication.register_snap_trade_user(user_id=provider_user_id))
+    except Exception as exc:
+        if _is_snaptrade_user_exists_error(exc):
+            # User exists on SnapTrade but local DB has no record (e.g. after a DB reset).
+            # SnapTrade's delete is asynchronous — it queues the deletion and fires a
+            # USER_DELETED webhook when done.  Re-registering immediately hits 1012 again.
+            # Trigger the delete via a direct signed HTTP call (bypasses SDK auth quirks),
+            # then ask the user to retry in a few seconds.
+            _delete_snaptrade_user_direct(provider_user_id, provider_credentials)
+            raise PortfolioSyncProviderError(
+                "A stale SnapTrade session was found (this happens after a database reset). "
+                "The old session has been queued for removal. "
+                "Please wait a few seconds and click 'Connect brokerage' again.",
+                status_code=409,
+            )
+        else:
+            raise PortfolioSyncProviderError(f"SnapTrade user registration failed: {exc}") from exc
     user_secret = _string(_first(body, ("userSecret", "user_secret", "secret")))
     if not user_secret:
         raise PortfolioSyncProviderError("SnapTrade did not return a user secret.")
@@ -757,6 +778,49 @@ def _snaptrade_client(credentials: ProviderCredentials | None = None) -> Any:
     if not provider_credentials:
         raise PortfolioSyncConfigurationError("SnapTrade is not configured. Save SnapTrade credentials in Portfolio Sync setup or add backend environment credentials.")
     return SnapTrade(client_id=provider_credentials.client_id, consumer_key=provider_credentials.consumer_key)
+
+
+def _delete_snaptrade_user_direct(user_id: str, provider_credentials: ProviderCredentials) -> None:
+    """Delete a SnapTrade user via a direct signed HTTP request.
+
+    The SDK's delete_snap_trade_user has auth-parameter ordering issues that produce
+    a 401/1083 on some SDK versions.  This replicates SnapTrade's exact signing scheme
+    (same logic as snaptrade_client/request_after_hook.py) without the SDK middleware.
+    """
+    timestamp = int(time.time())
+    query = urllib.parse.urlencode({
+        "userId": user_id,
+        "clientId": provider_credentials.client_id,
+        "timestamp": timestamp,
+    })
+    path = "/snapTrade/deleteUser"
+    sig_object = {"content": None, "path": f"/api/v1{path}", "query": query}
+    sig_content = json.dumps(sig_object, separators=(",", ":"), sort_keys=True)
+    sig_digest = hmac.new(
+        provider_credentials.consumer_key.encode(),
+        sig_content.encode(),
+        hashlib.sha256,
+    ).digest()
+    signature = b64encode(sig_digest).decode()
+
+    url = f"https://api.snaptrade.com/api/v1{path}?{query}"
+    req = urllib.request.Request(url, method="DELETE")
+    req.add_header("Signature", signature)
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+    except Exception:
+        # Best-effort: if the delete fails (e.g. user already gone), silently continue.
+        pass
+
+
+def _is_snaptrade_user_exists_error(exc: Exception) -> bool:
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        return str(body.get("code", "")) == "1012"
+    if isinstance(body, str):
+        return "1012" in body
+    return False
 
 
 def _encrypt_secret(value: str) -> str:

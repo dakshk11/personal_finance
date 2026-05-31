@@ -84,7 +84,7 @@ class PersonalCFOTests(unittest.TestCase):
         project = cfo.create_project(db, user.id, "Interview Project")
 
         with patch(
-            "app.services.personal_cfo.create_openai_response",
+            "app.services.personal_cfo.generate_text",
             return_value=("What constraint would force you to change the framework? Also what is the next goal?", {}),
         ) as create_response:
             updated = cfo.submit_interview_message(
@@ -98,7 +98,8 @@ class PersonalCFOTests(unittest.TestCase):
         self.assertEqual(updated.current_phase, 2)
         self.assertEqual(updated.messages[-1].content, "What constraint would force you to change the framework?")
         self.assertIn("Investor Strategy Architect", create_response.call_args.kwargs["instructions"])
-        self.assertIn("Do not produce the investor one-pager", create_response.call_args.args[2])
+        # generate_text(model, prompt, ...) → prompt is args[1]
+        self.assertIn("Do not produce the investor one-pager", create_response.call_args.args[1])
 
     def test_one_pager_generation_and_single_refinement(self) -> None:
         db, user = self._seed_user()
@@ -146,7 +147,7 @@ Tactical and core capital are separate.
 
 *This document is reviewed every quarter. Material changes require a 48-hour cooldown period before execution.*"""
 
-        with patch("app.services.personal_cfo.create_openai_response", return_value=(one_pager, {})):
+        with patch("app.services.personal_cfo.generate_text", return_value=(one_pager, {})):
             generated = cfo.generate_one_pager(db, project, "test-openai-key-fixture", "gpt-5.4")
 
         one_pager_file = next(file_row for file_row in generated.files if file_row.path == "investor-one-pager.md")
@@ -154,7 +155,7 @@ Tactical and core capital are separate.
         self.assertTrue(generated.one_pager_generated)
         self.assertEqual(generated.messages[-1].content, cfo.REFINEMENT_QUESTION)
 
-        with patch("app.services.personal_cfo.create_openai_response", return_value=(one_pager.replace("Optionality first.", "Optionality with a hard cash floor."), {})):
+        with patch("app.services.personal_cfo.generate_text", return_value=(one_pager.replace("Optionality first.", "Optionality with a hard cash floor."), {})):
             refined = cfo.refine_one_pager(db, generated, "test-openai-key-fixture", "gpt-5.4", "Make the cash floor sharper.")
 
         self.assertTrue(refined.refinement_used)

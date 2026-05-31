@@ -19,7 +19,7 @@ from app.schemas.common import (
     StockAnalysisSourceOut,
     StockAnalysisValuationOut,
 )
-from app.services.ai_advisor import AIAdvisorConfigurationError, AIAdvisorProviderError, decrypt_api_key, now_utc_naive, valid_ai_advisor_model
+from app.services.ai_advisor import AIAdvisorConfigurationError, AIAdvisorProviderError, decrypt_api_key, is_goose_model, is_ollama_model, now_utc_naive, valid_ai_advisor_model
 from app.services.stock_analysis import StockAnalysisLookupError, normalize_research_stance, resolve_stock_company, run_stock_analysis
 
 
@@ -34,7 +34,7 @@ def run_analysis(
     db: Session = Depends(get_db),
 ) -> StockAnalysisRunOut:
     if not valid_ai_advisor_model(payload.model):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported OpenAI model.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported model. Use a gpt-* model or ollama:<model_name>.")
     try:
         company = resolve_stock_company(payload.query)
     except StockAnalysisLookupError as exc:
@@ -45,15 +45,17 @@ def run_analysis(
         return _run_out(
             cached_run,
             reused_from_cache=True,
-            cache_message=f"Opened saved {cached_run.ticker} analysis from {cached_run.created_at.date().isoformat()}; no new OpenAI tokens were used.",
+            cache_message=f"Opened saved {cached_run.ticker} analysis from {cached_run.created_at.date().isoformat()}; no new tokens were used.",
         )
 
-    key_row = db.scalar(select(AIAdvisorOpenAIKey).where(AIAdvisorOpenAIKey.user_id == user.id))
-    if not key_row:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save an OpenAI API key before generating an equity research analysis.")
-    try:
+    api_key: str | None = None
+    if not is_ollama_model(payload.model) and not is_goose_model(payload.model):
+        key_row = db.scalar(select(AIAdvisorOpenAIKey).where(AIAdvisorOpenAIKey.user_id == user.id))
+        if not key_row:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save an OpenAI API key before generating an equity research analysis.")
         api_key = decrypt_api_key(key_row.encrypted_api_key, get_settings().ai_advisor_key_encryption_secret)
-        run = run_stock_analysis(db, user.id, payload.query, payload.model, api_key)
+    try:
+        run = run_stock_analysis(db, user.id, payload.query, payload.model, api_key, ollama_base_url=payload.ollama_base_url)
     except AIAdvisorConfigurationError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
     except AIAdvisorProviderError as exc:

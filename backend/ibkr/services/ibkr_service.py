@@ -25,8 +25,15 @@ from data.tickers import ALL_TICKERS, IBKR_SYMBOL_MAP
 log = logging.getLogger(__name__)
 
 POLL_INTERVAL   = 30   # seconds between full snapshot cycles
-SNAPSHOT_BATCH  = 50   # max simultaneous market-data lines per batch
-_QUALIFY_BATCH  = 50   # contracts per qualifyContractsAsync call
+# Keep simultaneous IBKR market-data lines well below TWS limits.
+# reqTickersAsync opens one market-data line per contract; cancel only happens
+# after all data arrives, so TWS can see SNAPSHOT_BATCH lines open at once.
+# With 103 symbols across 4 batches of 25, peak is 25 lines at any moment.
+SNAPSHOT_BATCH  = 10   # max simultaneous market-data lines per batch
+_QUALIFY_BATCH  = 10   # contracts per qualifyContractsAsync call
+# Pause between snapshot batches — gives TWS time to fully process cancellations
+# from the previous batch before the next one opens.
+_BATCH_PAUSE    = 2.0  # seconds between snapshot batches
 
 # ── Shared state ──────────────────────────────────────────────────────────────
 _ib: IB = IB()
@@ -76,8 +83,9 @@ async def connect() -> bool:
             _ib.disconnect()
             return False
 
-        # Prefer delayed data when no live subscription is active
-        _ib.reqMarketDataType(4)
+        # Use delayed market data (15-20 min delay, free subscription tier)
+        # 1=live, 2=frozen, 3=delayed, 4=delayed-frozen
+        _ib.reqMarketDataType(3)
 
         _connected = True
         if _poll_task is None or _poll_task.done():
@@ -135,7 +143,9 @@ async def _resolve_contracts() -> None:
                         _contracts[sym] = q[0]
                 except Exception as exc:
                     log.debug("qualify %s: %s", sym, exc)
-        await asyncio.sleep(0.2)
+        # Pause between qualification batches so we don't flood TWS
+        # at startup (each qualifyContractsAsync fires N reqContractDetails calls)
+        await asyncio.sleep(1.0)
 
     log.info("Contracts qualified: %d/%d", len(_contracts), len(syms))
 
@@ -177,16 +187,16 @@ async def _poll_loop() -> None:
                     for sym, ticker in zip(batch_syms, tickers):
                         _update_cache_from_ticker(sym, ticker)
                     log.debug(
-                        "Snapshot batch %d/%d complete (%d symbols)",
-                        batch_num, total_batches, len(batch_syms),
+                        "Snapshot batch %d/%d complete (%d symbols, max %d simultaneous)",
+                        batch_num, total_batches, len(batch_syms), SNAPSHOT_BATCH,
                     )
                 except Exception as exc:
                     log.debug("Snapshot batch %d error: %s", batch_num, exc)
 
-                # Pause between batches so lines are fully released before
-                # the next batch opens
+                # Pause between batches: gives TWS time to fully process
+                # cancellations from the previous batch before new lines open.
                 if i + SNAPSHOT_BATCH < len(cons):
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(_BATCH_PAUSE)
 
             await asyncio.sleep(POLL_INTERVAL)
 

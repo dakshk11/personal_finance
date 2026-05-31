@@ -18,5 +18,7 @@ postgres-data/
 redis-data/
 data-cache/
 backend/ibkr/data/cboe_daily_cache.json
+backend/ibkr/data/history/
+backend/app/services/diversify_price_cache/
 artifacts/
 AGENTS.md

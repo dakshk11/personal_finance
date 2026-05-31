@@ -15,7 +15,7 @@ from app.schemas.common import (
     EarningsAgentRunSummaryOut,
     EarningsAgentSourceOut,
 )
-from app.services.ai_advisor import AIAdvisorConfigurationError, AIAdvisorProviderError, decrypt_api_key, valid_ai_advisor_model
+from app.services.ai_advisor import AIAdvisorConfigurationError, AIAdvisorProviderError, decrypt_api_key, is_goose_model, is_ollama_model, valid_ai_advisor_model
 from app.services.earnings_agent import EarningsAgentLookupError, EarningsAgentSourceError, run_earnings_agent
 
 
@@ -29,13 +29,15 @@ def run_digest(
     db: Session = Depends(get_db),
 ) -> EarningsAgentRunOut:
     if not valid_ai_advisor_model(payload.model):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported OpenAI model.")
-    key_row = db.scalar(select(AIAdvisorOpenAIKey).where(AIAdvisorOpenAIKey.user_id == user.id))
-    if not key_row:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save an OpenAI API key before generating an earnings digest.")
-    try:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported model. Use a gpt-* model or ollama:<model_name>.")
+    api_key: str | None = None
+    if not is_ollama_model(payload.model) and not is_goose_model(payload.model):
+        key_row = db.scalar(select(AIAdvisorOpenAIKey).where(AIAdvisorOpenAIKey.user_id == user.id))
+        if not key_row:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save an OpenAI API key before generating an earnings digest.")
         api_key = decrypt_api_key(key_row.encrypted_api_key, get_settings().ai_advisor_key_encryption_secret)
-        run = run_earnings_agent(db, user.id, payload.query, payload.model, api_key)
+    try:
+        run = run_earnings_agent(db, user.id, payload.query, payload.model, api_key, ollama_base_url=payload.ollama_base_url)
     except AIAdvisorConfigurationError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
     except AIAdvisorProviderError as exc:

@@ -254,7 +254,7 @@ class EarningsAgentTests(unittest.TestCase):
             ),
             patch("app.services.earnings_agent.fetch_company_ir_sources", return_value=[]),
             patch(
-                "app.services.earnings_agent.create_openai_response",
+                "app.services.earnings_agent.generate_text",
                 return_value=(
                     json.dumps(
                         {
@@ -335,7 +335,7 @@ class EarningsAgentTests(unittest.TestCase):
         with patch("app.api.earnings_agent.get_settings", return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET)), patch(
             "app.api.earnings_agent.run_earnings_agent",
         ) as service:
-            service.side_effect = lambda db_arg, user_id, query, model, api_key: EarningsAgentRun(
+            service.side_effect = lambda db_arg, user_id, query, model, api_key, ollama_base_url=None: EarningsAgentRun(
                 id=7,
                 user_id=user_id,
                 query=query,

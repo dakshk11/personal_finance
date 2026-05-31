@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import advisor, ai_advisor, auth, backtests, breakout_scanner, data, earnings_agent, filings, indices, market_history, option_strategy, personal_cfo, portfolio_analysis, portfolio_sync, portfolios, retirement_analyzer, rsi_playbook, stock_analysis
+from app.api import advisor, ai_advisor, auth, backtests, breakout_scanner, data, diversification, earnings_agent, filings, indices, market_history, option_strategy, personal_cfo, portfolio_analysis, portfolio_sync, portfolios, retirement_analyzer, rsi_playbook, stock_analysis
 from app.core.config import get_settings, local_cors_origins
 from app.db.session import Base, SessionLocal, engine
 from app.models import entities  # noqa: F401
@@ -59,3 +59,4 @@ app.include_router(portfolios.router)
 app.include_router(backtests.router)
 app.include_router(retirement_analyzer.router)
 app.include_router(rsi_playbook.router)
+app.include_router(diversification.router)

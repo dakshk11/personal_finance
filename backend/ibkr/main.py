@@ -22,6 +22,8 @@ import asyncio
 import json
 import logging
 import time
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from typing import Any
 
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
@@ -35,6 +37,7 @@ from services.cboe_service import (
     find_30delta_metrics, get_atm_iv,
 )
 from services.scanner_service import run_csp_scan, run_cc_scan
+from services.breakout_router import router as breakout_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -48,6 +51,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(breakout_router)
+
 _ws_clients: list[WebSocket] = []
 
 # Price fallback (CBOE delayed, when IBKR is offline)
@@ -57,6 +62,22 @@ _cboe_price_cache: dict[str, float] = {}
 _metrics_cache: dict[str, dict] = {}
 
 IBKR_RETRY_INTERVAL = 30   # seconds between reconnect attempts
+
+# Track the analytics task to prevent duplicate concurrent refresh loops
+_analytics_task: asyncio.Task | None = None
+
+
+def _start_analytics_task() -> None:
+    """Create a new analytics refresh task only if none is currently running.
+
+    Prevents stacking multiple loops when IBKR reconnects repeatedly.
+    """
+    global _analytics_task
+    if _analytics_task is not None and not _analytics_task.done():
+        log.info("Analytics task already running — skipping duplicate creation")
+        return
+    _analytics_task = asyncio.create_task(_analytics_refresh_loop())
+    log.info("Analytics refresh task started")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -68,7 +89,7 @@ async def startup():
     connected = await ibkr.connect()
     if connected:
         log.info("IBKR streaming started")
-        asyncio.create_task(_analytics_refresh_loop())
+        _start_analytics_task()
     else:
         log.warning(
             "IBKR TWS not reachable on port 7496 — is TWS running with API connections enabled? "
@@ -98,7 +119,7 @@ async def _ibkr_reconnect_loop():
             connected = await ibkr.connect()
             if connected:
                 log.info("IBKR reconnected successfully")
-                asyncio.create_task(_analytics_refresh_loop())
+                _start_analytics_task()   # guarded — won't duplicate if already running
             else:
                 log.debug("IBKR still unavailable, will retry in %ds", IBKR_RETRY_INTERVAL)
 
@@ -145,27 +166,50 @@ async def _cboe_metrics_loop():
         await asyncio.sleep(6 * 3600)
 
 
-async def _analytics_refresh_loop():
-    """Fetch 30-day daily bars from IBKR and compute RSI / BB%% for all symbols.
+def _seconds_until_market_close_refresh() -> float:
+    """Seconds until 4:30 PM ET (30 min after NYSE close).
 
-    Runs once when IBKR connects, then every 24 hours. Does not run when IBKR
-    is offline (no bars available).
+    If it is already past 4:30 PM ET today, returns seconds until 4:30 PM ET tomorrow.
+    This ensures OHLCV data is always refreshed with the latest closing prices.
+    """
+    et = ZoneInfo("America/New_York")
+    now = datetime.now(et)
+    target = now.replace(hour=16, minute=30, second=0, microsecond=0)
+    if now >= target:
+        target += timedelta(days=1)
+    secs = (target - now).total_seconds()
+    log.info(
+        "Analytics: next market-close refresh in %.0f min (at 4:30 PM ET %s)",
+        secs / 60,
+        target.strftime("%Y-%m-%d"),
+    )
+    return secs
+
+
+async def _analytics_refresh_loop():
+    """Fetch 1-year daily OHLCV bars from IBKR, compute all analytics, and persist to disk.
+
+    Schedule:
+      - Runs immediately when IBKR connects (populates OHLCV cache + indicators)
+      - Then runs daily at 4:30 PM ET (30 min after NYSE close) to pick up latest closes
     """
     while ibkr.is_connected():
         log.info("Analytics refresh: fetching IBKR historical bars…")
         await analytics.refresh(ibkr.get_ib(), ibkr.get_contracts())
-        _recompute_metrics()   # re-merge RSI/BB into signals after update
-        await asyncio.sleep(24 * 3600)
+        _recompute_metrics()
+        # Sleep until 4:30 PM ET (handles both "before close" and "after close" cases)
+        await asyncio.sleep(_seconds_until_market_close_refresh())
 
 
 def _recompute_metrics() -> None:
-    """Merge 30Δ yields + RSI/BB%% → _metrics_cache and derive signals."""
+    """Merge 30Δ yields + RSI/BB%% + Stage → _metrics_cache and derive signals."""
     anal = analytics.get_all_analytics()
     for sym in ALL_TICKERS:
         m30    = find_30delta_metrics(sym)
         iv     = get_atm_iv(sym)
-        rsi    = anal.get(sym, {}).get("rsi")
-        bb_pct = anal.get(sym, {}).get("bb_pct")
+        a      = anal.get(sym, {})
+        rsi    = a.get("rsi")
+        bb_pct = a.get("bb_pct")
 
         csp_30d = m30.get("csp_30d")
         cc_30d  = m30.get("cc_30d")
@@ -244,6 +288,16 @@ def _build_watchlist_rows() -> dict[str, dict]:
         row["rsi"]      = m.get("rsi")
         row["bb_pct"]   = m.get("bb_pct")
         row["signals"]  = m.get("signals", [])
+
+        # Stage Analysis (Weinstein) — from analytics cache
+        from services.analytics_service import get_analytics as _get_anal
+        anal = _get_anal(sym)
+        row["stage"]           = anal.get("stage")           # 1/2/3/4 or None
+        row["sata_score"]      = anal.get("sata_score")      # 0–10
+        row["mansfield_rs"]    = anal.get("mansfield_rs")    # float or None
+        row["ma150"]           = anal.get("ma150")           # 150-day SMA value
+        row["ma200"]           = anal.get("ma200")           # 200-day SMA value
+        row["sata_attributes"] = anal.get("sata_attributes", {})
 
         rows[sym] = row
     return rows

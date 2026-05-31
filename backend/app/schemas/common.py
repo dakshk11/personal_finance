@@ -39,8 +39,9 @@ class AIAdvisorOpenAIKeyOut(BaseModel):
 
 class AIAdvisorRetirementRunRequest(BaseModel):
     module_id: str = Field(min_length=1, max_length=80)
-    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+    model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
     inputs: dict[str, Any] = Field(default_factory=dict)
+    ollama_base_url: str | None = Field(default=None, max_length=200)
 
 
 class AIAdvisorReportSummaryOut(BaseModel):
@@ -61,7 +62,8 @@ class AIAdvisorReportOut(AIAdvisorReportSummaryOut):
 
 class EarningsAgentRunRequest(BaseModel):
     query: str = Field(min_length=1, max_length=160)
-    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+    model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
+    ollama_base_url: str | None = Field(default=None, max_length=200)
 
 
 class EarningsAgentSourceOut(BaseModel):
@@ -112,7 +114,8 @@ class EarningsAgentRunOut(EarningsAgentRunSummaryOut):
 
 class StockAnalysisRunRequest(BaseModel):
     query: str = Field(min_length=1, max_length=160)
-    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+    model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
+    ollama_base_url: str | None = Field(default=None, max_length=200)
 
 
 class StockAnalysisSourceOut(BaseModel):
@@ -387,16 +390,19 @@ class PersonalCFOProjectOut(BaseModel):
 
 class PersonalCFOMessageIn(BaseModel):
     content: str = Field(min_length=1, max_length=6000)
-    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+    model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
+    ollama_base_url: str | None = Field(default=None, max_length=200)
 
 
 class PersonalCFOGenerateRequest(BaseModel):
-    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+    model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
+    ollama_base_url: str | None = Field(default=None, max_length=200)
 
 
 class PersonalCFORefineRequest(BaseModel):
     feedback: str = Field(min_length=1, max_length=6000)
-    model: Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"] = "gpt-5.4"
+    model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
+    ollama_base_url: str | None = Field(default=None, max_length=200)
 
 
 class PersonalCFOFileUpdate(BaseModel):
@@ -1264,3 +1270,112 @@ class TransitionPlanOut(BaseModel):
     recommendations: list[TransitionRecommendationOut]
     input_snapshot: dict
     created_at: datetime
+
+
+# ── Portfolio Diversification ─────────────────────────────────────────────────
+
+class ConcentrationHoldingIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=16)
+    name: str = Field(default="", max_length=255)
+    sector: str | None = Field(default=None, max_length=100)
+    shares: float = Field(gt=0)
+    price: float = Field(gt=0)
+
+
+class ConcentrationAnalysisRequest(BaseModel):
+    holdings: list[ConcentrationHoldingIn]
+    index_symbol: str = Field(default="SCHD", max_length=16)
+
+
+class SectorGapOut(BaseModel):
+    sector: str
+    portfolio_weight: float
+    index_weight: float
+    gap: float
+
+
+class ConcentrationAnalysisOut(BaseModel):
+    hhi: float
+    diversification_score: int
+    top_holding: str
+    top_holding_weight: float
+    sector_weights: dict[str, float]
+    sector_vs_index: list[SectorGapOut]
+    active_share: float
+    concentration_warnings: list[str]
+
+
+class DiversifyBacktestRequest(BaseModel):
+    concentrated_symbol: str = Field(min_length=1, max_length=16)
+    concentrated_shares: float = Field(gt=0)
+    avg_cost_basis: float = Field(gt=0)
+    starting_cash: float = Field(default=0.0, ge=0)
+    years: list[int] = Field(default_factory=lambda: [2023, 2024, 2025])
+    estimated_tax_rate: float = Field(default=0.35, ge=0, le=0.60)
+    harvest_threshold: float = Field(default=0.03, ge=0.005, le=0.30)
+    alpha_vantage_key: str | None = Field(default=None, description="Alpha Vantage API key for price history")
+
+
+class DiversifyYearResultOut(BaseModel):
+    year: int
+    harvested_losses: float
+    tax_savings: float
+    concentration_pct: float
+    hhi: float
+    schd_value: float
+    concentrated_value: float
+    trade_count: int
+    data_source: str
+    warnings: list[str]
+
+
+class DiversifyBacktestOut(BaseModel):
+    years: list[DiversifyYearResultOut]
+    total_harvested_losses: float
+    total_tax_savings: float
+    immediate_sell_tax_cost: float
+    net_tlh_benefit: float
+    savings_vs_immediate_sell: float
+    tlh_wins: bool
+    concentration_start_pct: float
+    concentration_end_pct: float
+    warnings: list[str]
+
+
+class CurrentHoldingIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=16)
+    shares: float = Field(gt=0)
+    avg_cost: float = Field(gt=0)
+    last_sold_date: date | None = None
+
+
+class DiversifyRecommendationsRequest(BaseModel):
+    concentrated_symbol: str = Field(min_length=1, max_length=16)
+    concentrated_shares: float = Field(gt=0)
+    avg_cost_basis: float = Field(gt=0)
+    current_schd_holdings: list[CurrentHoldingIn] = Field(default_factory=list)
+    estimated_tax_rate: float = Field(default=0.35, ge=0, le=0.60)
+    harvest_threshold: float = Field(default=0.03, ge=0.005, le=0.30)
+
+
+class RecommendTradeOut(BaseModel):
+    action: str
+    symbol: str
+    name: str
+    shares: float
+    estimated_price: float
+    notional: float
+    reason: str
+    harvested_loss: float | None = None
+
+
+class DiversifyRecommendationsOut(BaseModel):
+    as_of_date: str
+    harvest_trades: list[RecommendTradeOut]
+    replacement_trades: list[RecommendTradeOut]
+    concentrated_sell: RecommendTradeOut | None
+    total_harvested_loss: float
+    net_tax_cost: float
+    concentration_before_pct: float
+    concentration_after_pct: float
+    warnings: list[str]

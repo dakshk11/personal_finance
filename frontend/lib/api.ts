@@ -586,7 +586,7 @@ export type BreakoutScan = {
   data_source: string;
   universe_count: number;
   scanned_symbols: number;
-  config: BreakoutScannerConfig;
+  config: BreakoutScannerConfig | null;
   signals: BreakoutSignal[];
   warnings: string[];
 };
@@ -882,8 +882,9 @@ export type AIAdvisorReport = AIAdvisorReportSummary & {
 
 export type AIAdvisorRetirementRunRequest = {
   module_id: string;
-  model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini";
+  model: "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | string;
   inputs: Record<string, string>;
+  ollama_base_url?: string | null;
 };
 
 export type PersonalCFOModel = AIAdvisorRetirementRunRequest["model"];
@@ -1121,3 +1122,105 @@ export function currency(value: number) {
 export function percent(value: number) {
   return new Intl.NumberFormat("en-US", { style: "percent", maximumFractionDigits: 2 }).format(value);
 }
+
+export type IbkrBreakoutStatus = {
+  ibkr_connected: boolean;
+  cached_symbols: number;
+  fresh_today: number;
+  ndx100_count: number;
+};
+
+// ── Portfolio Diversification ─────────────────────────────────────────────────
+
+export type ConcentrationHoldingIn = {
+  symbol: string;
+  name?: string;
+  sector?: string;
+  shares: number;
+  price: number;
+};
+
+export type SectorGapOut = {
+  sector: string;
+  portfolio_weight: number;
+  index_weight: number;
+  gap: number;
+};
+
+export type ConcentrationAnalysisOut = {
+  hhi: number;
+  diversification_score: number;
+  top_holding: string;
+  top_holding_weight: number;
+  sector_weights: Record<string, number>;
+  sector_vs_index: SectorGapOut[];
+  active_share: number;
+  concentration_warnings: string[];
+};
+
+export type DiversifyBacktestRequest = {
+  concentrated_symbol: string;
+  concentrated_shares: number;
+  avg_cost_basis: number;
+  starting_cash?: number;
+  years?: number[];
+  estimated_tax_rate?: number;
+  harvest_threshold?: number;
+  alpha_vantage_key?: string | null;
+};
+
+export type DiversifyYearResultOut = {
+  year: number;
+  harvested_losses: number;
+  tax_savings: number;
+  concentration_pct: number;
+  hhi: number;
+  schd_value: number;
+  concentrated_value: number;
+  trade_count: number;
+  data_source: string;
+  warnings: string[];
+};
+
+export type DiversifyBacktestOut = {
+  years: DiversifyYearResultOut[];
+  total_harvested_losses: number;
+  total_tax_savings: number;
+  immediate_sell_tax_cost: number;
+  net_tlh_benefit: number;
+  savings_vs_immediate_sell: number;
+  tlh_wins: boolean;
+  concentration_start_pct: number;
+  concentration_end_pct: number;
+  warnings: string[];
+};
+
+export type CurrentHoldingIn = {
+  symbol: string;
+  shares: number;
+  avg_cost: number;
+  last_sold_date?: string;
+};
+
+export type RecommendTradeOut = {
+  action: "BUY" | "SELL";
+  symbol: string;
+  name: string;
+  shares: number;
+  estimated_price: number;
+  notional: number;
+  reason: string;
+  harvested_loss?: number | null;
+};
+
+export type DiversifyRecommendationsOut = {
+  as_of_date: string;
+  harvest_trades: RecommendTradeOut[];
+  replacement_trades: RecommendTradeOut[];
+  concentrated_sell: RecommendTradeOut | null;
+  total_harvested_loss: number;
+  net_tax_cost: number;
+  concentration_before_pct: number;
+  concentration_after_pct: number;
+  warnings: string[];
+};

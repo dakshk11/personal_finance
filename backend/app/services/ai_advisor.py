@@ -6,7 +6,12 @@ from datetime import UTC, datetime
 from functools import lru_cache
 import hashlib
 import json
+import os
+import re
+import sqlite3
 import ssl
+import subprocess
+import time
 from typing import Any, Literal
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -15,8 +20,12 @@ import certifi
 from cryptography.fernet import Fernet, InvalidToken
 
 
-AI_ADVISOR_MODELS = ("gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
+AI_ADVISOR_OPENAI_MODELS = ("gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
+AI_ADVISOR_MODELS = AI_ADVISOR_OPENAI_MODELS  # backwards compat
 AIAdvisorModel = Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]
+OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434"
+_GOOSE_SESSIONS_DB = os.path.expanduser("~/.local/share/goose/sessions/sessions.db")
+_GOOSE_HEADER_END = "goose is ready"
 
 
 class AIAdvisorConfigurationError(RuntimeError):
@@ -165,8 +174,31 @@ RETIREMENT_PROMPT_MODULES: tuple[RetirementPromptModule, ...] = (
 RETIREMENT_PROMPT_MODULE_BY_ID = {module.id: module for module in RETIREMENT_PROMPT_MODULES}
 
 
+def is_ollama_model(model: str) -> bool:
+    return model.startswith("ollama:")
+
+
+def ollama_model_name(model: str) -> str:
+    """Extract the Ollama model name from a prefixed model string like 'ollama:llama3'."""
+    return model[len("ollama:"):]
+
+
+def is_goose_model(model: str) -> bool:
+    """True when the model string requests Goose tool-call routing: 'goose:<ollama_model>'."""
+    return model.startswith("goose:")
+
+
+def goose_model_name(model: str) -> str:
+    """Extract the underlying Ollama model name from 'goose:llama3' → 'llama3'."""
+    return model[len("goose:"):]
+
+
 def valid_ai_advisor_model(model: str) -> bool:
-    return model in AI_ADVISOR_MODELS
+    return (
+        model in AI_ADVISOR_OPENAI_MODELS
+        or (is_ollama_model(model) and bool(ollama_model_name(model)))
+        or (is_goose_model(model) and bool(goose_model_name(model)))
+    )
 
 
 def get_retirement_prompt_module(module_id: str) -> RetirementPromptModule | None:
@@ -245,6 +277,243 @@ def create_openai_response(api_key: str, model: str, prompt: str, *, instruction
         payload["instructions"] = instructions
     response = _openai_json_request("https://api.openai.com/v1/responses", api_key, method="POST", payload=payload)
     return _extract_response_text(response), response
+
+
+def create_ollama_response(model_name: str, prompt: str, base_url: str | None = None) -> tuple[str, dict[str, Any]]:
+    """Call a local Ollama instance and return (response_text, raw_payload)."""
+    url = (base_url or OLLAMA_DEFAULT_BASE_URL).rstrip("/")
+    payload = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+    }
+    body = json.dumps(payload).encode("utf-8")
+    req = Request(
+        f"{url}/api/chat",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urlopen(req, timeout=120) as response:
+            raw = json.loads(response.read().decode("utf-8", errors="ignore") or "{}")
+    except HTTPError as exc:
+        try:
+            detail = json.loads(exc.read().decode("utf-8", errors="ignore") or "{}").get("error", "")
+        except Exception:
+            detail = ""
+        raise AIAdvisorProviderError(
+            f"Ollama error{': ' + detail if detail else ''}. Make sure Ollama is running at {url}.",
+            status_code=502,
+        ) from exc
+    except (URLError, OSError) as exc:
+        raise AIAdvisorProviderError(
+            f"Could not reach Ollama at {url}. Make sure Ollama is installed and running (`ollama serve`).",
+            status_code=502,
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise AIAdvisorProviderError("Ollama returned an unreadable response.", status_code=502) from exc
+
+    message = raw.get("message") or {}
+    text = message.get("content", "") if isinstance(message, dict) else ""
+    if not text.strip():
+        raise AIAdvisorProviderError("Ollama response did not include any text.", status_code=502)
+    usage = {k: raw.get(k) for k in ("prompt_eval_count", "eval_count", "total_duration") if raw.get(k) is not None}
+    return text.strip(), {"usage": usage, **raw}
+
+
+def create_goose_response(
+    model_name: str,
+    prompt: str,
+    base_url: str | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Run a prompt through a local Goose session with tool calls enabled.
+
+    Goose orchestrates real-time tool use (web search, shell, browsing, etc.)
+    using the configured Ollama model, then returns the final response.
+
+    Prerequisites:
+      - Install Goose: https://block.github.io/goose/
+      - Configure provider: ``goose configure``  (set provider to ollama, choose model)
+
+    The model_name overrides Goose's configured model via GOOSE_MODEL env var.
+    """
+    # Verify goose is on PATH
+    try:
+        subprocess.run(["goose", "--version"], capture_output=True, timeout=8, check=True)
+    except FileNotFoundError:
+        raise AIAdvisorProviderError(
+            "Goose CLI is not installed or not in PATH. "
+            "Install from https://block.github.io/goose/ or via `brew install goose`.",
+            status_code=400,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise AIAdvisorProviderError(
+            f"Goose CLI check failed: {exc}. Make sure Goose is installed correctly.",
+            status_code=400,
+        ) from exc
+
+    # Record timestamp to identify the session created by this specific run.
+    t_before = time.time() - 2
+
+    # Override Goose's configured model when one is specified.
+    env = {**os.environ}
+    if model_name:
+        env["GOOSE_PROVIDER"] = "ollama"
+        env["GOOSE_MODEL"] = model_name
+    if base_url:
+        env["OLLAMA_HOST"] = base_url.rstrip("/")
+
+    try:
+        result = subprocess.run(
+            # --no-session: start with a completely empty context every run.
+            # Goose still writes a 'hidden' session to the DB, but it never
+            # loads history from a previous run, so the local model's context
+            # window is never polluted by earlier analyses.
+            ["goose", "run", "--no-session", "-i", "-"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            env=env,
+        )
+    except subprocess.TimeoutExpired:
+        _cleanup_goose_hidden_sessions(t_before)
+        raise AIAdvisorProviderError(
+            "Goose session timed out after 3 minutes. "
+            "Try a shorter prompt or check that Ollama is running and responsive.",
+            status_code=504,
+        )
+    except Exception as exc:
+        _cleanup_goose_hidden_sessions(t_before)
+        raise AIAdvisorProviderError(f"Goose execution failed: {exc}", status_code=502) from exc
+
+    # Primary: extract response from captured stdout (strip Goose header + ANSI codes).
+    text = _parse_goose_stdout(result.stdout)
+
+    # Fallback: read from the hidden session Goose created for this run.
+    if not text.strip():
+        text = _goose_db_response(t_before)
+
+    # Always clean up the hidden session so the DB does not accumulate stale entries.
+    _cleanup_goose_hidden_sessions(t_before)
+
+    if not text.strip():
+        stderr_hint = (result.stderr or "").strip()[:300]
+        raise AIAdvisorProviderError(
+            "Goose returned an empty response. "
+            + (f"Stderr hint: {stderr_hint}" if stderr_hint else
+               "Check that Ollama is running and the model is configured in Goose."),
+            status_code=502,
+        )
+
+    return text.strip(), {"usage": {"provider": "goose", "model": model_name, "tool_calls": True}}
+
+
+def _parse_goose_stdout(stdout: str) -> str:
+    """Strip Goose's startup banner and ANSI escape codes from subprocess stdout."""
+    if not stdout:
+        return ""
+    # Remove ANSI colour/cursor codes
+    clean = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", stdout)
+    clean = re.sub(r"\x1b\][^\x07]*\x07", "", clean)
+    # Everything after "goose is ready" is the model's response
+    idx = clean.find(_GOOSE_HEADER_END)
+    if idx != -1:
+        clean = clean[idx + len(_GOOSE_HEADER_END):]
+    # Strip progress bars / percentage lines that leak through
+    lines = [ln for ln in clean.splitlines() if not re.match(r"^\s*[╌─]{3,}|^\s*\d+%\s", ln)]
+    return "\n".join(lines).strip()
+
+
+def _goose_db_response(t_before: float) -> str:
+    """Read the last assistant text from Goose's SQLite sessions DB.
+
+    Used as a fallback when stdout is empty (e.g. TTY detection strips output).
+    """
+    if not os.path.exists(_GOOSE_SESSIONS_DB):
+        return ""
+    try:
+        db = sqlite3.connect(_GOOSE_SESSIONS_DB, timeout=5)
+        rows = db.execute(
+            """
+            SELECT m.content_json
+            FROM messages m
+            JOIN sessions s ON m.session_id = s.id
+            WHERE m.role = 'assistant'
+              AND unixepoch(s.created_at) >= ?
+            ORDER BY m.id DESC
+            LIMIT 20
+            """,
+            (t_before,),
+        ).fetchall()
+        db.close()
+        texts: list[str] = []
+        for (content_json,) in reversed(rows):
+            for part in json.loads(content_json):
+                if part.get("type") == "text" and part.get("text", "").strip():
+                    texts.append(part["text"].strip())
+        return "\n\n".join(texts)
+    except Exception:
+        return ""
+
+
+def _cleanup_goose_hidden_sessions(t_before: float) -> None:
+    """Delete the 'hidden' sessions Goose creates for --no-session runs.
+
+    Goose still writes a hidden DB entry even with --no-session.  This function
+    removes those entries after each run so the sessions database stays clean and
+    the local model's context window is never accidentally re-loaded.
+    """
+    if not os.path.exists(_GOOSE_SESSIONS_DB):
+        return
+    try:
+        db = sqlite3.connect(_GOOSE_SESSIONS_DB, timeout=5)
+        db.execute(
+            """
+            DELETE FROM messages
+            WHERE session_id IN (
+                SELECT id FROM sessions
+                WHERE session_type = 'hidden'
+                  AND unixepoch(created_at) >= ?
+            )
+            """,
+            (t_before,),
+        )
+        db.execute(
+            """
+            DELETE FROM sessions
+            WHERE session_type = 'hidden'
+              AND unixepoch(created_at) >= ?
+            """,
+            (t_before,),
+        )
+        db.commit()
+        db.close()
+    except Exception:
+        pass  # cleanup is best-effort; never block the response
+
+
+def generate_text(
+    model: str,
+    prompt: str,
+    *,
+    api_key: str | None = None,
+    ollama_base_url: str | None = None,
+    instructions: str | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Route to Goose, Ollama, or OpenAI based on model prefix.
+
+    Model prefix conventions:
+      ``goose:<name>``   → Goose session with tool calls (real-time web access etc.)
+      ``ollama:<name>``  → Direct Ollama call (no tool calls)
+      ``gpt-*``          → OpenAI Responses API
+    """
+    if is_goose_model(model):
+        return create_goose_response(goose_model_name(model), prompt, base_url=ollama_base_url)
+    if is_ollama_model(model):
+        return create_ollama_response(ollama_model_name(model), prompt, base_url=ollama_base_url)
+    return create_openai_response(api_key or "", model, prompt, instructions=instructions)
 
 
 def response_usage(response_payload: dict[str, Any]) -> dict[str, Any]:

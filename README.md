@@ -213,6 +213,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
+This starts all services including the IBKR Wheel Scanner backend on port 8002. No extra steps are needed — the Wheel Scanner tab will show CBOE delayed prices immediately and switch to IBKR live data automatically when TWS is running.
+
 ## Quickstart
 
 Requirements:
@@ -220,7 +222,7 @@ Requirements:
 - Docker Desktop or a compatible Docker engine
 - Docker Compose
 
-Run the full local stack:
+Run the full local stack (includes IBKR Wheel Scanner backend):
 
 ```bash
 cp .env.example .env
@@ -232,6 +234,16 @@ Open:
 - Frontend: http://localhost:3000
 - Backend API docs: http://localhost:8000/docs
 - Health check: http://localhost:8000/health
+- IBKR Scanner API: http://localhost:8002/api/status
+- IBKR Scanner docs: http://localhost:8002/docs
+
+All seven services start together: `db`, `redis`, `backend`, `worker`, `beat`, `frontend`, and `ibkr-backend`.
+
+**Linux users:** `host.docker.internal` is not available by default. The `docker-compose.yml` includes `extra_hosts: host.docker.internal:host-gateway` which enables it on Linux with Docker Engine 20.10+. If TWS still cannot be reached, set `TWS_HOST` in your `.env` to your machine's LAN IP instead:
+
+```
+TWS_HOST=192.168.1.x   # replace with your actual LAN IP
+```
 
 Local demo workspace:
 
@@ -473,11 +485,12 @@ cd ~/github/personal_finance/backend
 
 ```bash
 cd ~/github/personal_finance/backend/ibkr
-.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+./start.sh
 ```
 
 > **First-time only:** `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt && cp .env.example .env`
-> Always use `.venv/bin/uvicorn` — never bare `uvicorn` — or you will get `ModuleNotFoundError: No module named 'pydantic_settings'`.
+>
+> Always use `./start.sh` — **never** `uvicorn ... --reload`. The `--reload` flag creates orphaned worker processes that hold open IBKR market-data subscriptions and trigger TWS error 101 ("Max number of tickers has been reached"). The start script kills any existing process on port 8002 before starting, ensuring a single clean connection to TWS.
 
 **Terminal 3 — Frontend (port 3000):**
 

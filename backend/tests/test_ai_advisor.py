@@ -105,7 +105,7 @@ class AIAdvisorTests(unittest.TestCase):
         inputs = {field_id: "test value" for field_id in required_field_ids(module)}
 
         with patch("app.api.ai_advisor.get_settings", return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET)), patch(
-            "app.api.ai_advisor.create_openai_response",
+            "app.api.ai_advisor.generate_text",
             return_value=("Report body", {"usage": {"input_tokens": 12, "output_tokens": 34}}),
         ) as create_response:
             result = run_retirement_plan(
@@ -118,7 +118,7 @@ class AIAdvisorTests(unittest.TestCase):
         self.assertEqual(result.model, "gpt-5.4-mini")
         self.assertEqual(db.scalar(select(func.count(AIAdvisorReport.id))), 1)
         create_response.assert_called_once()
-        self.assertEqual(create_response.call_args.args[0], PLAINTEXT_KEY)
+        self.assertEqual(create_response.call_args.kwargs.get("api_key"), PLAINTEXT_KEY)
         self.assertNotIn("[amount]", result.prompt_text)
 
     def test_users_cannot_read_other_users_key_or_report(self) -> None:

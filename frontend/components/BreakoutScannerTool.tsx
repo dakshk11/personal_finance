@@ -31,9 +31,12 @@ import {
   BreakoutScannerConfig,
   BreakoutSignal,
   BreakoutUniverse,
+  IbkrBreakoutStatus,
   apiFetch,
   percent
 } from "@/lib/api";
+
+const IBKR_API = process.env.NEXT_PUBLIC_IBKR_API_URL ?? "http://localhost:8002";
 
 const detectorCards: Array<{ id: BreakoutDetectorType; title: string; summary: string }> = [
   { id: "ceiling_breakout", title: "Ceiling Breakouts", summary: "Multi-touch resistance cleared with volume confirmation." },
@@ -57,6 +60,8 @@ const defaultConfig: BreakoutScannerConfig = {
 
 export function BreakoutScannerTool() {
   const bootstrapped = useRef(false);
+  const [dataSource, setDataSource] = useState<"ibkr" | "yfinance">("ibkr");
+  const [ibkrStatus, setIbkrStatus] = useState<IbkrBreakoutStatus | null>(null);
   const [config, setConfig] = useState<BreakoutScannerConfig>(defaultConfig);
   const [universe, setUniverse] = useState<BreakoutUniverse | null>(null);
   const [scan, setScan] = useState<BreakoutScan | null>(null);
@@ -64,7 +69,7 @@ export function BreakoutScannerTool() {
   const [backtestDetector, setBacktestDetector] = useState<BreakoutDetectorType>("ceiling_breakout");
   const [backtestYears, setBacktestYears] = useState(5);
   const [backtest, setBacktest] = useState<BreakoutBacktest | null>(null);
-  const [loading, setLoading] = useState("initial");
+  const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -90,27 +95,47 @@ export function BreakoutScannerTool() {
   }, [scan]);
 
   async function bootstrap() {
-    setLoading("initial");
+    // Fetch IBKR status non-blocking
+    fetch(`${IBKR_API}/api/breakout/status`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s: IbkrBreakoutStatus | null) => { if (s) setIbkrStatus(s); })
+      .catch(() => {});
+
+    // Default is IBKR mode — auto-run IBKR scan immediately
+    // Also fetch yfinance universe info in background (used when switching to yfinance mode)
+    apiFetch<BreakoutUniverse>("/breakout-scanner/universe")
+      .then(setUniverse)
+      .catch(() => {});
+
+    await loadIbkrScan();
+  }
+
+  async function loadIbkrScan() {
+    setLoading("scan");
     setError("");
     try {
-      const [universeResult, scanResult] = await Promise.all([
-        apiFetch<BreakoutUniverse>("/breakout-scanner/universe"),
-        apiFetch<BreakoutScan>("/breakout-scanner/scan", {
-          method: "POST",
-          body: JSON.stringify(defaultConfig)
-        })
-      ]);
-      setUniverse(universeResult);
-      setScan(scanResult);
-      if (scanResult.signals[0]) setSelectedKey(signalKey(scanResult.signals[0]));
+      const res = await fetch(`${IBKR_API}/api/breakout/scan?source=ibkr&index=ndx100`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`IBKR breakout scan failed (${res.status})`);
+      const result = await res.json() as BreakoutScan;
+      setScan(result);
+      setBacktest(null);
+      if (result.signals[0]) setSelectedKey(signalKey(result.signals[0]));
+      // Refresh status after scan
+      fetch(`${IBKR_API}/api/breakout/status`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((s: IbkrBreakoutStatus | null) => { if (s) setIbkrStatus(s); })
+        .catch(() => {});
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load Breakout Scanner.");
+      setError(err instanceof Error ? err.message : "Cannot reach IBKR backend (http://localhost:8002). Is it running?");
     } finally {
       setLoading("");
     }
   }
 
   async function loadScan(force: boolean) {
+    if (dataSource === "ibkr") {
+      return loadIbkrScan();
+    }
     setLoading(force ? "refresh" : "scan");
     setError("");
     try {
@@ -163,23 +188,52 @@ export function BreakoutScannerTool() {
       <section className="dashboard-panel breakout-head">
         <div>
           <p className="eyebrow">Breakout Scanner</p>
-          <h2>S&P 500 breakout research across ceiling, momentum, and near-breakout setups.</h2>
+          <h2>
+            {dataSource === "ibkr"
+              ? "Nasdaq-100 breakout research using IBKR live data — ceiling, momentum, and near-breakout setups."
+              : "S&P 500 breakout research across ceiling, momentum, and near-breakout setups."}
+          </h2>
           <div className="breakout-source-line">
-            <span><Target size={14} /> S&P 500 only</span>
-            <span><Activity size={14} /> Relative volume</span>
-            <span><Gauge size={14} /> SMA 20 / 50 / 200</span>
+            {dataSource === "ibkr"
+              ? <><span><Activity size={14} /> IBKR live / cached bars</span><span><Gauge size={14} /> SMA 20 / 50 / 200</span></>
+              : <><span><Target size={14} /> S&P 500 only</span><span><Activity size={14} /> Relative volume</span><span><Gauge size={14} /> SMA 20 / 50 / 200</span></>
+            }
+          </div>
+          {/* Source toggle */}
+          <div className="breakout-source-toggle">
+            <button
+              type="button"
+              className={dataSource === "ibkr" ? "active" : ""}
+              onClick={() => { setDataSource("ibkr"); setScan(null); setError(""); }}
+            >
+              IBKR Live · Nasdaq-100
+            </button>
+            <button
+              type="button"
+              className={dataSource === "yfinance" ? "active" : ""}
+              onClick={() => { setDataSource("yfinance"); setScan(null); setError(""); }}
+            >
+              Yahoo Finance · S&P 500
+            </button>
           </div>
         </div>
         <div className="breakout-actions">
-          <span className="status-pill">{scan ? `${scan.signals.length} setups` : "Loading"}</span>
+          {dataSource === "ibkr" && ibkrStatus && (
+            <span className={ibkrStatus.ibkr_connected ? "status-pill" : "risk-pill"}>
+              {ibkrStatus.ibkr_connected ? "IBKR live" : "IBKR offline"} · {ibkrStatus.fresh_today}/{ibkrStatus.ndx100_count} cached
+            </span>
+          )}
+          <span className="status-pill">{scan ? `${scan.signals.length} setups` : "No scan yet"}</span>
           <button className="ghost-button" type="button" onClick={() => loadScan(false)} disabled={Boolean(loading)}>
             {loading === "scan" || loading === "initial" ? <Loader2 size={16} className="spin-icon" /> : <RefreshCw size={16} />}
             Run scan
           </button>
-          <button className="primary-button" type="button" onClick={() => loadScan(true)} disabled={loading === "refresh"}>
-            {loading === "refresh" ? <Loader2 size={16} className="spin-icon" /> : <RefreshCw size={16} />}
-            Force refresh
-          </button>
+          {dataSource === "yfinance" && (
+            <button className="primary-button" type="button" onClick={() => loadScan(true)} disabled={loading === "refresh"}>
+              {loading === "refresh" ? <Loader2 size={16} className="spin-icon" /> : <RefreshCw size={16} />}
+              Force refresh
+            </button>
+          )}
         </div>
       </section>
 
@@ -191,7 +245,11 @@ export function BreakoutScannerTool() {
       {error && <div className="error">{error}</div>}
 
       <section className="breakout-stat-grid stat-grid">
-        <Stat label="S&P 500 universe" value={universe?.count ?? scan?.universe_count ?? 0} helper={universe?.cache_status ?? "loading"} />
+        <Stat
+          label={dataSource === "ibkr" ? "Nasdaq-100 universe" : "S&P 500 universe"}
+          value={dataSource === "ibkr" ? (scan?.universe_count ?? ibkrStatus?.ndx100_count ?? 0) : (universe?.count ?? scan?.universe_count ?? 0)}
+          helper={dataSource === "ibkr" ? (ibkrStatus ? `${ibkrStatus.fresh_today} cached today` : "loading") : (universe?.cache_status ?? "loading")}
+        />
         <Stat label="Scanned symbols" value={scan?.scanned_symbols ?? 0} helper={scan?.data_source ?? "waiting"} />
         <Stat label="Ceiling" value={counts.ceiling} helper="breakout setups" />
         <Stat label="Momentum" value={counts.momentum} helper="breakout setups" />
@@ -218,7 +276,7 @@ export function BreakoutScannerTool() {
         </div>
       </section>
 
-      <section className="dashboard-panel breakout-config-panel">
+      {dataSource === "yfinance" && <section className="dashboard-panel breakout-config-panel">
         <div className="panel-header">
           <h2>Scanner parameters</h2>
           <TrendingUp size={18} />
@@ -238,7 +296,7 @@ export function BreakoutScannerTool() {
             <span>Require price above SMA 200</span>
           </label>
         </div>
-      </section>
+      </section>}
 
       <div className="breakout-workbench-grid">
         <section className="dashboard-panel breakout-table-panel">
@@ -282,7 +340,7 @@ export function BreakoutScannerTool() {
         </section>
       </div>
 
-      <section className="dashboard-panel breakout-backtest-panel">
+      {dataSource === "yfinance" && <section className="dashboard-panel breakout-backtest-panel">
         <div className="panel-header">
           <div>
             <h2>Backtest Lab</h2>
@@ -321,7 +379,7 @@ export function BreakoutScannerTool() {
             ))}
           </div>
         ) : null}
-      </section>
+      </section>}
 
       {(scan?.warnings.length || universe?.warnings.length || backtest?.warnings.length) ? (
         <section className="dashboard-panel breakout-warning-panel">

@@ -10,7 +10,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.entities import StockAnalysisRun, utc_now
-from app.services.ai_advisor import create_openai_response, response_usage
+from app.services.ai_advisor import generate_text, response_usage
 from app.services.earnings_agent import (
     EarningsAgentSourceError,
     EarningsAgentLookupError,
@@ -81,14 +81,15 @@ class StockAnalysisSource:
         }
 
 
-def run_stock_analysis(db: Session, user_id: int, query: str, model: str, api_key: str) -> StockAnalysisRun:
+def run_stock_analysis(db: Session, user_id: int, query: str, model: str, api_key: str | None, ollama_base_url: str | None = None) -> StockAnalysisRun:
     company = resolve_stock_company(query)
     context = collect_stock_analysis_context(db, company)
     prompt_text = build_stock_analysis_prompt(company, context)
-    response_text, response_payload = create_openai_response(
-        api_key,
+    response_text, response_payload = generate_text(
         model,
         prompt_text,
+        api_key=api_key,
+        ollama_base_url=ollama_base_url,
         instructions=(
             "You are an educational equity research assistant. Return strict JSON only. "
             "Do not provide personalized investment advice, buy/sell/hold recommendations, price targets, trade instructions, or allocation instructions."

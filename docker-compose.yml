@@ -76,15 +76,38 @@ services:
       - data-cache:/app/.cache
     command: celery -A app.tasks.celery_app beat --loglevel=INFO
 
+  ibkr-backend:
+    build:
+      context: ./backend/ibkr
+    environment:
+      # host.docker.internal resolves to the host machine on Docker Desktop (Mac/Windows).
+      # On Linux set TWS_HOST to your machine's LAN IP or use the extra_hosts entry below.
+      TWS_HOST: ${TWS_HOST:-host.docker.internal}
+      TWS_PORT: ${TWS_PORT:-7496}
+      TWS_CLIENT_ID: ${TWS_CLIENT_ID:-1}
+      SCAN_BATCH_SIZE: ${SCAN_BATCH_SIZE:-5}
+      OPTIONS_CACHE_TTL: ${OPTIONS_CACHE_TTL:-300}
+      QUOTE_CACHE_TTL: ${QUOTE_CACHE_TTL:-5}
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./backend/ibkr:/app
+      - /app/.venv                        # keep container venv separate from host venv
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Linux compatibility
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_IBKR_API_URL: ${NEXT_PUBLIC_IBKR_API_URL:-http://localhost:8002}
     ports:
       - "3000:3000"
     depends_on:
       - backend
+      - ibkr-backend
     volumes:
       - ./frontend:/app
       - /app/node_modules

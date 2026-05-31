@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, BookOpen, Bot, LineChart, LockKeyhole, Scale, ShieldCheck, TrendingUp, WalletCards } from "lucide-react";
+import { ArrowRight, BarChart3, BookOpen, Bot, LineChart, LockKeyhole, PieChart, Scale, ShieldCheck, TrendingUp, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
@@ -32,6 +32,13 @@ const modules = [
     title: "13F and methodology library",
     body: "Inspect manager filings, tax-loss harvesting logic, and direct-indexing references.",
     Icon: BookOpen
+  },
+  {
+    href: "/diversify",
+    label: "Diversify",
+    title: "Concentration → SCHD diversification",
+    body: "Simulate TLH-funded diversification of a concentrated stock into SCHD. Backtest real returns, see tax savings, and get monthly trade recommendations.",
+    Icon: PieChart
   },
   {
     href: "/advisor",

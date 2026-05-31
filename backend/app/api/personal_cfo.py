@@ -19,7 +19,7 @@ from app.schemas.common import (
     PersonalCFOUploadOut,
 )
 from app.services import personal_cfo as cfo
-from app.services.ai_advisor import AIAdvisorConfigurationError, AIAdvisorProviderError, decrypt_api_key
+from app.services.ai_advisor import AIAdvisorConfigurationError, AIAdvisorProviderError, decrypt_api_key, is_goose_model, is_ollama_model
 
 
 router = APIRouter(prefix="/personal-cfo", tags=["personal-cfo"])
@@ -64,9 +64,9 @@ def submit_message(
     db: Session = Depends(get_db),
 ) -> PersonalCFOProjectOut:
     project = _project_for_user(db, project_id, user)
-    api_key = _openai_api_key(db, user)
+    api_key = _openai_api_key(db, user, payload.model)
     try:
-        return _project_out(cfo.submit_interview_message(db, project, api_key, payload.model, payload.content))
+        return _project_out(cfo.submit_interview_message(db, project, api_key, payload.model, payload.content, ollama_base_url=payload.ollama_base_url))
     except cfo.PersonalCFOStateError as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -86,9 +86,9 @@ def generate_one_pager(
     db: Session = Depends(get_db),
 ) -> PersonalCFOProjectOut:
     project = _project_for_user(db, project_id, user)
-    api_key = _openai_api_key(db, user)
+    api_key = _openai_api_key(db, user, payload.model)
     try:
-        return _project_out(cfo.generate_one_pager(db, project, api_key, payload.model))
+        return _project_out(cfo.generate_one_pager(db, project, api_key, payload.model, ollama_base_url=payload.ollama_base_url))
     except cfo.PersonalCFOStateError as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -108,9 +108,9 @@ def refine_one_pager(
     db: Session = Depends(get_db),
 ) -> PersonalCFOProjectOut:
     project = _project_for_user(db, project_id, user)
-    api_key = _openai_api_key(db, user)
+    api_key = _openai_api_key(db, user, payload.model)
     try:
-        return _project_out(cfo.refine_one_pager(db, project, api_key, payload.model, payload.feedback))
+        return _project_out(cfo.refine_one_pager(db, project, api_key, payload.model, payload.feedback, ollama_base_url=payload.ollama_base_url))
     except cfo.PersonalCFOStateError as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -208,7 +208,9 @@ def _project_for_user(db: Session, project_id: int, user: User) -> PersonalCFOPr
     return project
 
 
-def _openai_api_key(db: Session, user: User) -> str:
+def _openai_api_key(db: Session, user: User, model: str = "") -> str | None:
+    if is_ollama_model(model) or is_goose_model(model):
+        return None
     row = db.scalar(select(AIAdvisorOpenAIKey).where(AIAdvisorOpenAIKey.user_id == user.id))
     if not row:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save a validated OpenAI API key in AI Advisor before using Personal CFO.")

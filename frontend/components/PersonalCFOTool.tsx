@@ -27,6 +27,9 @@ import {
   apiFetch,
   apiUrl
 } from "@/lib/api";
+import { OllamaConfigStrip, OllamaModelButton, effectiveModelId } from "@/components/OllamaModelPicker";
+
+type CFOModelPicker = PersonalCFOModel | "ollama";
 
 const personalCfoModels: Array<{ id: PersonalCFOModel; label: string; helper: string }> = [
   { id: "gpt-5.5", label: "Quality", helper: "gpt-5.5" },
@@ -67,7 +70,13 @@ export function PersonalCFOTool({
   const [projects, setProjects] = useState<PersonalCFOProject[]>([]);
   const [project, setProject] = useState<PersonalCFOProject | null>(null);
   const [dashboard, setDashboard] = useState<PersonalCFODashboard | null>(null);
-  const [model, setModel] = useState<PersonalCFOModel>("gpt-5.4");
+  const [model, setModel] = useState<CFOModelPicker>("gpt-5.4");
+  const [ollamaModelName, setOllamaModelName] = useState("llama3");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
+  const [useGoose, setUseGoose] = useState(false);
+  const isOllama = model === "ollama";
+  const activeModelId = effectiveModelId(model, ollamaModelName, useGoose);
+  const ollamaPayload = isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://localhost:11434" } : {};
   const [messageInput, setMessageInput] = useState("");
   const [refineInput, setRefineInput] = useState("");
   const [activeFileId, setActiveFileId] = useState<number | null>(null);
@@ -81,7 +90,7 @@ export function PersonalCFOTool({
   const currentPhaseIndex = project ? Math.min(Math.max(project.current_phase, 1), personalCfoPhases.length) - 1 : 0;
   const totalPnlRaw = dashboard?.pnl_summary["total_pnl"];
   const totalPnl = typeof totalPnlRaw === "number" ? totalPnlRaw : 0;
-  const canGenerate = Boolean(project?.can_generate_one_pager && keyStatus?.has_key && loading !== "generate");
+  const canGenerate = Boolean(project?.can_generate_one_pager && (isOllama || keyStatus?.has_key) && loading !== "generate");
 
   useEffect(() => {
     if (bootstrappedRef.current) return;
@@ -152,13 +161,13 @@ export function PersonalCFOTool({
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!project || !messageInput.trim() || !keyStatus?.has_key) return;
+    if (!project || !messageInput.trim() || (!isOllama && !keyStatus?.has_key)) return;
     setLoading("message");
     setError("");
     try {
       const updated = await apiFetch<PersonalCFOProject>(`/ai-advisor/personal-cfo/projects/${project.id}/messages`, {
         method: "POST",
-        body: JSON.stringify({ content: messageInput.trim(), model })
+        body: JSON.stringify({ content: messageInput.trim(), model: activeModelId, ...ollamaPayload })
       });
       setProject(updated);
       setMessageInput("");
@@ -177,7 +186,7 @@ export function PersonalCFOTool({
     try {
       const updated = await apiFetch<PersonalCFOProject>(`/ai-advisor/personal-cfo/projects/${project.id}/one-pager`, {
         method: "POST",
-        body: JSON.stringify({ model })
+        body: JSON.stringify({ model: activeModelId, ...ollamaPayload })
       });
       setProject(updated);
       setActiveFileId(updated.files.find((file) => file.path === "investor-one-pager.md")?.id ?? updated.files[0]?.id ?? null);
@@ -191,13 +200,13 @@ export function PersonalCFOTool({
 
   async function refineOnePager(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!project || !refineInput.trim() || !project.one_pager_generated || project.refinement_used || !keyStatus?.has_key) return;
+    if (!project || !refineInput.trim() || !project.one_pager_generated || project.refinement_used || (!isOllama && !keyStatus?.has_key)) return;
     setLoading("refine");
     setError("");
     try {
       const updated = await apiFetch<PersonalCFOProject>(`/ai-advisor/personal-cfo/projects/${project.id}/one-pager/refine`, {
         method: "POST",
-        body: JSON.stringify({ feedback: refineInput.trim(), model })
+        body: JSON.stringify({ feedback: refineInput.trim(), model: activeModelId, ...ollamaPayload })
       });
       setProject(updated);
       setRefineInput("");
@@ -302,7 +311,7 @@ export function PersonalCFOTool({
           <div className="investing-data-line">
             <span>{project ? `Project ${project.id}` : "Loading project"}</span>
             <span>{project?.one_pager_generated ? "One-pager generated" : project?.status.replaceAll("_", " ") ?? "Interview"}</span>
-            <span>{keyStatus?.has_key ? `Key ${keyStatus.key_fingerprint ?? "saved"}` : "OpenAI key required"}</span>
+            <span>{isOllama ? (useGoose ? `Goose · ${ollamaModelName || "llama3"}` : `Ollama · ${ollamaModelName || "llama3"}`) : keyStatus?.has_key ? `Key ${keyStatus.key_fingerprint ?? "saved"}` : "OpenAI key required"}</span>
           </div>
         </div>
         <button className="secondary-button" type="button" onClick={downloadZip} disabled={!project || loading === "export"}>
@@ -311,7 +320,7 @@ export function PersonalCFOTool({
       </section>
 
       {error && <section className="dashboard-panel investing-warning"><ShieldCheck size={18} /><p>{error}</p></section>}
-      {!keyStatus?.has_key && (
+      {!isOllama && !keyStatus?.has_key && (
         <section className="dashboard-panel investing-warning">
           <KeyRound size={18} />
           <p>Personal CFO uses the encrypted OpenAI API key saved in FinanceOS Studio. Save a key before sending interview answers or generating the one-pager.</p>
@@ -345,14 +354,25 @@ export function PersonalCFOTool({
                 {project?.phase_complete ? "All seven phases complete" : `Phase ${project?.current_phase ?? 1}: ${personalCfoPhases[currentPhaseIndex]}`}
               </p>
             </div>
-            <div className="ai-model-control personal-cfo-models" role="radiogroup" aria-label="Personal CFO OpenAI model">
+            <div className="ai-model-control personal-cfo-models" role="radiogroup" aria-label="Personal CFO AI model">
               {personalCfoModels.map((item) => (
                 <button type="button" key={item.id} className={model === item.id ? "active" : ""} onClick={() => setModel(item.id)}>
                   <strong>{item.label}</strong>
                   <span>{item.helper}</span>
                 </button>
               ))}
+              <OllamaModelButton active={isOllama} onClick={() => setModel("ollama")} />
             </div>
+            {isOllama && (
+              <OllamaConfigStrip
+                modelName={ollamaModelName}
+                baseUrl={ollamaBaseUrl}
+                useGoose={useGoose}
+                onModelNameChange={setOllamaModelName}
+                onBaseUrlChange={setOllamaBaseUrl}
+                onUseGooseChange={setUseGoose}
+              />
+            )}
           </div>
 
           <div className="personal-cfo-phase-strip">
@@ -377,10 +397,10 @@ export function PersonalCFOTool({
             <textarea
               value={messageInput}
               onChange={(event) => setMessageInput(event.target.value)}
-              placeholder={keyStatus?.has_key ? "Answer the current question directly." : "Draft your answer here, then save an OpenAI key before sending."}
+              placeholder={(isOllama || keyStatus?.has_key) ? "Answer the current question directly." : "Draft your answer here, then save an OpenAI key before sending."}
               disabled={!project || project.one_pager_generated}
             />
-            <button className="primary-button" type="submit" disabled={!messageInput.trim() || !keyStatus?.has_key || loading === "message" || !project || project.one_pager_generated}>
+            <button className="primary-button" type="submit" disabled={!messageInput.trim() || (!isOllama && !keyStatus?.has_key) || loading === "message" || !project || project.one_pager_generated}>
               {loading === "message" ? <Loader2 size={16} className="spin-icon" /> : <Send size={16} />} Send
             </button>
           </form>

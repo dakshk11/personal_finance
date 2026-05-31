@@ -37,6 +37,13 @@ interface WheelQuote {
   cc_30d: number | null;
   signals: string[];
   source?: string;
+  // Stage Analysis (Weinstein)
+  stage: number | null;          // 1=Basing 2=Advancing 3=Topping 4=Declining
+  sata_score: number | null;     // 0–10
+  mansfield_rs: number | null;
+  ma150: number | null;
+  ma200: number | null;
+  sata_attributes: Record<string, boolean>;
 }
 
 interface WheelOptionRow {
@@ -78,7 +85,7 @@ type OptionsTab = "P" | "C";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const WHEEL_API = "http://localhost:8002";
+const WHEEL_API = process.env.NEXT_PUBLIC_IBKR_API_URL ?? "http://localhost:8002";
 
 const DTE_PRESETS = [
   { label: "7–14d",  min: 7,  max: 14  },
@@ -126,17 +133,20 @@ const HUB_FILTERS: { key: HubFilter; label: string }[] = [
 ];
 
 const WATCHLIST_COLS = [
-  { key: "rank",       label: "#",         right: false },
-  { key: "symbol",     label: "Symbol",    right: false },
-  { key: "price",      label: "Price",     right: true  },
-  { key: "change_pct", label: "1D Chg",   right: true  },
-  { key: "rsi",        label: "RSI",       right: true  },
-  { key: "bb_pct",     label: "BB %",      right: true  },
-  { key: "iv_rank",    label: "IV %",      right: true  },
-  { key: "csp_30d",    label: "30Δ CSP %", right: true  },
-  { key: "cc_30d",     label: "30Δ CC %",  right: true  },
-  { key: "volume",     label: "Volume",    right: true  },
-  { key: "signals",    label: "Signals",   right: false },
+  { key: "rank",        label: "#",         right: false },
+  { key: "symbol",      label: "Symbol",    right: false },
+  { key: "price",       label: "Price",     right: true  },
+  { key: "change_pct",  label: "1D Chg",   right: true  },
+  { key: "stage",       label: "Stage",     right: false, title: "Weinstein Stage 1=Basing 2=Advancing 3=Topping 4=Declining" },
+  { key: "sata_score",  label: "SATA",      right: true,  title: "Stage Analysis Technical Attributes score 0–10 (8–10=S2 bullish, 0–3=S4 bearish)" },
+  { key: "mansfield_rs",label: "Mans RS",   right: true,  title: "Mansfield Relative Strength vs SPX — above 0 = outperforming" },
+  { key: "rsi",         label: "RSI",       right: true  },
+  { key: "bb_pct",      label: "BB %",      right: true  },
+  { key: "iv_rank",     label: "IV %",      right: true  },
+  { key: "csp_30d",     label: "30Δ CSP %", right: true  },
+  { key: "cc_30d",      label: "30Δ CC %",  right: true  },
+  { key: "volume",      label: "Volume",    right: true  },
+  { key: "signals",     label: "Signals",   right: false },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -199,6 +209,36 @@ function findRecommendedOcc(options: WheelOptionRow[]): string | null {
   );
   if (!valid.length) return null;
   return valid.reduce((best, cur) => (optionScore(cur) < optionScore(best) ? cur : best)).occ_symbol;
+}
+
+// ── Stage Badge ───────────────────────────────────────────────────────────────
+
+const STAGE_META: Record<number, { label: string; cls: string; title: string }> = {
+  1: { label: "S1 Basing",    cls: "wheel-badge-stage1", title: "Stage 1 — Basing / Accumulation: price sideways around flattening 150d MA" },
+  2: { label: "S2 Advancing", cls: "wheel-badge-stage2", title: "Stage 2 — Advancing: price above rising 150d MA, SATA 7–10" },
+  3: { label: "S3 Topping",   cls: "wheel-badge-stage3", title: "Stage 3 — Topping / Distribution: MA flattening after uptrend, SATA 4–6" },
+  4: { label: "S4 Declining", cls: "wheel-badge-stage4", title: "Stage 4 — Declining: price below falling 150d MA, SATA 0–3" },
+};
+
+function StageBadge({ stage }: { stage: number | null }) {
+  if (!stage || !STAGE_META[stage]) return <span className="wheel-muted">—</span>;
+  const m = STAGE_META[stage];
+  return <span className={`wheel-badge ${m.cls}`} title={m.title}>{m.label}</span>;
+}
+
+function SataScore({ score, attrs }: { score: number | null; attrs?: Record<string, boolean> }) {
+  if (score == null) return <span className="wheel-muted">—</span>;
+  const cls = score >= 7 ? "wheel-green" : score <= 3 ? "wheel-red" : "wheel-amber";
+  const attrList = attrs
+    ? Object.entries(attrs)
+        .map(([k, v]) => `${v ? "✓" : "✗"} ${k.replace(/_/g, " ")}`)
+        .join("\n")
+    : "";
+  return (
+    <span className={`${cls} wheel-sata-score`} title={attrList ? `SATA attributes:\n${attrList}` : ""}>
+      {score}<span className="wheel-sata-denom">/10</span>
+    </span>
+  );
 }
 
 // ── Signal Badges ─────────────────────────────────────────────────────────────
@@ -420,6 +460,27 @@ function ChartModal({ symbol, quote, onClose }: { symbol: string; quote: WheelQu
           )}
           <button type="button" className="wheel-close-btn" onClick={onClose}><X size={16} /></button>
         </div>
+        {/* Stage + SATA row */}
+        {(quote?.stage || quote?.sata_score != null) && (
+          <div className="wheel-modal-stage-row">
+            <StageBadge stage={quote?.stage ?? null} />
+            {quote?.sata_score != null && (
+              <span className="fine-print">
+                SATA <SataScore score={quote.sata_score} attrs={quote.sata_attributes} />
+              </span>
+            )}
+            {quote?.mansfield_rs != null && (
+              <span className={`fine-print ${quote.mansfield_rs > 0 ? "wheel-green" : "wheel-red"}`}>
+                Mansfield RS {quote.mansfield_rs > 0 ? "+" : ""}{quote.mansfield_rs.toFixed(1)}
+              </span>
+            )}
+            {quote?.ma150 != null && quote?.price != null && (
+              <span className="fine-print wheel-dim">
+                150d MA ${quote.ma150.toFixed(2)} ({quote.price > quote.ma150 ? "▲ above" : "▼ below"})
+              </span>
+            )}
+          </div>
+        )}
         <div className="wheel-modal-metrics">
           {[
             { label: "RSI (14)", value: quote?.rsi != null ? quote.rsi.toFixed(1) : "—", cls: rsiClass(quote?.rsi ?? null) },
@@ -557,7 +618,8 @@ export function WheelScannerTool() {
   const connectWs = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
     try {
-      const ws = new WebSocket("ws://localhost:8002/ws/quotes");
+      const wsBase = WHEEL_API.replace(/^http/, "ws");
+      const ws = new WebSocket(`${wsBase}/ws/quotes`);
       wsRef.current = ws;
 
       ws.onmessage = (ev) => {
@@ -769,6 +831,11 @@ export function WheelScannerTool() {
                         <td className={`right ${changeClass(q.change_pct)}`}>
                           {q.change_pct != null ? `${q.change_pct >= 0 ? "+" : ""}${q.change_pct.toFixed(2)}%` : "—"}
                         </td>
+                        <td><StageBadge stage={q.stage} /></td>
+                        <td className="right"><SataScore score={q.sata_score} attrs={q.sata_attributes} /></td>
+                        <td className={`right ${q.mansfield_rs != null ? (q.mansfield_rs > 0 ? "wheel-green" : "wheel-red") : "wheel-muted"}`}>
+                          {q.mansfield_rs != null ? `${q.mansfield_rs > 0 ? "+" : ""}${q.mansfield_rs.toFixed(1)}` : "—"}
+                        </td>
                         <td className={`right ${rsiClass(q.rsi)}`}>{fmtNum(q.rsi, 1)}</td>
                         <td className={`right ${q.bb_pct != null ? (q.bb_pct <= 20 ? "wheel-green" : q.bb_pct >= 80 ? "wheel-red" : "wheel-dim") : "wheel-muted"}`}>
                           {q.bb_pct != null ? `${q.bb_pct.toFixed(1)}%` : "—"}
@@ -851,6 +918,8 @@ export function WheelScannerTool() {
                   <th>Symbol</th>
                   <th className="right">Price</th>
                   <th className="right">1D Chg</th>
+                  <th title="Weinstein Stage">Stage</th>
+                  <th className="right" title="SATA 0–10">SATA</th>
                   <th className="right">RSI</th>
                   <th className="right">BB %</th>
                   <th className="right">IV %</th>
@@ -874,6 +943,8 @@ export function WheelScannerTool() {
                     <td className={`right ${changeClass(q.change_pct)}`}>
                       {q.change_pct != null ? `${q.change_pct >= 0 ? "+" : ""}${q.change_pct.toFixed(2)}%` : "—"}
                     </td>
+                    <td><StageBadge stage={q.stage} /></td>
+                    <td className="right"><SataScore score={q.sata_score} attrs={q.sata_attributes} /></td>
                     <td className={`right ${rsiClass(q.rsi)}`}>{fmtNum(q.rsi, 1)}</td>
                     <td className={`right ${q.bb_pct != null ? (q.bb_pct <= 20 ? "wheel-green" : q.bb_pct >= 80 ? "wheel-red" : "wheel-dim") : "wheel-muted"}`}>
                       {q.bb_pct != null ? `${q.bb_pct.toFixed(1)}%` : "—"}

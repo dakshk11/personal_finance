@@ -20,10 +20,12 @@ from app.services.ai_advisor import (
     AIAdvisorProviderError,
     api_key_fingerprint,
     build_retirement_prompt,
-    create_openai_response,
+    generate_text,
     decrypt_api_key,
     encrypt_api_key,
     get_retirement_prompt_module,
+    is_goose_model,
+    is_ollama_model,
     missing_required_fields,
     now_utc_naive,
     response_usage,
@@ -119,20 +121,26 @@ def run_retirement_plan(
     if not module:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown retirement plan module.")
     if not valid_ai_advisor_model(payload.model):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported OpenAI model.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported model. Use a gpt-* model or ollama:<model_name>.")
     missing = missing_required_fields(module, payload.inputs)
     if missing:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Missing required inputs: {', '.join(missing)}")
 
-    key_row = _openai_key_row(db, user)
-    if not key_row:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save an OpenAI API key before generating a report.")
-
     inputs = sanitized_inputs(module, payload.inputs)
     prompt_text = build_retirement_prompt(module, inputs)
     try:
-        api_key = decrypt_api_key(key_row.encrypted_api_key, get_settings().ai_advisor_key_encryption_secret)
-        response_text, response_payload = create_openai_response(api_key, payload.model, prompt_text)
+        api_key: str | None = None
+        if not is_ollama_model(payload.model) and not is_goose_model(payload.model):
+            key_row = _openai_key_row(db, user)
+            if not key_row:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save an OpenAI API key before generating a report.")
+            api_key = decrypt_api_key(key_row.encrypted_api_key, get_settings().ai_advisor_key_encryption_secret)
+        response_text, response_payload = generate_text(
+            payload.model,
+            prompt_text,
+            api_key=api_key,
+            ollama_base_url=payload.ollama_base_url,
+        )
     except AIAdvisorConfigurationError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
     except AIAdvisorProviderError as exc:

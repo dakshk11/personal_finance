@@ -22,8 +22,11 @@ import {
   EarningsAgentSource,
   apiFetch
 } from "@/lib/api";
+import { OllamaConfigStrip, OllamaModelButton, effectiveModelId } from "@/components/OllamaModelPicker";
 
-const models: Array<{ id: EarningsAgentModel; label: string; helper: string }> = [
+type ModelPicker = EarningsAgentModel | "ollama";
+
+const openAIModels: Array<{ id: EarningsAgentModel; label: string; helper: string }> = [
   { id: "gpt-5.5", label: "Quality", helper: "gpt-5.5" },
   { id: "gpt-5.4", label: "Balanced", helper: "gpt-5.4" },
   { id: "gpt-5.4-mini", label: "Cost", helper: "gpt-5.4-mini" }
@@ -31,12 +34,16 @@ const models: Array<{ id: EarningsAgentModel; label: string; helper: string }> =
 
 export function EarningsAgentTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyStatus | null }) {
   const [query, setQuery] = useState("");
-  const [model, setModel] = useState<EarningsAgentModel>("gpt-5.4");
+  const [model, setModel] = useState<ModelPicker>("gpt-5.4");
+  const [ollamaModelName, setOllamaModelName] = useState("llama3");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
+  const [useGoose, setUseGoose] = useState(false);
+  const isOllama = model === "ollama";
   const [activeRun, setActiveRun] = useState<EarningsAgentRun | null>(null);
   const [history, setHistory] = useState<EarningsAgentRunSummary[]>([]);
   const [loading, setLoading] = useState("history");
   const [error, setError] = useState("");
-  const hasKey = Boolean(keyStatus?.has_key);
+  const hasKey = isOllama || Boolean(keyStatus?.has_key);
 
   useEffect(() => {
     void loadHistory();
@@ -90,7 +97,11 @@ export function EarningsAgentTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
     try {
       const result = await apiFetch<EarningsAgentRun>("/earnings-agent/run", {
         method: "POST",
-        body: JSON.stringify({ query: cleanQuery, model })
+        body: JSON.stringify({
+          query: cleanQuery,
+          model: effectiveModelId(model, ollamaModelName, useGoose),
+          ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://localhost:11434" } : {})
+        })
       });
       setActiveRun(result);
       setHistory((current) => [result, ...current.filter((item) => item.id !== result.id)].slice(0, 30));
@@ -115,7 +126,7 @@ export function EarningsAgentTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
           </div>
         </div>
         <div className="earnings-agent-status">
-          <span className={hasKey ? "status-pill" : "risk-pill"}>{hasKey ? "OpenAI key ready" : "Key required"}</span>
+          <span className={hasKey ? "status-pill" : "risk-pill"}>{isOllama ? (useGoose ? "Goose + tools" : "Ollama (local)") : hasKey ? "OpenAI key ready" : "Key required"}</span>
           <span className="status-pill">{sourceStatus}</span>
         </div>
       </section>
@@ -134,14 +145,25 @@ export function EarningsAgentTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
             />
           </div>
         </div>
-        <div className="earnings-model-control" role="radiogroup" aria-label="OpenAI model">
-          {models.map((item) => (
+        <div className="earnings-model-control" role="radiogroup" aria-label="AI model">
+          {openAIModels.map((item) => (
             <button type="button" key={item.id} className={model === item.id ? "active" : ""} onClick={() => setModel(item.id)}>
               <strong>{item.label}</strong>
               <span>{item.helper}</span>
             </button>
           ))}
+          <OllamaModelButton active={isOllama} onClick={() => setModel("ollama")} />
         </div>
+        {isOllama && (
+          <OllamaConfigStrip
+            modelName={ollamaModelName}
+            baseUrl={ollamaBaseUrl}
+            useGoose={useGoose}
+            onModelNameChange={setOllamaModelName}
+            onBaseUrlChange={setOllamaBaseUrl}
+            onUseGooseChange={setUseGoose}
+          />
+        )}
         <button className="primary-button earnings-run-button" type="submit" disabled={loading === "run" || !hasKey}>
           {loading === "run" ? <Loader2 size={16} className="spin-icon" /> : <Sparkles size={16} />}
           {loading === "run" ? "Digesting earnings" : "Generate digest"}

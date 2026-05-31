@@ -33,6 +33,7 @@ import { PortfolioSyncTool } from "@/components/PortfolioSyncTool";
 import { RSIPlaybookTool } from "@/components/RSIPlaybookTool";
 import { StockAnalysisTool } from "@/components/StockAnalysisTool";
 import { WheelScannerTool } from "@/components/WheelScannerTool";
+import { OllamaConfigStrip } from "@/components/OllamaModelPicker";
 import {
   AIAdvisorOpenAIKeyStatus,
   AIAdvisorReport,
@@ -41,7 +42,7 @@ import {
   apiFetch
 } from "@/lib/api";
 
-type AIModel = AIAdvisorRetirementRunRequest["model"];
+type AIModel = "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "ollama";
 type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook" | "breakout-scanner" | "earnings-agent" | "equity-research" | "wheel-scanner";
 
 type RetirementField = {
@@ -58,7 +59,7 @@ type RetirementModule = {
   fields: RetirementField[];
 };
 
-const models: Array<{ id: AIModel; label: string; helper: string }> = [
+const openAIModels: Array<{ id: AIModel; label: string; helper: string }> = [
   { id: "gpt-5.5", label: "Quality", helper: "gpt-5.5" },
   { id: "gpt-5.4", label: "Balanced", helper: "gpt-5.4" },
   { id: "gpt-5.4-mini", label: "Cost", helper: "gpt-5.4-mini" }
@@ -158,15 +159,21 @@ export default function AIAdvisorPage() {
   const [activeTab, setActiveTab] = useState<AdvisorTab>("retirement-plan");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [model, setModel] = useState<AIModel>("gpt-5.4");
+  const [ollamaModelName, setOllamaModelName] = useState("llama3");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
+  const [useGoose, setUseGoose] = useState(false);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [reports, setReports] = useState<AIAdvisorReportSummary[]>([]);
   const [activeReport, setActiveReport] = useState<AIAdvisorReport | null>(null);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
 
+  const isOllama = model === "ollama";
+  const effectiveModelId = isOllama ? (useGoose ? `goose:${ollamaModelName.trim() || "llama3"}` : `ollama:${ollamaModelName.trim() || "llama3"}`) : model;
+
   const activeModule = useMemo(() => modules.find((item) => item.id === activeModuleId) ?? modules[0], [activeModuleId]);
   const missingFields = activeModule.fields.filter((field) => !inputs[field.id]?.trim());
-  const canGenerate = Boolean(keyStatus?.has_key) && missingFields.length === 0 && loading !== "report";
+  const canGenerate = (isOllama ? Boolean(ollamaModelName.trim()) : Boolean(keyStatus?.has_key)) && missingFields.length === 0 && loading !== "report";
 
   useEffect(() => {
     void bootstrap();
@@ -232,8 +239,9 @@ export default function AIAdvisorPage() {
     try {
       const payload: AIAdvisorRetirementRunRequest = {
         module_id: activeModule.id,
-        model,
-        inputs: Object.fromEntries(activeModule.fields.map((field) => [field.id, inputs[field.id]?.trim() ?? ""]))
+        model: effectiveModelId,
+        inputs: Object.fromEntries(activeModule.fields.map((field) => [field.id, inputs[field.id]?.trim() ?? ""])),
+        ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://localhost:11434" } : {})
       };
       const report = await apiFetch<AIAdvisorReport>("/ai-advisor/retirement-plan/run", {
         method: "POST",
@@ -270,7 +278,7 @@ export default function AIAdvisorPage() {
         title="FinanceOS Studio"
         actions={
           <>
-          <span className={keyStatus?.has_key ? "status-pill" : "risk-pill"}>{keyStatus?.has_key ? "OpenAI key saved" : "Key required"}</span>
+          <span className={isOllama ? "status-pill" : (keyStatus?.has_key ? "status-pill" : "risk-pill")}>{isOllama ? (useGoose ? "Goose + tools" : "Ollama (local)") : (keyStatus?.has_key ? "OpenAI key saved" : "Key required")}</span>
           <Link className="ghost-button" href="/portfolio">Portfolio</Link>
           <Link className="ghost-button" href="/investing">Calculators</Link>
           <Link className="ghost-button" href="/retirement-analyzer">Plan</Link>
@@ -462,14 +470,28 @@ export default function AIAdvisorPage() {
                     <h2>{activeModule.title}</h2>
                     <p className="fine-print">{missingFields.length ? `${missingFields.length} required input${missingFields.length === 1 ? "" : "s"} remaining` : "All required inputs complete"}</p>
                   </div>
-                  <div className="ai-model-control" role="radiogroup" aria-label="OpenAI model">
-                    {models.map((item) => (
+                  <div className="ai-model-control" role="radiogroup" aria-label="AI model">
+                    {openAIModels.map((item) => (
                       <button type="button" key={item.id} className={model === item.id ? "active" : ""} onClick={() => setModel(item.id)}>
                         <strong>{item.label}</strong>
                         <span>{item.helper}</span>
                       </button>
                     ))}
+                    <button type="button" className={model === "ollama" ? "active" : ""} onClick={() => setModel("ollama")}>
+                      <strong>Ollama</strong>
+                      <span>Local model</span>
+                    </button>
                   </div>
+                  {isOllama && (
+                    <OllamaConfigStrip
+                      modelName={ollamaModelName}
+                      baseUrl={ollamaBaseUrl}
+                      useGoose={useGoose}
+                      onModelNameChange={setOllamaModelName}
+                      onBaseUrlChange={setOllamaBaseUrl}
+                      onUseGooseChange={setUseGoose}
+                    />
+                  )}
                 </div>
 
                 <div className="ai-field-grid">
@@ -499,7 +521,8 @@ export default function AIAdvisorPage() {
                 </div>
 
                 {error && <div className="error">{error}</div>}
-                {!keyStatus?.has_key && <div className="error">Save an OpenAI API key before generating a report.</div>}
+                {!isOllama && !keyStatus?.has_key && <div className="error">Save an OpenAI API key before generating a report.</div>}
+                {isOllama && !ollamaModelName.trim() && <div className="error">Enter an Ollama model name (e.g. llama3, mistral, phi3).</div>}
                 <button className="primary-button ai-generate-button" type="submit" disabled={!canGenerate}>
                   {loading === "report" ? <Loader2 size={16} className="spin-icon" /> : <Play size={16} />}
                   {loading === "report" ? "Generating report" : "Generate retirement report"}

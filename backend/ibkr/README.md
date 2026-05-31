@@ -34,15 +34,19 @@ cd backend/ibkr
 
 # First time: create venv and install deps
 python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+.venv/bin/pip install -r requirements.txt
+cp .env.example .env      # edit TWS_PORT=7497 for paper trading
 
-# Copy env (edit TWS_PORT=7497 for paper trading)
-cp .env.example .env
-
-# Start server
-uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+# Start server (always use start.sh, never --reload)
+./start.sh
 ```
+
+> **Why not `--reload`?** uvicorn's `--reload` mode kills workers with SIGKILL when files
+> change, bypassing FastAPI's shutdown hook. ib_insync never disconnects cleanly, leaving
+> orphaned processes connected to TWS. Each orphan runs its own market-data poll loop,
+> and the combined subscriptions trigger IBKR error 101 ("Max number of tickers").
+> `start.sh` kills any existing process on port 8002 before starting — guaranteeing a
+> single clean connection every time.
 
 TWS must be running with socket API enabled on port 7496 (live) or 7497 (paper).  
 Without TWS, prices fall back to CBOE 15-min delayed data automatically.

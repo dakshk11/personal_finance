@@ -142,6 +142,42 @@ class PortfolioSyncTests(unittest.TestCase):
         self.assertTrue(any("AAPL is" in warning for warning in summary.concentration_warnings))
         self.assertTrue(any("Information Technology is" in warning for warning in summary.concentration_warnings))
 
+    def test_connect_on_1012_deletes_stale_user_and_returns_retry_error(self) -> None:
+        """After a DB reset the local credential is gone but SnapTrade still has the user.
+        First connect attempt: triggers async delete and returns a clear 'retry' error.
+        Second connect attempt: registration succeeds (stale user is gone)."""
+        db, user = self._seed_user()
+        deleted_users: list[str] = []
+
+        def _mock_direct_delete(user_id: str, provider_credentials: object) -> None:
+            deleted_users.append(user_id)
+
+        # --- First attempt: SnapTrade returns 1012 ---
+        client = MockSnapTrade(register_raises_1012_once=True)
+        with (
+            patch("app.services.portfolio_sync.get_settings", return_value=_settings()),
+            patch("app.services.portfolio_sync._delete_snaptrade_user_direct", side_effect=_mock_direct_delete),
+        ):
+            with self.assertRaises(portfolio_sync.PortfolioSyncProviderError) as ctx:
+                portfolio_sync.create_connection_redirect(db, user.id, client=client)
+
+        self.assertIn("stale SnapTrade session", str(ctx.exception))
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(client.authentication.register_count, 1)
+        self.assertEqual(deleted_users, [f"directindex-user-{user.id}"])
+        # No credential stored yet
+        self.assertIsNone(db.scalar(select(PortfolioSyncCredential).where(PortfolioSyncCredential.user_id == user.id)))
+
+        # --- Second attempt: stale user deleted, registration succeeds ---
+        client2 = MockSnapTrade()
+        with patch("app.services.portfolio_sync.get_settings", return_value=_settings()):
+            result = portfolio_sync.create_connection_redirect(db, user.id, client=client2)
+
+        self.assertEqual(result.redirect_url, "https://snaptrade.test/connect")
+        self.assertEqual(client2.authentication.register_count, 1)
+        credential = db.scalar(select(PortfolioSyncCredential).where(PortfolioSyncCredential.user_id == user.id))
+        self.assertIsNotNone(credential)
+
     def test_summary_reuses_persisted_snapshot_without_provider_calls(self) -> None:
         db, user = self._seed_user()
         client = MockSnapTrade()
@@ -160,20 +196,34 @@ class PortfolioSyncTests(unittest.TestCase):
 
 
 class MockSnapTrade:
-    def __init__(self) -> None:
-        self.authentication = MockAuthentication()
+    def __init__(self, register_raises_1012_once: bool = False) -> None:
+        self.authentication = MockAuthentication(register_raises_1012_once=register_raises_1012_once)
         self.connections = MockConnections()
         self.account_information = MockAccountInformation()
 
 
-class MockAuthentication:
+class Mock1012Error(Exception):
+    """Simulates a SnapTrade ApiException with code 1012 in the body."""
     def __init__(self) -> None:
+        super().__init__("Personal keys can only register one user.")
+        self.body = {"detail": "Personal keys can only register one user.", "status_code": 400, "code": "1012"}
+
+
+class MockAuthentication:
+    def __init__(self, register_raises_1012_once: bool = False) -> None:
         self.register_count = 0
+        self.delete_count = 0
         self.login_count = 0
+        self._register_raises_1012_once = register_raises_1012_once
 
     def register_snap_trade_user(self, user_id: str) -> dict[str, str]:
         self.register_count += 1
+        if self._register_raises_1012_once and self.register_count == 1:
+            raise Mock1012Error()
         return {"userSecret": "secret-123", "userId": user_id}
+
+    def delete_snap_trade_user(self, user_id: str) -> None:
+        self.delete_count += 1
 
     def login_snap_trade_user(self, user_id: str, user_secret: str, custom_redirect: str) -> dict[str, str]:
         self.login_count += 1
