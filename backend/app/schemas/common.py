@@ -1379,3 +1379,84 @@ class DiversifyRecommendationsOut(BaseModel):
     concentration_before_pct: float
     concentration_after_pct: float
     warnings: list[str]
+
+
+# ── Sector Rotation Algo ──────────────────────────────────────────────────────
+
+class SectorRotationBacktestRequest(BaseModel):
+    starting_capital: float = Field(default=100_000.0, gt=0)
+
+
+class SectorRotationLiveRequest(BaseModel):
+    cash_amount: float = Field(gt=0)
+    time_frame: str = Field(default="annual")
+
+
+class SectorAllocationOut(BaseModel):
+    ticker: str
+    sector_name: str
+    weight: float
+    dollar_amount: float
+    trailing_eps_beat: float
+    forward_eps_beat: float
+    composite_score: float
+
+
+class SectorRotationPeriodSnapshotOut(BaseModel):
+    year: int
+    sectors_held: list[str]
+    sector_weights: dict[str, float]
+    period_return_pct: float
+    cumulative_value: float
+    taxes_paid_period: float
+    taxes_paid_cumulative: float
+    post_liquidation_value: float
+    embedded_tax_liability: float
+
+
+class SectorRotationScenarioMetricsOut(BaseModel):
+    cagr_pretax_pct: float
+    cagr_posttax_pct: float
+    sharpe_ratio: float
+    max_drawdown_pct: float
+    total_taxes_paid: float
+    tax_drag_annualized_pct: float
+    alpha_vs_spy_pretax_pct: float
+    alpha_vs_spy_posttax_pct: float
+    total_return_pct: float
+    win_rate_vs_benchmark: float
+    post_liquidation_value: float
+    final_pretax_value: float
+    best_year_return_pct: float
+    worst_year_return_pct: float
+
+
+class SectorRotationScenarioResultOut(BaseModel):
+    id: str
+    name: str
+    metrics: SectorRotationScenarioMetricsOut
+    period_snapshots: list[SectorRotationPeriodSnapshotOut]
+
+
+class SectorRotationBacktestOut(BaseModel):
+    starting_capital: float
+    tax_rates: dict[str, float]
+    scenarios: list[SectorRotationScenarioResultOut]
+    comparison: dict[str, Any]
+
+
+class SectorRotationLiveOut(BaseModel):
+    as_of_year: int
+    time_frame: str
+    allocations: list[SectorAllocationOut]
+    sp500_signals: dict[str, Any]
+    rebalance_guidance: str
+
+
+class SelectionHistoryRowOut(BaseModel):
+    year: int
+    selected_sectors: list[str]
+    algo_return_pct: float
+    spy_return_pct: float
+    delta_pct: float
+    key_signal: str

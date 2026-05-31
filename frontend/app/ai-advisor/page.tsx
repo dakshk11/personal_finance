@@ -33,6 +33,7 @@ import { PortfolioSyncTool } from "@/components/PortfolioSyncTool";
 import { RSIPlaybookTool } from "@/components/RSIPlaybookTool";
 import { StockAnalysisTool } from "@/components/StockAnalysisTool";
 import { WheelScannerTool } from "@/components/WheelScannerTool";
+import { SectorRotationTool } from "@/components/SectorRotationTool";
 import { OllamaConfigStrip } from "@/components/OllamaModelPicker";
 import {
   AIAdvisorOpenAIKeyStatus,
@@ -43,7 +44,7 @@ import {
 } from "@/lib/api";
 
 type AIModel = "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "ollama";
-type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook" | "breakout-scanner" | "earnings-agent" | "equity-research" | "wheel-scanner";
+type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook" | "breakout-scanner" | "earnings-agent" | "equity-research" | "wheel-scanner" | "sector-rotation";
 
 type RetirementField = {
   id: string;
@@ -373,6 +374,15 @@ export default function AIAdvisorPage() {
         >
           <TrendingUp size={16} /> Wheel Scanner
         </button>
+        <button
+          className={activeTab === "sector-rotation" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "sector-rotation"}
+          onClick={() => setActiveTab("sector-rotation")}
+        >
+          <Gauge size={16} /> Sector Rotation
+        </button>
       </div>
 
       <div className={`ai-advisor-layout${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
@@ -562,6 +572,8 @@ export default function AIAdvisorPage() {
             <StockAnalysisTool keyStatus={keyStatus} />
           ) : activeTab === "wheel-scanner" ? (
             <WheelScannerTool />
+          ) : activeTab === "sector-rotation" ? (
+            <SectorRotationTool />
           ) : (
             <EarningsAgentTool keyStatus={keyStatus} />
           )}
