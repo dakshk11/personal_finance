@@ -1,0 +1,551 @@
+- generic [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - link "F FinanceOS" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: F
+          - generic [ref=e7]: FinanceOS
+        - heading "FinanceOS Studio" [level=1] [ref=e8]
+      - generic [ref=e9]:
+        - generic [ref=e10]: OpenAI key saved
+        - link "Portfolio" [ref=e11] [cursor=pointer]:
+          - /url: /portfolio
+        - link "Calculators" [ref=e12] [cursor=pointer]:
+          - /url: /investing
+        - link "Plan" [ref=e13] [cursor=pointer]:
+          - /url: /retirement-analyzer
+        - link "Portfolio dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /dashboard
+    - region "Important legal disclaimer" [ref=e16]:
+      - generic [ref=e17]:
+        - img [ref=e18]
+        - generic [ref=e20]:
+          - generic [ref=e21]: Important legal disclaimer
+          - strong [ref=e22]: Do not treat this website as advice.
+        - button "Show details" [ref=e23] [cursor=pointer]:
+          - text: Show details
+          - img [ref=e24]
+    - tablist "FinanceOS Studio tabs" [ref=e26]:
+      - tab "AI Planner" [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+        - text: AI Planner
+      - tab "Personal CFO" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+        - text: Personal CFO
+      - tab "Wheel Strategy" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+        - text: Wheel Strategy
+      - tab "Portfolio Sync" [ref=e39] [cursor=pointer]:
+        - img [ref=e40]
+        - text: Portfolio Sync
+      - tab "RSI Playbook" [ref=e44] [cursor=pointer]:
+        - img [ref=e45]
+        - text: RSI Playbook
+      - tab "Breakout Scanner" [ref=e48] [cursor=pointer]:
+        - img [ref=e49]
+        - text: Breakout Scanner
+      - tab "Smart Candles" [active] [selected] [ref=e53] [cursor=pointer]:
+        - img [ref=e54]
+        - text: Smart Candles
+      - tab "Composite Signal Algorithm" [ref=e58] [cursor=pointer]:
+        - img [ref=e59]
+        - text: Composite Signal Algorithm
+      - tab "OptiTrade Lab" [ref=e61] [cursor=pointer]:
+        - img [ref=e62]
+        - text: OptiTrade Lab
+      - tab "Equity Research" [ref=e66] [cursor=pointer]:
+        - img [ref=e67]
+        - text: Equity Research
+      - tab "Earnings Agent" [ref=e70] [cursor=pointer]:
+        - img [ref=e71]
+        - text: Earnings Agent
+      - tab "Wheel Scanner" [ref=e74] [cursor=pointer]:
+        - img [ref=e75]
+        - text: Wheel Scanner
+      - tab "Sector Rotation" [ref=e78] [cursor=pointer]:
+        - img [ref=e79]
+        - text: Sector Rotation
+    - generic [ref=e82]:
+      - complementary [ref=e83]:
+        - button "Collapse sidebar" [ref=e84] [cursor=pointer]:
+          - img [ref=e85]
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - heading "OpenAI key" [level=2] [ref=e89]
+            - img [ref=e90]
+          - generic [ref=e93]:
+            - generic [ref=e94]:
+              - generic [ref=e95]: API key
+              - textbox "API key" [ref=e96]:
+                - /placeholder: sk-...
+            - button "Update key" [ref=e213] [cursor=pointer]:
+              - img [ref=e98]
+              - text: Update key
+            - button "Remove key" [ref=e214] [cursor=pointer]:
+              - img [ref=e215]
+              - text: Remove key
+          - paragraph [ref=e102]: Saved key sha256:79d47efffbaea73b
+          - paragraph [ref=e218]: Saved Jun 2, 2026, 6:24 PM
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - heading "Reports" [level=2] [ref=e105]
+            - img [ref=e106]
+          - button "Full Retirement Blueprint ollama:llava · May 31, 2026, 6:06 AM" [ref=e219] [cursor=pointer]:
+            - strong [ref=e220]: Full Retirement Blueprint
+            - generic [ref=e221]: ollama:llava · May 31, 2026, 6:06 AM
+      - generic [ref=e222]:
+        - generic [ref=e223]:
+          - generic [ref=e224]:
+            - paragraph [ref=e225]: FinanceOS Smart Candle Signals
+            - heading "Blue, pink, red, and neutral candle classifications from transparent OHLCV rules." [level=2] [ref=e226]
+            - paragraph [ref=e227]: This is an educational approximation inspired by public examples, not the proprietary Patreon formula. It scans S&P 500 symbols plus your watchlist using cached daily market data.
+          - generic [ref=e228]:
+            - generic [ref=e229]:
+              - img [ref=e230]
+              - text: 37 signals
+            - button "Run scan" [ref=e234] [cursor=pointer]:
+              - img [ref=e235]
+              - text: Run scan
+            - button "Force refresh" [ref=e240] [cursor=pointer]:
+              - img [ref=e241]
+              - text: Force refresh
+        - generic [ref=e247]:
+          - article [ref=e248]:
+            - strong [ref=e249]: Blue
+            - generic [ref=e250]: "Bullish accumulation or reversal: strong body, high close, volume, and constructive trend context."
+          - article [ref=e251]:
+            - strong [ref=e252]: Pink
+            - generic [ref=e253]: "Caution or distribution: weak close, elevated volume, and trend weakening before full breakdown."
+          - article [ref=e254]:
+            - strong [ref=e255]: Red
+            - generic [ref=e256]: "Breakdown risk: bearish body, weak close, moving-average damage, or weak RSI/returns."
+          - article [ref=e257]:
+            - strong [ref=e258]: Neutral
+            - generic [ref=e259]: No strong edge under the visible FinanceOS OHLCV rules.
+        - generic [ref=e260]:
+          - generic [ref=e261]:
+            - heading "Watchlist Symbols" [level=2] [ref=e262]
+            - img [ref=e263]
+          - generic [ref=e267]:
+            - textbox "Add smart candle watchlist symbols" [ref=e268]:
+              - /placeholder: PLTR, HIMS, RDDT
+            - button "Append" [ref=e269] [cursor=pointer]:
+              - img [ref=e270]
+              - text: Append
+        - generic [ref=e271]:
+          - generic [ref=e272]:
+            - heading "Scanner Parameters" [level=2] [ref=e273]
+            - img [ref=e274]
+          - generic [ref=e277]:
+            - generic [ref=e278]:
+              - generic [ref=e279]: Lookback days
+              - spinbutton "Lookback days" [ref=e280]: "420"
+            - generic [ref=e281]:
+              - generic [ref=e282]: Max symbols
+              - spinbutton "Max symbols" [ref=e283]: "120"
+            - generic [ref=e284]:
+              - generic [ref=e285]: Min rel volume
+              - spinbutton "Min rel volume" [ref=e286]: "1.1"
+            - generic [ref=e287]:
+              - generic [ref=e288]: Min dollar volume
+              - spinbutton "Min dollar volume" [ref=e289]: "25000000"
+            - generic [ref=e290]:
+              - generic [ref=e291]: Trend filter
+              - combobox "Trend filter" [ref=e292]:
+                - option "All trends" [selected]
+                - option "Above SMA 200"
+                - option "Below SMA 200"
+            - generic [ref=e293]:
+              - checkbox "Include neutral" [ref=e294]
+              - generic [ref=e295]: Include neutral
+        - generic [ref=e296]:
+          - article [ref=e297]:
+            - text: Universe
+            - strong [ref=e298]: "503"
+            - paragraph [ref=e299]: S&P 500 base
+          - article [ref=e300]:
+            - text: Scanned
+            - strong [ref=e301]: "120"
+            - paragraph [ref=e302]: S&P 500 universe + yfinance/Yahoo Finance v8 OHLCV cache
+          - article [ref=e303]:
+            - text: Blue
+            - strong [ref=e304]: "18"
+            - paragraph [ref=e305]: accumulation
+          - article [ref=e306]:
+            - text: Pink
+            - strong [ref=e307]: "4"
+            - paragraph [ref=e308]: caution
+          - article [ref=e309]:
+            - text: Red
+            - strong [ref=e310]: "15"
+            - paragraph [ref=e311]: breakdown
+        - generic [ref=e312]:
+          - generic [ref=e313]:
+            - generic [ref=e315]:
+              - heading "Current Smart Candles" [level=2] [ref=e316]
+              - paragraph [ref=e317]: Jun 2, 2026, 10:39 PM · S&P 500 universe + yfinance/Yahoo Finance v8 OHLCV cache
+            - generic [ref=e318]:
+              - button "Blue accumulation / reversal APTV 93 Below SMA 200 · 1.14x vol" [ref=e319] [cursor=pointer]:
+                - generic [ref=e320]: Blue accumulation / reversal
+                - strong [ref=e321]: APTV
+                - generic [ref=e322]: "93"
+                - generic [ref=e323]: Below SMA 200 · 1.14x vol
+              - button "Blue accumulation / reversal BEN 88 Strong uptrend · 0.27x vol" [ref=e324] [cursor=pointer]:
+                - generic [ref=e325]: Blue accumulation / reversal
+                - strong [ref=e326]: BEN
+                - generic [ref=e327]: "88"
+                - generic [ref=e328]: Strong uptrend · 0.27x vol
+              - button "Blue accumulation / reversal COHR 80 Strong uptrend · 1.04x vol" [ref=e329] [cursor=pointer]:
+                - generic [ref=e330]: Blue accumulation / reversal
+                - strong [ref=e331]: COHR
+                - generic [ref=e332]: "80"
+                - generic [ref=e333]: Strong uptrend · 1.04x vol
+              - button "Blue accumulation / reversal AAPL 80 Strong uptrend · 0.59x vol" [ref=e334] [cursor=pointer]:
+                - generic [ref=e335]: Blue accumulation / reversal
+                - strong [ref=e336]: AAPL
+                - generic [ref=e337]: "80"
+                - generic [ref=e338]: Strong uptrend · 0.59x vol
+              - button "Blue accumulation / reversal ADI 80 Strong uptrend · 0.50x vol" [ref=e339] [cursor=pointer]:
+                - generic [ref=e340]: Blue accumulation / reversal
+                - strong [ref=e341]: ADI
+                - generic [ref=e342]: "80"
+                - generic [ref=e343]: Strong uptrend · 0.50x vol
+              - button "Blue accumulation / reversal AKAM 80 Strong uptrend · 0.48x vol" [ref=e344] [cursor=pointer]:
+                - generic [ref=e345]: Blue accumulation / reversal
+                - strong [ref=e346]: AKAM
+                - generic [ref=e347]: "80"
+                - generic [ref=e348]: Strong uptrend · 0.48x vol
+              - button "Blue accumulation / reversal AMAT 80 Strong uptrend · 0.74x vol" [ref=e349] [cursor=pointer]:
+                - generic [ref=e350]: Blue accumulation / reversal
+                - strong [ref=e351]: AMAT
+                - generic [ref=e352]: "80"
+                - generic [ref=e353]: Strong uptrend · 0.74x vol
+              - button "Blue accumulation / reversal AMD 80 Strong uptrend · 0.42x vol" [ref=e354] [cursor=pointer]:
+                - generic [ref=e355]: Blue accumulation / reversal
+                - strong [ref=e356]: AMD
+                - generic [ref=e357]: "80"
+                - generic [ref=e358]: Strong uptrend · 0.42x vol
+              - button "Blue accumulation / reversal ARE 80 Constructive trend · 0.81x vol" [ref=e359] [cursor=pointer]:
+                - generic [ref=e360]: Blue accumulation / reversal
+                - strong [ref=e361]: ARE
+                - generic [ref=e362]: "80"
+                - generic [ref=e363]: Constructive trend · 0.81x vol
+              - button "Blue accumulation / reversal AXON 80 Constructive trend · 0.70x vol" [ref=e364] [cursor=pointer]:
+                - generic [ref=e365]: Blue accumulation / reversal
+                - strong [ref=e366]: AXON
+                - generic [ref=e367]: "80"
+                - generic [ref=e368]: Constructive trend · 0.70x vol
+              - button "Blue accumulation / reversal CDNS 80 Strong uptrend · 0.80x vol" [ref=e369] [cursor=pointer]:
+                - generic [ref=e370]: Blue accumulation / reversal
+                - strong [ref=e371]: CDNS
+                - generic [ref=e372]: "80"
+                - generic [ref=e373]: Strong uptrend · 0.80x vol
+              - button "Blue accumulation / reversal CIEN 80 Strong uptrend · 0.65x vol" [ref=e374] [cursor=pointer]:
+                - generic [ref=e375]: Blue accumulation / reversal
+                - strong [ref=e376]: CIEN
+                - generic [ref=e377]: "80"
+                - generic [ref=e378]: Strong uptrend · 0.65x vol
+              - button "Blue accumulation / reversal CSCO 80 Strong uptrend · 0.71x vol" [ref=e379] [cursor=pointer]:
+                - generic [ref=e380]: Blue accumulation / reversal
+                - strong [ref=e381]: CSCO
+                - generic [ref=e382]: "80"
+                - generic [ref=e383]: Strong uptrend · 0.71x vol
+              - button "Blue accumulation / reversal ABBV 74 Constructive trend · 0.40x vol" [ref=e384] [cursor=pointer]:
+                - generic [ref=e385]: Blue accumulation / reversal
+                - strong [ref=e386]: ABBV
+                - generic [ref=e387]: "74"
+                - generic [ref=e388]: Constructive trend · 0.40x vol
+              - button "Blue accumulation / reversal BAC 74 Mixed trend · 0.45x vol" [ref=e389] [cursor=pointer]:
+                - generic [ref=e390]: Blue accumulation / reversal
+                - strong [ref=e391]: BAC
+                - generic [ref=e392]: "74"
+                - generic [ref=e393]: Mixed trend · 0.45x vol
+              - button "Blue accumulation / reversal BXP 74 Constructive trend · 0.29x vol" [ref=e394] [cursor=pointer]:
+                - generic [ref=e395]: Blue accumulation / reversal
+                - strong [ref=e396]: BXP
+                - generic [ref=e397]: "74"
+                - generic [ref=e398]: Constructive trend · 0.29x vol
+              - button "Blue accumulation / reversal CAT 74 Strong uptrend · 0.61x vol" [ref=e399] [cursor=pointer]:
+                - generic [ref=e400]: Blue accumulation / reversal
+                - strong [ref=e401]: CAT
+                - generic [ref=e402]: "74"
+                - generic [ref=e403]: Strong uptrend · 0.61x vol
+              - button "Blue accumulation / reversal CHD 74 Strong uptrend · 0.61x vol" [ref=e404] [cursor=pointer]:
+                - generic [ref=e405]: Blue accumulation / reversal
+                - strong [ref=e406]: CHD
+                - generic [ref=e407]: "74"
+                - generic [ref=e408]: Strong uptrend · 0.61x vol
+              - button "Pink caution / distribution AVGO 65 Strong uptrend · 1.18x vol" [ref=e409] [cursor=pointer]:
+                - generic [ref=e410]: Pink caution / distribution
+                - strong [ref=e411]: AVGO
+                - generic [ref=e412]: "65"
+                - generic [ref=e413]: Strong uptrend · 1.18x vol
+              - button "Pink caution / distribution AMT 64 Constructive trend · 0.39x vol" [ref=e414] [cursor=pointer]:
+                - generic [ref=e415]: Pink caution / distribution
+                - strong [ref=e416]: AMT
+                - generic [ref=e417]: "64"
+                - generic [ref=e418]: Constructive trend · 0.39x vol
+              - button "Pink caution / distribution AVB 64 Mixed trend · 0.29x vol" [ref=e419] [cursor=pointer]:
+                - generic [ref=e420]: Pink caution / distribution
+                - strong [ref=e421]: AVB
+                - generic [ref=e422]: "64"
+                - generic [ref=e423]: Mixed trend · 0.29x vol
+              - button "Pink caution / distribution CCI 64 Mixed trend · 0.56x vol" [ref=e424] [cursor=pointer]:
+                - generic [ref=e425]: Pink caution / distribution
+                - strong [ref=e426]: CCI
+                - generic [ref=e427]: "64"
+                - generic [ref=e428]: Mixed trend · 0.56x vol
+              - button "Red breakdown risk CBOE 100 Mixed trend · 4.03x vol" [ref=e429] [cursor=pointer]:
+                - generic [ref=e430]: Red breakdown risk
+                - strong [ref=e431]: CBOE
+                - generic [ref=e432]: "100"
+                - generic [ref=e433]: Mixed trend · 4.03x vol
+              - button "Red breakdown risk CME 100 Below SMA 200 · 2.30x vol" [ref=e434] [cursor=pointer]:
+                - generic [ref=e435]: Red breakdown risk
+                - strong [ref=e436]: CME
+                - generic [ref=e437]: "100"
+                - generic [ref=e438]: Below SMA 200 · 2.30x vol
+              - button "Red breakdown risk AXP 98 Below SMA 200 · 0.39x vol" [ref=e439] [cursor=pointer]:
+                - generic [ref=e440]: Red breakdown risk
+                - strong [ref=e441]: AXP
+                - generic [ref=e442]: "98"
+                - generic [ref=e443]: Below SMA 200 · 0.39x vol
+              - button "Red breakdown risk BA 98 Below SMA 200 · 0.82x vol" [ref=e444] [cursor=pointer]:
+                - generic [ref=e445]: Red breakdown risk
+                - strong [ref=e446]: BA
+                - generic [ref=e447]: "98"
+                - generic [ref=e448]: Below SMA 200 · 0.82x vol
+              - button "Red breakdown risk BDX 98 Below SMA 200 · 0.52x vol" [ref=e449] [cursor=pointer]:
+                - generic [ref=e450]: Red breakdown risk
+                - strong [ref=e451]: BDX
+                - generic [ref=e452]: "98"
+                - generic [ref=e453]: Below SMA 200 · 0.52x vol
+              - button "Red breakdown risk CAG 98 Below SMA 200 · 0.72x vol" [ref=e454] [cursor=pointer]:
+                - generic [ref=e455]: Red breakdown risk
+                - strong [ref=e456]: CAG
+                - generic [ref=e457]: "98"
+                - generic [ref=e458]: Below SMA 200 · 0.72x vol
+              - button "Red breakdown risk CHTR 98 Below SMA 200 · 0.58x vol" [ref=e459] [cursor=pointer]:
+                - generic [ref=e460]: Red breakdown risk
+                - strong [ref=e461]: CHTR
+                - generic [ref=e462]: "98"
+                - generic [ref=e463]: Below SMA 200 · 0.58x vol
+              - button "Red breakdown risk CMG 98 Below SMA 200 · 0.99x vol" [ref=e464] [cursor=pointer]:
+                - generic [ref=e465]: Red breakdown risk
+                - strong [ref=e466]: CMG
+                - generic [ref=e467]: "98"
+                - generic [ref=e468]: Below SMA 200 · 0.99x vol
+              - button "Red breakdown risk COIN 98 Below SMA 200 · 0.70x vol" [ref=e469] [cursor=pointer]:
+                - generic [ref=e470]: Red breakdown risk
+                - strong [ref=e471]: COIN
+                - generic [ref=e472]: "98"
+                - generic [ref=e473]: Below SMA 200 · 0.70x vol
+              - button "Red breakdown risk CPRT 98 Below SMA 200 · 0.74x vol" [ref=e474] [cursor=pointer]:
+                - generic [ref=e475]: Red breakdown risk
+                - strong [ref=e476]: CPRT
+                - generic [ref=e477]: "98"
+                - generic [ref=e478]: Below SMA 200 · 0.74x vol
+              - button "Red breakdown risk CF 90 Mixed trend · 0.27x vol" [ref=e479] [cursor=pointer]:
+                - generic [ref=e480]: Red breakdown risk
+                - strong [ref=e481]: CF
+                - generic [ref=e482]: "90"
+                - generic [ref=e483]: Mixed trend · 0.27x vol
+              - button "Red breakdown risk ADSK 86 Below SMA 200 · 0.59x vol" [ref=e484] [cursor=pointer]:
+                - generic [ref=e485]: Red breakdown risk
+                - strong [ref=e486]: ADSK
+                - generic [ref=e487]: "86"
+                - generic [ref=e488]: Below SMA 200 · 0.59x vol
+              - button "Red breakdown risk BALL 86 Below SMA 200 · 0.50x vol" [ref=e489] [cursor=pointer]:
+                - generic [ref=e490]: Red breakdown risk
+                - strong [ref=e491]: BALL
+                - generic [ref=e492]: "86"
+                - generic [ref=e493]: Below SMA 200 · 0.50x vol
+              - button "Red breakdown risk CI 86 Below SMA 200 · 0.40x vol" [ref=e494] [cursor=pointer]:
+                - generic [ref=e495]: Red breakdown risk
+                - strong [ref=e496]: CI
+                - generic [ref=e497]: "86"
+                - generic [ref=e498]: Below SMA 200 · 0.40x vol
+              - button "Red breakdown risk BMY 78 Mixed trend · 0.69x vol" [ref=e499] [cursor=pointer]:
+                - generic [ref=e500]: Red breakdown risk
+                - strong [ref=e501]: BMY
+                - generic [ref=e502]: "78"
+                - generic [ref=e503]: Mixed trend · 0.69x vol
+          - generic [ref=e504]:
+            - generic [ref=e505]:
+              - generic [ref=e506]:
+                - text: Aptiv
+                - heading "APTV Blue accumulation / reversal" [level=2] [ref=e507]
+                - paragraph [ref=e508]: "APTV printed a blue smart-candle approximation: accumulation/reversal behavior with 1.14x relative volume."
+              - generic [ref=e509]:
+                - text: Score
+                - strong [ref=e510]: "93"
+            - generic [ref=e511]:
+              - generic [ref=e512]:
+                - text: Price
+                - strong [ref=e513]: $73.48
+              - generic [ref=e514]:
+                - text: RSI 14
+                - strong [ref=e515]: "80.9"
+              - generic [ref=e516]:
+                - text: Rel volume
+                - strong [ref=e517]: 1.14x
+              - generic [ref=e518]:
+                - text: 20D return
+                - strong [ref=e519]: 23.43%
+            - generic [ref=e520]:
+              - generic [ref=e521]:
+                - img [ref=e522]
+                - generic [ref=e525]: Bullish body
+                - strong: 93% of range
+              - generic [ref=e526]:
+                - img [ref=e527]
+                - generic [ref=e530]: Close near high
+                - strong: 94% location
+              - generic [ref=e531]:
+                - img [ref=e532]
+                - generic [ref=e535]: Volume confirmed
+                - strong: 1.14x rel vol
+              - generic [ref=e536]:
+                - img [ref=e537]
+                - generic [ref=e540]: Trend/reversal
+                - strong: Below SMA 200
+            - generic [ref=e541]:
+              - generic [ref=e542]: Up candle
+              - generic [ref=e543]: Down candle
+              - generic [ref=e544]: SMA 20
+              - generic [ref=e545]: SMA 50
+              - generic [ref=e546]: SMA 200
+              - generic [ref=e547]: Latest candle
+            - generic [ref=e548]:
+              - generic [ref=e549]:
+                - generic [ref=e550]:
+                  - strong [ref=e551]: APTV daily candles
+                  - generic [ref=e552]: Feb 2 to Jun 2
+                - generic [ref=e553]: Blue accumulation
+              - img "APTV candlestick chart with volume" [ref=e554]:
+                - generic [ref=e558]: $90
+                - generic [ref=e560]: $79
+                - generic [ref=e562]: $69
+                - generic [ref=e564]: $59
+                - generic [ref=e566]: $49
+                - generic [ref=e567]: Feb 2
+                - generic [ref=e568]: Mar 4
+                - generic [ref=e569]: Apr 2
+                - generic [ref=e570]: May 1
+                - generic [ref=e571]: Jun 2
+                - generic [ref=e572]: Vol
+                - generic [ref=e573]: 10.2M
+                - generic "2026-02-02 O $74.61 H $79.00 L $74.61 C $77.98 Vol 3.3M" [ref=e574]
+                - generic "2026-02-03 O $79.53 H $80.98 L $76.93 C $78.20 Vol 4.2M" [ref=e577]
+                - generic "2026-02-04 O $79.50 H $83.08 L $78.83 C $81.01 Vol 2.4M" [ref=e580]
+                - generic "2026-02-05 O $80.87 H $81.41 L $79.51 C $79.72 Vol 1.9M" [ref=e583]
+                - generic "2026-02-06 O $80.29 H $82.52 L $79.91 C $82.38 Vol 1.1M" [ref=e586]
+                - generic "2026-02-09 O $82.38 H $84.27 L $82.12 C $83.37 Vol 1.8M" [ref=e589]
+                - generic "2026-02-10 O $83.43 H $85.33 L $83.37 C $85.15 Vol 1.7M" [ref=e592]
+                - generic "2026-02-11 O $85.48 H $86.80 L $82.76 C $83.76 Vol 2.6M" [ref=e595]
+                - generic "2026-02-12 O $84.37 H $86.47 L $82.30 C $83.00 Vol 2.7M" [ref=e598]
+                - generic "2026-02-13 O $83.13 H $85.82 L $82.97 C $85.20 Vol 2.5M" [ref=e601]
+                - generic "2026-02-17 O $84.99 H $85.75 L $81.66 C $82.77 Vol 1.7M" [ref=e604]
+                - generic "2026-02-18 O $82.69 H $84.33 L $82.38 C $83.81 Vol 1.3M" [ref=e607]
+                - generic "2026-02-19 O $82.40 H $82.40 L $79.22 C $80.46 Vol 1.4M" [ref=e610]
+                - generic "2026-02-20 O $80.38 H $80.82 L $78.81 C $79.57 Vol 1.8M" [ref=e613]
+                - generic "2026-02-23 O $79.10 H $79.19 L $76.46 C $76.87 Vol 1.8M" [ref=e616]
+                - generic "2026-02-24 O $77.27 H $79.26 L $76.39 C $77.69 Vol 2.2M" [ref=e619]
+                - generic "2026-02-25 O $77.90 H $78.12 L $75.89 C $76.44 Vol 1.4M" [ref=e622]
+                - generic "2026-02-26 O $77.07 H $78.28 L $75.50 C $77.04 Vol 1.8M" [ref=e625]
+                - generic "2026-02-27 O $75.76 H $76.07 L $73.31 C $73.54 Vol 3.5M" [ref=e628]
+                - generic "2026-03-02 O $71.87 H $73.04 L $70.61 C $72.47 Vol 2M" [ref=e631]
+                - generic "2026-03-03 O $70.08 H $71.65 L $69.12 C $71.40 Vol 2.1M" [ref=e634]
+                - generic "2026-03-04 O $72.14 H $73.77 L $71.76 C $73.39 Vol 2.7M" [ref=e637]
+                - generic "2026-03-05 O $72.79 H $73.74 L $71.30 C $72.21 Vol 2.1M" [ref=e640]
+                - generic "2026-03-06 O $72.18 H $73.31 L $70.48 C $72.70 Vol 2.4M" [ref=e643]
+                - generic "2026-03-09 O $71.00 H $73.30 L $69.73 C $72.85 Vol 2.8M" [ref=e646]
+                - generic "2026-03-10 O $73.19 H $73.19 L $71.68 C $72.05 Vol 2.3M" [ref=e649]
+                - generic "2026-03-11 O $71.50 H $72.95 L $70.10 C $70.32 Vol 2.2M" [ref=e652]
+                - generic "2026-03-12 O $70.70 H $71.47 L $69.27 C $70.07 Vol 2.9M" [ref=e655]
+                - generic "2026-03-13 O $70.74 H $71.19 L $69.86 C $70.50 Vol 2.2M" [ref=e658]
+                - generic "2026-03-16 O $70.76 H $72.43 L $70.49 C $71.57 Vol 2.7M" [ref=e661]
+                - generic "2026-03-17 O $72.47 H $73.04 L $71.34 C $72.02 Vol 2M" [ref=e664]
+                - generic "2026-03-18 O $70.66 H $71.92 L $70.06 C $70.13 Vol 1.9M" [ref=e667]
+                - generic "2026-03-19 O $69.03 H $70.00 L $68.30 C $69.17 Vol 2.5M" [ref=e670]
+                - generic "2026-03-20 O $69.08 H $69.24 L $67.48 C $68.10 Vol 7.5M" [ref=e673]
+                - generic "2026-03-23 O $70.24 H $71.37 L $69.51 C $70.98 Vol 1.9M" [ref=e676]
+                - generic "2026-03-24 O $70.09 H $72.14 L $70.03 C $70.92 Vol 2.1M" [ref=e679]
+                - generic "2026-03-25 O $71.15 H $72.18 L $70.55 C $70.89 Vol 1.9M" [ref=e682]
+                - generic "2026-03-26 O $70.04 H $71.69 L $70.00 C $70.95 Vol 1.7M" [ref=e685]
+                - generic "2026-03-27 O $69.93 H $70.29 L $66.96 C $67.04 Vol 2.8M" [ref=e688]
+                - generic "2026-03-30 O $67.96 H $67.96 L $65.63 C $66.64 Vol 2.6M" [ref=e691]
+                - generic "2026-03-31 O $67.72 H $70.24 L $67.28 C $69.44 Vol 2.3M" [ref=e694]
+                - generic "2026-04-01 O $60.16 H $62.34 L $59.66 C $62.09 Vol 4.8M" [ref=e697]
+                - generic "2026-04-02 O $60.80 H $62.17 L $59.16 C $60.99 Vol 4.1M" [ref=e700]
+                - generic "2026-04-06 O $60.64 H $60.95 L $59.74 C $60.36 Vol 1.8M" [ref=e703]
+                - generic "2026-04-07 O $59.84 H $60.03 L $57.76 C $58.22 Vol 3M" [ref=e706]
+                - generic "2026-04-08 O $61.42 H $62.59 L $60.27 C $60.73 Vol 3.1M" [ref=e709]
+                - generic "2026-04-09 O $60.35 H $60.88 L $59.26 C $60.12 Vol 2.7M" [ref=e712]
+                - generic "2026-04-10 O $60.57 H $61.01 L $59.48 C $59.65 Vol 2.4M" [ref=e715]
+                - generic "2026-04-13 O $58.94 H $59.65 L $58.28 C $59.36 Vol 2.6M" [ref=e718]
+                - generic "2026-04-14 O $59.83 H $60.60 L $59.01 C $59.07 Vol 2.9M" [ref=e721]
+                - generic "2026-04-15 O $58.92 H $59.47 L $57.54 C $58.46 Vol 2.4M" [ref=e724]
+                - generic "2026-04-16 O $58.61 H $59.22 L $56.56 C $57.52 Vol 4.1M" [ref=e727]
+                - generic "2026-04-17 O $59.45 H $61.62 L $59.45 C $59.62 Vol 3.5M" [ref=e730]
+                - generic "2026-04-20 O $59.24 H $60.89 L $59.23 C $60.83 Vol 2M" [ref=e733]
+                - generic "2026-04-21 O $61.02 H $62.43 L $60.68 C $60.80 Vol 2.2M" [ref=e736]
+                - generic "2026-04-22 O $61.18 H $61.67 L $60.03 C $60.86 Vol 2.7M" [ref=e739]
+                - generic "2026-04-23 O $60.48 H $61.06 L $59.43 C $60.41 Vol 1.9M" [ref=e742]
+                - generic "2026-04-24 O $60.44 H $61.10 L $59.65 C $60.10 Vol 1.8M" [ref=e745]
+                - generic "2026-04-27 O $60.03 H $60.89 L $59.74 C $60.07 Vol 2.2M" [ref=e748]
+                - generic "2026-04-28 O $59.95 H $60.19 L $58.73 C $59.12 Vol 2.7M" [ref=e751]
+                - generic "2026-04-29 O $58.83 H $59.14 L $58.26 C $58.33 Vol 2.3M" [ref=e754]
+                - generic "2026-04-30 O $58.61 H $60.49 L $58.52 C $60.26 Vol 2.3M" [ref=e757]
+                - generic "2026-05-01 O $60.29 H $61.03 L $59.66 C $60.49 Vol 2.5M" [ref=e760]
+                - generic "2026-05-04 O $60.13 H $60.84 L $59.24 C $59.53 Vol 3.1M" [ref=e763]
+                - generic "2026-05-05 O $58.11 H $59.28 L $52.38 C $54.83 Vol 10.2M" [ref=e766]
+                - generic "2026-05-06 O $55.46 H $57.71 L $55.46 C $56.80 Vol 5M" [ref=e769]
+                - generic "2026-05-07 O $57.16 H $58.05 L $56.76 C $57.11 Vol 4.4M" [ref=e772]
+                - generic "2026-05-08 O $57.93 H $58.27 L $57.01 C $57.94 Vol 5M" [ref=e775]
+                - generic "2026-05-11 O $57.14 H $57.60 L $55.39 C $55.41 Vol 3.8M" [ref=e778]
+                - generic "2026-05-12 O $55.71 H $56.44 L $54.83 C $54.95 Vol 2.8M" [ref=e781]
+                - generic "2026-05-13 O $55.43 H $56.48 L $53.99 C $54.21 Vol 4.3M" [ref=e784]
+                - generic "2026-05-14 O $55.05 H $57.78 L $54.83 C $57.56 Vol 4M" [ref=e787]
+                - generic "2026-05-15 O $56.74 H $56.99 L $54.30 C $54.34 Vol 4.7M" [ref=e790]
+                - generic "2026-05-18 O $54.21 H $55.02 L $52.94 C $53.01 Vol 2.9M" [ref=e793]
+                - generic "2026-05-19 O $52.28 H $53.78 L $51.68 C $52.57 Vol 4.4M" [ref=e796]
+                - generic "2026-05-20 O $53.08 H $54.65 L $52.27 C $54.57 Vol 2.6M" [ref=e799]
+                - generic "2026-05-21 O $53.70 H $56.10 L $53.58 C $55.85 Vol 2.4M" [ref=e802]
+                - generic "2026-05-22 O $56.32 H $57.73 L $55.87 C $57.36 Vol 2.8M" [ref=e805]
+                - generic "2026-05-26 O $57.94 H $58.98 L $57.71 C $58.76 Vol 2.8M" [ref=e808]
+                - generic "2026-05-27 O $59.59 H $62.17 L $59.59 C $61.90 Vol 3.6M" [ref=e811]
+                - generic "2026-05-28 O $62.37 H $63.95 L $62.27 C $63.67 Vol 3.9M" [ref=e814]
+                - generic "2026-05-29 O $63.73 H $68.18 L $63.21 C $67.94 Vol 8.6M" [ref=e817]
+                - generic "2026-06-01 O $67.31 H $68.84 L $66.78 C $68.60 Vol 5M" [ref=e820]
+                - generic "2026-06-02 O $69.00 H $73.79 L $68.96 C $73.48 Vol 3.8M" [ref=e823]
+        - generic [ref=e829]:
+          - generic [ref=e831]:
+            - heading "Backtest Lab" [level=2] [ref=e832]
+            - paragraph [ref=e833]: Summarizes forward returns after historical smart-candle classifications.
+          - generic [ref=e834]:
+            - generic [ref=e835]:
+              - generic [ref=e836]: Candle color
+              - combobox "Candle color" [ref=e837]:
+                - option "Blue" [selected]
+                - option "Pink"
+                - option "Red"
+                - option "Neutral"
+            - generic [ref=e838]:
+              - generic [ref=e839]: Years
+              - spinbutton "Years" [ref=e840]: "5"
+            - button "Run backtest" [ref=e841] [cursor=pointer]:
+              - img [ref=e842]
+              - text: Run backtest
+        - generic [ref=e845]:
+          - img [ref=e846]
+          - paragraph [ref=e849]: FinanceOS does not reproduce any undisclosed proprietary formula. These labels are transparent OHLCV classifications for education and manual research only.
+        - generic [ref=e850]:
+          - img [ref=e851]
+          - generic [ref=e853]:
+            - paragraph [ref=e854]: FinanceOS Smart Candle Signals are an educational approximation. The referenced Patreon post does not disclose its proprietary formula.
+            - paragraph [ref=e855]: Signals classify recent OHLCV behavior only and are not buy or sell instructions.
+  - button "Open Next.js Dev Tools" [ref=e209] [cursor=pointer]:
+    - img [ref=e210]
+  - alert [ref=e856]

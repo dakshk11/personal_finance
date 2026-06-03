@@ -1,0 +1,459 @@
+- generic [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - link "F FinanceOS" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: F
+          - generic [ref=e7]: FinanceOS
+        - heading "FinanceOS Studio" [level=1] [ref=e8]
+      - generic [ref=e9]:
+        - generic [ref=e10]: OpenAI key saved
+        - link "Portfolio" [ref=e11] [cursor=pointer]:
+          - /url: /portfolio
+        - link "Calculators" [ref=e12] [cursor=pointer]:
+          - /url: /investing
+        - link "Plan" [ref=e13] [cursor=pointer]:
+          - /url: /retirement-analyzer
+        - link "Portfolio dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /dashboard
+    - region "Important legal disclaimer" [ref=e16]:
+      - generic [ref=e17]:
+        - img [ref=e18]
+        - generic [ref=e20]:
+          - generic [ref=e21]: Important legal disclaimer
+          - strong [ref=e22]: Do not treat this website as advice.
+        - button "Show details" [ref=e23] [cursor=pointer]:
+          - text: Show details
+          - img [ref=e24]
+    - tablist "FinanceOS Studio tabs" [ref=e26]:
+      - tab "AI Planner" [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+        - text: AI Planner
+      - tab "Personal CFO" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+        - text: Personal CFO
+      - tab "Wheel Strategy" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+        - text: Wheel Strategy
+      - tab "Portfolio Sync" [ref=e39] [cursor=pointer]:
+        - img [ref=e40]
+        - text: Portfolio Sync
+      - tab "RSI Playbook" [ref=e44] [cursor=pointer]:
+        - img [ref=e45]
+        - text: RSI Playbook
+      - tab "Breakout Scanner" [active] [selected] [ref=e48] [cursor=pointer]:
+        - img [ref=e49]
+        - text: Breakout Scanner
+      - tab "Smart Candles" [ref=e53] [cursor=pointer]:
+        - img [ref=e54]
+        - text: Smart Candles
+      - tab "Composite Signal Algorithm" [ref=e58] [cursor=pointer]:
+        - img [ref=e59]
+        - text: Composite Signal Algorithm
+      - tab "OptiTrade Lab" [ref=e61] [cursor=pointer]:
+        - img [ref=e62]
+        - text: OptiTrade Lab
+      - tab "Equity Research" [ref=e66] [cursor=pointer]:
+        - img [ref=e67]
+        - text: Equity Research
+      - tab "Earnings Agent" [ref=e70] [cursor=pointer]:
+        - img [ref=e71]
+        - text: Earnings Agent
+      - tab "Wheel Scanner" [ref=e74] [cursor=pointer]:
+        - img [ref=e75]
+        - text: Wheel Scanner
+      - tab "Sector Rotation" [ref=e78] [cursor=pointer]:
+        - img [ref=e79]
+        - text: Sector Rotation
+    - generic [ref=e82]:
+      - complementary [ref=e83]:
+        - button "Collapse sidebar" [ref=e84] [cursor=pointer]:
+          - img [ref=e85]
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - heading "OpenAI key" [level=2] [ref=e89]
+            - img [ref=e90]
+          - generic [ref=e93]:
+            - generic [ref=e94]:
+              - generic [ref=e95]: API key
+              - textbox "API key" [ref=e96]:
+                - /placeholder: sk-...
+            - button "Update key" [ref=e213] [cursor=pointer]:
+              - img [ref=e98]
+              - text: Update key
+            - button "Remove key" [ref=e214] [cursor=pointer]:
+              - img [ref=e215]
+              - text: Remove key
+          - paragraph [ref=e102]: Saved key sha256:79d47efffbaea73b
+          - paragraph [ref=e218]: Saved Jun 2, 2026, 6:24 PM
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - heading "Reports" [level=2] [ref=e105]
+            - img [ref=e106]
+          - button "Full Retirement Blueprint ollama:llava · May 31, 2026, 6:06 AM" [ref=e219] [cursor=pointer]:
+            - strong [ref=e220]: Full Retirement Blueprint
+            - generic [ref=e221]: ollama:llava · May 31, 2026, 6:06 AM
+      - generic [ref=e111]:
+        - generic [ref=e223]:
+          - generic [ref=e224]:
+            - paragraph [ref=e225]: Breakout Scanner
+            - heading "Nasdaq-100 breakout research using IBKR live data — ceiling, momentum, and near-breakout setups." [level=2] [ref=e226]
+            - generic [ref=e227]:
+              - generic [ref=e228]:
+                - img [ref=e229]
+                - text: IBKR live / cached bars
+              - generic [ref=e231]:
+                - img [ref=e232]
+                - text: SMA 20 / 50 / 200
+            - generic [ref=e235]:
+              - button "IBKR Live · Nasdaq-100" [ref=e236] [cursor=pointer]
+              - button "Yahoo Finance · S&P 500" [ref=e237] [cursor=pointer]
+          - generic [ref=e238]:
+            - generic [ref=e239]: IBKR offline · 96/97 cached
+            - generic [ref=e240]: 10/10 setups
+            - button "Run scan" [ref=e241] [cursor=pointer]:
+              - img [ref=e242]
+              - text: Run scan
+        - generic [ref=e247]:
+          - generic [ref=e248]:
+            - heading "Watchlist Symbols" [level=2] [ref=e249]
+            - img [ref=e250]
+          - generic [ref=e254]:
+            - textbox "Add watchlist symbols" [ref=e255]:
+              - /placeholder: NVDA, SMCI, ARM
+            - button "Append" [ref=e256] [cursor=pointer]:
+              - img [ref=e257]
+              - text: Append
+        - generic [ref=e258]:
+          - img [ref=e259]
+          - paragraph [ref=e262]: Educational research only. Setups are not buy or sell instructions; manually verify earnings, news, liquidity, risk, and portfolio fit before making decisions.
+        - generic [ref=e263]:
+          - article [ref=e264]:
+            - heading "Nasdaq-100 universe" [level=3] [ref=e265]
+            - strong [ref=e266]: "97"
+            - paragraph [ref=e267]: 96 cached today
+          - article [ref=e268]:
+            - heading "Scanned symbols" [level=3] [ref=e269]
+            - strong [ref=e270]: "96"
+            - paragraph [ref=e271]: ibkr_cache
+          - article [ref=e272]:
+            - heading "Ceiling" [level=3] [ref=e273]
+            - strong [ref=e274]: "0"
+            - paragraph [ref=e275]: breakout setups
+          - article [ref=e276]:
+            - heading "Momentum" [level=3] [ref=e277]
+            - strong [ref=e278]: "3"
+            - paragraph [ref=e279]: breakout setups
+          - article [ref=e280]:
+            - heading "Watch" [level=3] [ref=e281]
+            - strong [ref=e282]: "7"
+            - paragraph [ref=e283]: near-breakout setups
+        - generic [ref=e284]:
+          - generic [ref=e285]:
+            - heading "Detectors" [level=2] [ref=e286]
+            - img [ref=e287]
+          - generic [ref=e291]:
+            - button "Ceiling Breakouts Multi-touch resistance cleared with volume confirmation." [ref=e292] [cursor=pointer]:
+              - strong [ref=e293]: Ceiling Breakouts
+              - generic [ref=e294]: Multi-touch resistance cleared with volume confirmation.
+            - button "Momentum Breakouts Recent highs, strong trend, and broad price follow-through." [ref=e295] [cursor=pointer]:
+              - strong [ref=e296]: Momentum Breakouts
+              - generic [ref=e297]: Recent highs, strong trend, and broad price follow-through.
+            - button "Near-Breakout Watch Stocks coiled just below a tested ceiling for review." [ref=e298] [cursor=pointer]:
+              - strong [ref=e299]: Near-Breakout Watch
+              - generic [ref=e300]: Stocks coiled just below a tested ceiling for review.
+        - generic [ref=e301]:
+          - generic [ref=e302]:
+            - generic [ref=e304]:
+              - heading "Ranked setups" [level=2] [ref=e305]
+              - paragraph [ref=e306]: 10 shown from 10 setups · Jun 2, 8:29 PM · ibkr_cache
+            - generic [ref=e307]:
+              - generic [ref=e308]:
+                - generic [ref=e309]: Symbol
+                - generic [ref=e310]: Setup
+                - generic [ref=e311]: Score
+                - generic [ref=e312]: Rel vol
+                - generic [ref=e313]: Resistance
+              - 'button "EA Near breakout Above 200 SMA 80 rank #1 1.10x 786.5k avg vol $203.79 0.88% below" [ref=e314] [cursor=pointer]':
+                - strong [ref=e315]: EA
+                - generic [ref=e316]:
+                  - text: Near breakout
+                  - generic [ref=e317]: Above 200 SMA
+                - generic [ref=e318]:
+                  - text: "80"
+                  - generic [ref=e319]: "rank #1"
+                - generic [ref=e320]:
+                  - text: 1.10x
+                  - generic [ref=e321]: 786.5k avg vol
+                - generic [ref=e322]:
+                  - text: $203.79
+                  - generic [ref=e323]: 0.88% below
+              - 'button "AVGO Momentum Above 200 SMA 71 rank #2 1.89x 12.5M avg vol $466.05 3.33% clear" [ref=e324] [cursor=pointer]':
+                - strong [ref=e325]: AVGO
+                - generic [ref=e326]:
+                  - text: Momentum
+                  - generic [ref=e327]: Above 200 SMA
+                - generic [ref=e328]:
+                  - text: "71"
+                  - generic [ref=e329]: "rank #2"
+                - generic [ref=e330]:
+                  - text: 1.89x
+                  - generic [ref=e331]: 12.5M avg vol
+                - generic [ref=e332]:
+                  - text: $466.05
+                  - generic [ref=e333]: 3.33% clear
+              - 'button "WBD Near breakout Above 200 SMA 70 rank #3 1.28x 12.8M avg vol $27.49 1.16% below" [ref=e334] [cursor=pointer]':
+                - strong [ref=e335]: WBD
+                - generic [ref=e336]:
+                  - text: Near breakout
+                  - generic [ref=e337]: Above 200 SMA
+                - generic [ref=e338]:
+                  - text: "70"
+                  - generic [ref=e339]: "rank #3"
+                - generic [ref=e340]:
+                  - text: 1.28x
+                  - generic [ref=e341]: 12.8M avg vol
+                - generic [ref=e342]:
+                  - text: $27.49
+                  - generic [ref=e343]: 1.16% below
+              - 'button "CSX Near breakout Above 200 SMA 65 rank #4 0.88x 7.5M avg vol $46.87 1.57% below" [ref=e344] [cursor=pointer]':
+                - strong [ref=e345]: CSX
+                - generic [ref=e346]:
+                  - text: Near breakout
+                  - generic [ref=e347]: Above 200 SMA
+                - generic [ref=e348]:
+                  - text: "65"
+                  - generic [ref=e349]: "rank #4"
+                - generic [ref=e350]:
+                  - text: 0.88x
+                  - generic [ref=e351]: 7.5M avg vol
+                - generic [ref=e352]:
+                  - text: $46.87
+                  - generic [ref=e353]: 1.57% below
+              - 'button "CTAS Near breakout Below 200 SMA 64 rank #5 1.94x 879.4k avg vol $176.55 1.87% below" [ref=e354] [cursor=pointer]':
+                - strong [ref=e355]: CTAS
+                - generic [ref=e356]:
+                  - text: Near breakout
+                  - generic [ref=e357]: Below 200 SMA
+                - generic [ref=e358]:
+                  - text: "64"
+                  - generic [ref=e359]: "rank #5"
+                - generic [ref=e360]:
+                  - text: 1.94x
+                  - generic [ref=e361]: 879.4k avg vol
+                - generic [ref=e362]:
+                  - text: $176.55
+                  - generic [ref=e363]: 1.87% below
+              - 'button "HON Near breakout Above 200 SMA 60 rank #6 0.99x 1.6M avg vol $236.64 0.6% below" [ref=e364] [cursor=pointer]':
+                - strong [ref=e365]: HON
+                - generic [ref=e366]:
+                  - text: Near breakout
+                  - generic [ref=e367]: Above 200 SMA
+                - generic [ref=e368]:
+                  - text: "60"
+                  - generic [ref=e369]: "rank #6"
+                - generic [ref=e370]:
+                  - text: 0.99x
+                  - generic [ref=e371]: 1.6M avg vol
+                - generic [ref=e372]:
+                  - text: $236.64
+                  - generic [ref=e373]: 0.6% below
+              - 'button "MDLZ Near breakout Above 200 SMA 60 rank #7 0.86x 4.2M avg vol $62.38 2.15% below" [ref=e374] [cursor=pointer]':
+                - strong [ref=e375]: MDLZ
+                - generic [ref=e376]:
+                  - text: Near breakout
+                  - generic [ref=e377]: Above 200 SMA
+                - generic [ref=e378]:
+                  - text: "60"
+                  - generic [ref=e379]: "rank #7"
+                - generic [ref=e380]:
+                  - text: 0.86x
+                  - generic [ref=e381]: 4.2M avg vol
+                - generic [ref=e382]:
+                  - text: $62.38
+                  - generic [ref=e383]: 2.15% below
+              - 'button "MRVL Momentum Above 200 SMA 60 rank #8 3.17x 17.6M avg vol $225.14 29.16% clear" [ref=e384] [cursor=pointer]':
+                - strong [ref=e385]: MRVL
+                - generic [ref=e386]:
+                  - text: Momentum
+                  - generic [ref=e387]: Above 200 SMA
+                - generic [ref=e388]:
+                  - text: "60"
+                  - generic [ref=e389]: "rank #8"
+                - generic [ref=e390]:
+                  - text: 3.17x
+                  - generic [ref=e391]: 17.6M avg vol
+                - generic [ref=e392]:
+                  - text: $225.14
+                  - generic [ref=e393]: 29.16% clear
+              - 'button "CDNS Momentum Above 200 SMA 52 rank #9 1.50x 1.3M avg vol $414.92 0.35% clear" [ref=e394] [cursor=pointer]':
+                - strong [ref=e395]: CDNS
+                - generic [ref=e396]:
+                  - text: Momentum
+                  - generic [ref=e397]: Above 200 SMA
+                - generic [ref=e398]:
+                  - text: "52"
+                  - generic [ref=e399]: "rank #9"
+                - generic [ref=e400]:
+                  - text: 1.50x
+                  - generic [ref=e401]: 1.3M avg vol
+                - generic [ref=e402]:
+                  - text: $414.92
+                  - generic [ref=e403]: 0.35% clear
+              - 'button "DLTR Near breakout Below 200 SMA 38 rank #10 0.82x 1.9M avg vol $110.86 1.34% below" [ref=e404] [cursor=pointer]':
+                - strong [ref=e405]: DLTR
+                - generic [ref=e406]:
+                  - text: Near breakout
+                  - generic [ref=e407]: Below 200 SMA
+                - generic [ref=e408]:
+                  - text: "38"
+                  - generic [ref=e409]: "rank #10"
+                - generic [ref=e410]:
+                  - text: 0.82x
+                  - generic [ref=e411]: 1.9M avg vol
+                - generic [ref=e412]:
+                  - text: $110.86
+                  - generic [ref=e413]: 1.34% below
+          - generic [ref=e414]:
+            - generic [ref=e415]:
+              - generic [ref=e416]:
+                - generic [ref=e417]: Near breakout
+                - heading "EA Watch — 0.9% to resistance" [level=2] [ref=e418]
+                - paragraph [ref=e419]: Watch — 0.9% to resistance. RSI 55. Trend up.
+              - generic [ref=e420]:
+                - generic [ref=e421]: Score
+                - strong [ref=e422]: "80"
+            - generic [ref=e423]:
+              - generic [ref=e424]:
+                - generic [ref=e425]: Price
+                - strong [ref=e426]: $202.01
+              - generic [ref=e427]:
+                - generic [ref=e428]: Resistance
+                - strong [ref=e429]: $203.79
+              - generic [ref=e430]:
+                - generic [ref=e431]: Rel volume
+                - strong [ref=e432]: 1.10x
+              - generic [ref=e433]:
+                - generic [ref=e434]: Touches
+                - strong [ref=e435]: "9"
+            - generic [ref=e436]:
+              - generic [ref=e437]:
+                - generic [ref=e438]: Up candle
+                - generic [ref=e439]: Down candle
+                - generic [ref=e440]: SMA 20
+                - generic [ref=e441]: SMA 50
+                - generic [ref=e442]: SMA 200
+                - generic [ref=e443]: Resistance
+              - generic [ref=e444]:
+                - generic [ref=e445]:
+                  - generic [ref=e446]:
+                    - strong [ref=e447]: EA daily breakout chart
+                    - generic [ref=e448]: Feb 2 to Jun 2 · volume shown below candles
+                  - generic [ref=e449]: Near breakout
+                - img "EA breakout candlestick chart with volume" [ref=e450]:
+                  - generic [ref=e454]: $206
+                  - generic [ref=e456]: $200
+                  - generic [ref=e458]: $195
+                  - generic [ref=e460]: $189
+                  - generic [ref=e462]: $184
+                  - generic [ref=e463]: Feb 2
+                  - generic [ref=e464]: Mar 4
+                  - generic [ref=e465]: Apr 2
+                  - generic [ref=e466]: May 1
+                  - generic [ref=e467]: Jun 2
+                  - generic [ref=e468]: Vol
+                  - generic [ref=e469]: 7.1M
+                  - generic "2026-02-02 O $204.01 H $204.15 L $203.55 C $203.60 Vol 594.5k" [ref=e470]
+                  - generic "2026-02-03 O $203.82 H $203.85 L $201.30 C $201.39 Vol 4.4M" [ref=e473]
+                  - generic "2026-02-04 O $201.52 H $201.56 L $196.40 C $196.84 Vol 7.1M" [ref=e476]
+                  - generic "2026-02-05 O $196.75 H $199.73 L $196.41 C $197.93 Vol 2.2M" [ref=e479]
+                  - generic "2026-02-06 O $199.42 H $200.25 L $197.94 C $200.00 Vol 1.9M" [ref=e482]
+                  - generic "2026-02-09 O $200.14 H $202.02 L $199.90 C $200.87 Vol 1.2M" [ref=e485]
+                  - generic "2026-02-10 O $201.51 H $203.35 L $201.18 C $202.58 Vol 1.6M" [ref=e488]
+                  - generic "2026-02-11 O $202.56 H $202.80 L $201.29 C $202.24 Vol 1.2M" [ref=e491]
+                  - generic "2026-02-12 O $202.50 H $202.79 L $200.20 C $200.46 Vol 2.2M" [ref=e494]
+                  - generic "2026-02-13 O $200.00 H $201.08 L $199.98 C $200.62 Vol 1.0M" [ref=e497]
+                  - generic "2026-02-17 O $200.63 H $200.75 L $199.12 C $199.53 Vol 1.5M" [ref=e500]
+                  - generic "2026-02-18 O $199.41 H $200.74 L $199.27 C $200.23 Vol 695.2k" [ref=e503]
+                  - generic "2026-02-19 O $200.02 H $200.14 L $199.41 C $199.88 Vol 578.9k" [ref=e506]
+                  - generic "2026-02-20 O $199.70 H $200.60 L $199.57 C $200.40 Vol 568.0k" [ref=e509]
+                  - generic "2026-02-23 O $200.47 H $201.00 L $200.04 C $200.48 Vol 756.5k" [ref=e512]
+                  - generic "2026-02-24 O $200.48 H $201.21 L $200.12 C $201.00 Vol 733.6k" [ref=e515]
+                  - generic "2026-02-25 O $200.81 H $201.99 L $200.81 C $201.98 Vol 735.0k" [ref=e518]
+                  - generic "2026-02-26 O $201.83 H $202.00 L $200.88 C $201.07 Vol 612.6k" [ref=e521]
+                  - generic "2026-02-27 O $200.65 H $201.28 L $200.21 C $200.57 Vol 455.5k" [ref=e524]
+                  - generic "2026-03-02 O $200.25 H $201.50 L $200.21 C $201.06 Vol 654.9k" [ref=e527]
+                  - generic "2026-03-03 O $200.51 H $201.44 L $200.35 C $201.22 Vol 886.3k" [ref=e530]
+                  - generic "2026-03-04 O $201.26 H $201.87 L $200.61 C $201.73 Vol 889.2k" [ref=e533]
+                  - generic "2026-03-05 O $201.03 H $201.40 L $200.61 C $200.76 Vol 681.5k" [ref=e536]
+                  - generic "2026-03-06 O $198.16 H $198.80 L $197.46 C $198.00 Vol 2.6M" [ref=e539]
+                  - generic "2026-03-09 O $197.85 H $199.96 L $197.01 C $199.27 Vol 2.0M" [ref=e542]
+                  - generic "2026-03-10 O $199.00 H $200.56 L $198.26 C $200.07 Vol 1.3M" [ref=e545]
+                  - generic "2026-03-11 O $200.10 H $200.61 L $198.53 C $199.92 Vol 1.5M" [ref=e548]
+                  - generic "2026-03-12 O $199.55 H $199.92 L $199.05 C $199.08 Vol 614.0k" [ref=e551]
+                  - generic "2026-03-13 O $199.98 H $199.98 L $198.77 C $199.24 Vol 730.3k" [ref=e554]
+                  - generic "2026-03-16 O $199.77 H $200.39 L $199.51 C $200.21 Vol 1.2M" [ref=e557]
+                  - generic "2026-03-17 O $200.05 H $200.89 L $199.88 C $200.13 Vol 776.1k" [ref=e560]
+                  - generic "2026-03-18 O $200.39 H $201.00 L $200.15 C $200.61 Vol 1.2M" [ref=e563]
+                  - generic "2026-03-19 O $200.63 H $200.82 L $200.01 C $200.69 Vol 787.6k" [ref=e566]
+                  - generic "2026-03-20 O $200.50 H $200.98 L $200.21 C $200.51 Vol 1.5M" [ref=e569]
+                  - generic "2026-03-23 O $201.06 H $201.40 L $200.63 C $201.13 Vol 1.6M" [ref=e572]
+                  - generic "2026-03-24 O $201.15 H $201.75 L $200.96 C $201.62 Vol 1.0M" [ref=e575]
+                  - generic "2026-03-25 O $201.59 H $202.46 L $201.50 C $202.34 Vol 1.3M" [ref=e578]
+                  - generic "2026-03-26 O $202.24 H $202.62 L $201.77 C $201.91 Vol 988.7k" [ref=e581]
+                  - generic "2026-03-27 O $201.71 H $202.13 L $201.30 C $202.01 Vol 1.2M" [ref=e584]
+                  - generic "2026-03-30 O $202.19 H $202.83 L $202.19 C $202.57 Vol 851.5k" [ref=e587]
+                  - generic "2026-03-31 O $202.69 H $203.90 L $202.61 C $203.87 Vol 1.5M" [ref=e590]
+                  - generic "2026-04-01 O $203.35 H $204.20 L $202.91 C $203.58 Vol 1.0M" [ref=e593]
+                  - generic "2026-04-02 O $202.99 H $203.64 L $202.99 C $203.60 Vol 427.8k" [ref=e596]
+                  - generic "2026-04-06 O $203.46 H $204.18 L $203.32 C $204.16 Vol 500.4k" [ref=e599]
+                  - generic "2026-04-07 O $203.78 H $204.00 L $203.63 C $203.95 Vol 507.3k" [ref=e602]
+                  - generic "2026-04-08 O $203.52 H $204.22 L $203.52 C $203.99 Vol 761.5k" [ref=e605]
+                  - generic "2026-04-09 O $203.90 H $203.94 L $202.14 C $202.20 Vol 1.4M" [ref=e608]
+                  - generic "2026-04-10 O $202.35 H $202.92 L $202.05 C $202.74 Vol 528.1k" [ref=e611]
+                  - generic "2026-04-13 O $202.73 H $202.85 L $202.12 C $202.56 Vol 491.4k" [ref=e614]
+                  - generic "2026-04-14 O $202.40 H $203.52 L $202.39 C $202.85 Vol 356.7k" [ref=e617]
+                  - generic "2026-04-15 O $203.25 H $203.53 L $202.77 C $203.24 Vol 515.7k" [ref=e620]
+                  - generic "2026-04-16 O $203.53 H $203.65 L $203.08 C $203.37 Vol 671.7k" [ref=e623]
+                  - generic "2026-04-17 O $203.83 H $203.92 L $203.49 C $203.83 Vol 595.7k" [ref=e626]
+                  - generic "2026-04-20 O $203.72 H $204.00 L $203.14 C $203.36 Vol 377.1k" [ref=e629]
+                  - generic "2026-04-21 O $203.10 H $203.56 L $203.00 C $203.55 Vol 438.5k" [ref=e632]
+                  - generic "2026-04-22 O $203.78 H $203.81 L $202.65 C $202.78 Vol 550.9k" [ref=e635]
+                  - generic "2026-04-23 O $202.48 H $202.97 L $202.27 C $202.51 Vol 617.4k" [ref=e638]
+                  - generic "2026-04-24 O $202.63 H $202.75 L $202.22 C $202.67 Vol 227.9k" [ref=e641]
+                  - generic "2026-04-27 O $202.56 H $203.36 L $202.21 C $202.45 Vol 948.0k" [ref=e644]
+                  - generic "2026-04-28 O $203.47 H $203.64 L $202.31 C $202.53 Vol 519.3k" [ref=e647]
+                  - generic "2026-04-29 O $202.31 H $202.80 L $201.95 C $202.67 Vol 670.1k" [ref=e650]
+                  - generic "2026-04-30 O $202.28 H $202.48 L $201.78 C $202.37 Vol 945.2k" [ref=e653]
+                  - generic "2026-05-01 O $202.58 H $202.69 L $201.97 C $202.09 Vol 716.5k" [ref=e656]
+                  - generic "2026-05-04 O $201.86 H $202.30 L $201.72 C $201.82 Vol 621.4k" [ref=e659]
+                  - generic "2026-05-05 O $201.78 H $202.08 L $201.39 C $201.57 Vol 787.3k" [ref=e662]
+                  - generic "2026-05-06 O $201.20 H $202.06 L $200.60 C $200.79 Vol 1.5M" [ref=e665]
+                  - generic "2026-05-07 O $200.84 H $201.27 L $200.25 C $200.85 Vol 948.7k" [ref=e668]
+                  - generic "2026-05-08 O $200.65 H $200.78 L $200.28 C $200.44 Vol 658.5k" [ref=e671]
+                  - generic "2026-05-11 O $200.60 H $200.60 L $200.07 C $200.22 Vol 724.7k" [ref=e674]
+                  - generic "2026-05-12 O $200.22 H $200.92 L $199.94 C $200.19 Vol 941.3k" [ref=e677]
+                  - generic "2026-05-13 O $200.01 H $200.45 L $199.45 C $200.18 Vol 1.1M" [ref=e680]
+                  - generic "2026-05-14 O $199.67 H $200.80 L $199.67 C $200.78 Vol 462.6k" [ref=e683]
+                  - generic "2026-05-15 O $200.16 H $200.85 L $200.14 C $200.64 Vol 667.6k" [ref=e686]
+                  - generic "2026-05-18 O $200.19 H $201.57 L $200.00 C $201.05 Vol 910.4k" [ref=e689]
+                  - generic "2026-05-19 O $201.24 H $201.74 L $201.00 C $201.70 Vol 717.4k" [ref=e692]
+                  - generic "2026-05-20 O $201.36 H $201.73 L $200.78 C $201.59 Vol 572.0k" [ref=e695]
+                  - generic "2026-05-21 O $201.40 H $201.95 L $201.19 C $201.87 Vol 596.5k" [ref=e698]
+                  - generic "2026-05-22 O $201.79 H $201.85 L $200.73 C $200.97 Vol 1.0M" [ref=e701]
+                  - generic "2026-05-26 O $200.61 H $201.13 L $200.49 C $201.13 Vol 469.8k" [ref=e704]
+                  - generic "2026-05-27 O $201.02 H $201.41 L $200.50 C $200.68 Vol 423.6k" [ref=e707]
+                  - generic "2026-05-28 O $200.51 H $201.28 L $200.36 C $201.15 Vol 738.4k" [ref=e710]
+                  - generic "2026-05-29 O $201.15 H $202.11 L $201.07 C $201.72 Vol 1.7M" [ref=e713]
+                  - generic "2026-06-01 O $202.06 H $202.46 L $201.61 C $202.00 Vol 727.5k" [ref=e716]
+                  - generic "2026-06-02 O $202.00 H $202.50 L $201.54 C $202.01 Vol 910.2k" [ref=e719]
+                  - generic [ref=e726]: R $203.79
+        - generic [ref=e727]:
+          - generic [ref=e728]:
+            - heading "Data notes" [level=2] [ref=e729]
+            - img [ref=e730]
+          - paragraph [ref=e733]: IBKR not connected; 1 symbol(s) skipped (no pkl cache). Connect TWS and wait ~1 min for the analytics refresh to populate the cache, or switch to Yahoo Finance source.
+  - button "Open Next.js Dev Tools" [ref=e209] [cursor=pointer]:
+    - img [ref=e210]
+  - alert [ref=e222]

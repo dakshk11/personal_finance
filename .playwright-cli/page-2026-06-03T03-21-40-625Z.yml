@@ -1,0 +1,370 @@
+- generic [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - link "F FinanceOS" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: F
+          - generic [ref=e7]: FinanceOS
+        - heading "FinanceOS Studio" [level=1] [ref=e8]
+      - generic [ref=e9]:
+        - generic [ref=e10]: OpenAI key saved
+        - link "Portfolio" [ref=e11] [cursor=pointer]:
+          - /url: /portfolio
+        - link "Calculators" [ref=e12] [cursor=pointer]:
+          - /url: /investing
+        - link "Plan" [ref=e13] [cursor=pointer]:
+          - /url: /retirement-analyzer
+        - link "Portfolio dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /dashboard
+    - region "Important legal disclaimer" [ref=e16]:
+      - generic [ref=e17]:
+        - img [ref=e18]
+        - generic [ref=e20]:
+          - generic [ref=e21]: Important legal disclaimer
+          - strong [ref=e22]: Do not treat this website as advice.
+        - button "Show details" [ref=e23] [cursor=pointer]:
+          - text: Show details
+          - img [ref=e24]
+    - tablist "FinanceOS Studio tabs" [ref=e26]:
+      - tab "AI Planner" [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+        - text: AI Planner
+      - tab "Personal CFO" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+        - text: Personal CFO
+      - tab "Wheel Strategy" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+        - text: Wheel Strategy
+      - tab "Portfolio Sync" [ref=e39] [cursor=pointer]:
+        - img [ref=e40]
+        - text: Portfolio Sync
+      - tab "RSI Playbook" [ref=e44] [cursor=pointer]:
+        - img [ref=e45]
+        - text: RSI Playbook
+      - tab "Breakout Scanner" [active] [selected] [ref=e48] [cursor=pointer]:
+        - img [ref=e49]
+        - text: Breakout Scanner
+      - tab "Smart Candles" [ref=e53] [cursor=pointer]:
+        - img [ref=e54]
+        - text: Smart Candles
+      - tab "Composite Signal Algorithm" [ref=e58] [cursor=pointer]:
+        - img [ref=e59]
+        - text: Composite Signal Algorithm
+      - tab "OptiTrade Lab" [ref=e61] [cursor=pointer]:
+        - img [ref=e62]
+        - text: OptiTrade Lab
+      - tab "Equity Research" [ref=e66] [cursor=pointer]:
+        - img [ref=e67]
+        - text: Equity Research
+      - tab "Earnings Agent" [ref=e70] [cursor=pointer]:
+        - img [ref=e71]
+        - text: Earnings Agent
+      - tab "Wheel Scanner" [ref=e74] [cursor=pointer]:
+        - img [ref=e75]
+        - text: Wheel Scanner
+      - tab "Sector Rotation" [ref=e78] [cursor=pointer]:
+        - img [ref=e79]
+        - text: Sector Rotation
+    - generic [ref=e82]:
+      - complementary [ref=e83]:
+        - button "Collapse sidebar" [ref=e84] [cursor=pointer]:
+          - img [ref=e85]
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - heading "OpenAI key" [level=2] [ref=e89]
+            - img [ref=e90]
+          - generic [ref=e93]:
+            - generic [ref=e94]:
+              - generic [ref=e95]: API key
+              - textbox "API key" [ref=e96]:
+                - /placeholder: sk-...
+            - button "Update key" [ref=e213] [cursor=pointer]:
+              - img [ref=e98]
+              - text: Update key
+            - button "Remove key" [ref=e214] [cursor=pointer]:
+              - img [ref=e215]
+              - text: Remove key
+          - paragraph [ref=e102]: Saved key sha256:79d47efffbaea73b
+          - paragraph [ref=e218]: Saved Jun 2, 2026, 6:24 PM
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - heading "Reports" [level=2] [ref=e105]
+            - img [ref=e106]
+          - button "Full Retirement Blueprint ollama:llava · May 31, 2026, 6:06 AM" [ref=e219] [cursor=pointer]:
+            - strong [ref=e220]: Full Retirement Blueprint
+            - generic [ref=e221]: ollama:llava · May 31, 2026, 6:06 AM
+      - generic [ref=e111]:
+        - generic [ref=e222]:
+          - generic [ref=e223]:
+            - paragraph [ref=e224]: Breakout Scanner
+            - heading "Nasdaq-100 breakout research using IBKR live data — ceiling, momentum, and near-breakout setups." [level=2] [ref=e225]
+            - generic [ref=e226]:
+              - generic [ref=e227]:
+                - img [ref=e228]
+                - text: IBKR live / cached bars
+              - generic [ref=e230]:
+                - img [ref=e231]
+                - text: SMA 20 / 50 / 200
+            - generic [ref=e234]:
+              - button "IBKR Live · Nasdaq-100" [ref=e235] [cursor=pointer]
+              - button "Yahoo Finance · S&P 500" [ref=e236] [cursor=pointer]
+          - generic [ref=e237]:
+            - generic [ref=e238]: IBKR live · 96/97 cached
+            - generic [ref=e239]: 10/10 setups
+            - button "Run scan" [ref=e240] [cursor=pointer]:
+              - img [ref=e241]
+              - text: Run scan
+        - generic [ref=e246]:
+          - generic [ref=e247]:
+            - heading "Watchlist Symbols" [level=2] [ref=e248]
+            - img [ref=e249]
+          - generic [ref=e253]:
+            - textbox "Add watchlist symbols" [ref=e254]:
+              - /placeholder: NVDA, SMCI, ARM
+            - button "Append" [ref=e255] [cursor=pointer]:
+              - img [ref=e256]
+              - text: Append
+        - generic [ref=e257]:
+          - img [ref=e258]
+          - paragraph [ref=e261]: Educational research only. Setups are not buy or sell instructions; manually verify earnings, news, liquidity, risk, and portfolio fit before making decisions.
+        - generic [ref=e262]:
+          - article [ref=e263]:
+            - heading "Nasdaq-100 universe" [level=3] [ref=e264]
+            - strong [ref=e265]: "97"
+            - paragraph [ref=e266]: 96 cached today
+          - article [ref=e267]:
+            - heading "Scanned symbols" [level=3] [ref=e268]
+            - strong [ref=e269]: "96"
+            - paragraph [ref=e270]: ibkr_cache
+          - article [ref=e271]:
+            - heading "Ceiling" [level=3] [ref=e272]
+            - strong [ref=e273]: "0"
+            - paragraph [ref=e274]: breakout setups
+          - article [ref=e275]:
+            - heading "Momentum" [level=3] [ref=e276]
+            - strong [ref=e277]: "3"
+            - paragraph [ref=e278]: breakout setups
+          - article [ref=e279]:
+            - heading "Watch" [level=3] [ref=e280]
+            - strong [ref=e281]: "7"
+            - paragraph [ref=e282]: near-breakout setups
+        - generic [ref=e283]:
+          - generic [ref=e284]:
+            - heading "Detectors" [level=2] [ref=e285]
+            - img [ref=e286]
+          - generic [ref=e290]:
+            - button "Ceiling Breakouts Multi-touch resistance cleared with volume confirmation." [ref=e291] [cursor=pointer]:
+              - strong [ref=e292]: Ceiling Breakouts
+              - generic [ref=e293]: Multi-touch resistance cleared with volume confirmation.
+            - button "Momentum Breakouts Recent highs, strong trend, and broad price follow-through." [ref=e294] [cursor=pointer]:
+              - strong [ref=e295]: Momentum Breakouts
+              - generic [ref=e296]: Recent highs, strong trend, and broad price follow-through.
+            - button "Near-Breakout Watch Stocks coiled just below a tested ceiling for review." [ref=e297] [cursor=pointer]:
+              - strong [ref=e298]: Near-Breakout Watch
+              - generic [ref=e299]: Stocks coiled just below a tested ceiling for review.
+        - generic [ref=e300]:
+          - generic [ref=e301]:
+            - generic [ref=e303]:
+              - heading "Ranked setups" [level=2] [ref=e304]
+              - paragraph [ref=e305]: 10 shown from 10 setups · Jun 2, 8:21 PM · ibkr_cache
+            - generic [ref=e306]:
+              - generic [ref=e307]:
+                - generic [ref=e308]: Symbol
+                - generic [ref=e309]: Setup
+                - generic [ref=e310]: Score
+                - generic [ref=e311]: Rel vol
+                - generic [ref=e312]: Resistance
+              - 'button "EA Near breakout Above 200 SMA 80 rank #1 1.10x 786.5k avg vol $203.79 0.88% below" [ref=e313] [cursor=pointer]':
+                - strong [ref=e314]: EA
+                - generic [ref=e315]:
+                  - text: Near breakout
+                  - generic [ref=e316]: Above 200 SMA
+                - generic [ref=e317]:
+                  - text: "80"
+                  - generic [ref=e318]: "rank #1"
+                - generic [ref=e319]:
+                  - text: 1.10x
+                  - generic [ref=e320]: 786.5k avg vol
+                - generic [ref=e321]:
+                  - text: $203.79
+                  - generic [ref=e322]: 0.88% below
+              - 'button "AVGO Momentum Above 200 SMA 71 rank #2 1.89x 12.5M avg vol $466.05 3.33% clear" [ref=e323] [cursor=pointer]':
+                - strong [ref=e324]: AVGO
+                - generic [ref=e325]:
+                  - text: Momentum
+                  - generic [ref=e326]: Above 200 SMA
+                - generic [ref=e327]:
+                  - text: "71"
+                  - generic [ref=e328]: "rank #2"
+                - generic [ref=e329]:
+                  - text: 1.89x
+                  - generic [ref=e330]: 12.5M avg vol
+                - generic [ref=e331]:
+                  - text: $466.05
+                  - generic [ref=e332]: 3.33% clear
+              - 'button "WBD Near breakout Above 200 SMA 70 rank #3 1.28x 12.8M avg vol $27.49 1.16% below" [ref=e333] [cursor=pointer]':
+                - strong [ref=e334]: WBD
+                - generic [ref=e335]:
+                  - text: Near breakout
+                  - generic [ref=e336]: Above 200 SMA
+                - generic [ref=e337]:
+                  - text: "70"
+                  - generic [ref=e338]: "rank #3"
+                - generic [ref=e339]:
+                  - text: 1.28x
+                  - generic [ref=e340]: 12.8M avg vol
+                - generic [ref=e341]:
+                  - text: $27.49
+                  - generic [ref=e342]: 1.16% below
+              - 'button "CSX Near breakout Above 200 SMA 65 rank #4 0.88x 7.5M avg vol $46.87 1.57% below" [ref=e343] [cursor=pointer]':
+                - strong [ref=e344]: CSX
+                - generic [ref=e345]:
+                  - text: Near breakout
+                  - generic [ref=e346]: Above 200 SMA
+                - generic [ref=e347]:
+                  - text: "65"
+                  - generic [ref=e348]: "rank #4"
+                - generic [ref=e349]:
+                  - text: 0.88x
+                  - generic [ref=e350]: 7.5M avg vol
+                - generic [ref=e351]:
+                  - text: $46.87
+                  - generic [ref=e352]: 1.57% below
+              - 'button "CTAS Near breakout Below 200 SMA 64 rank #5 1.94x 879.4k avg vol $176.55 1.87% below" [ref=e353] [cursor=pointer]':
+                - strong [ref=e354]: CTAS
+                - generic [ref=e355]:
+                  - text: Near breakout
+                  - generic [ref=e356]: Below 200 SMA
+                - generic [ref=e357]:
+                  - text: "64"
+                  - generic [ref=e358]: "rank #5"
+                - generic [ref=e359]:
+                  - text: 1.94x
+                  - generic [ref=e360]: 879.4k avg vol
+                - generic [ref=e361]:
+                  - text: $176.55
+                  - generic [ref=e362]: 1.87% below
+              - 'button "HON Near breakout Above 200 SMA 60 rank #6 0.99x 1.6M avg vol $236.64 0.6% below" [ref=e363] [cursor=pointer]':
+                - strong [ref=e364]: HON
+                - generic [ref=e365]:
+                  - text: Near breakout
+                  - generic [ref=e366]: Above 200 SMA
+                - generic [ref=e367]:
+                  - text: "60"
+                  - generic [ref=e368]: "rank #6"
+                - generic [ref=e369]:
+                  - text: 0.99x
+                  - generic [ref=e370]: 1.6M avg vol
+                - generic [ref=e371]:
+                  - text: $236.64
+                  - generic [ref=e372]: 0.6% below
+              - 'button "MDLZ Near breakout Above 200 SMA 60 rank #7 0.86x 4.2M avg vol $62.38 2.15% below" [ref=e373] [cursor=pointer]':
+                - strong [ref=e374]: MDLZ
+                - generic [ref=e375]:
+                  - text: Near breakout
+                  - generic [ref=e376]: Above 200 SMA
+                - generic [ref=e377]:
+                  - text: "60"
+                  - generic [ref=e378]: "rank #7"
+                - generic [ref=e379]:
+                  - text: 0.86x
+                  - generic [ref=e380]: 4.2M avg vol
+                - generic [ref=e381]:
+                  - text: $62.38
+                  - generic [ref=e382]: 2.15% below
+              - 'button "MRVL Momentum Above 200 SMA 60 rank #8 3.17x 17.6M avg vol $225.14 29.16% clear" [ref=e383] [cursor=pointer]':
+                - strong [ref=e384]: MRVL
+                - generic [ref=e385]:
+                  - text: Momentum
+                  - generic [ref=e386]: Above 200 SMA
+                - generic [ref=e387]:
+                  - text: "60"
+                  - generic [ref=e388]: "rank #8"
+                - generic [ref=e389]:
+                  - text: 3.17x
+                  - generic [ref=e390]: 17.6M avg vol
+                - generic [ref=e391]:
+                  - text: $225.14
+                  - generic [ref=e392]: 29.16% clear
+              - 'button "CDNS Momentum Above 200 SMA 52 rank #9 1.50x 1.3M avg vol $414.92 0.35% clear" [ref=e393] [cursor=pointer]':
+                - strong [ref=e394]: CDNS
+                - generic [ref=e395]:
+                  - text: Momentum
+                  - generic [ref=e396]: Above 200 SMA
+                - generic [ref=e397]:
+                  - text: "52"
+                  - generic [ref=e398]: "rank #9"
+                - generic [ref=e399]:
+                  - text: 1.50x
+                  - generic [ref=e400]: 1.3M avg vol
+                - generic [ref=e401]:
+                  - text: $414.92
+                  - generic [ref=e402]: 0.35% clear
+              - 'button "DLTR Near breakout Below 200 SMA 38 rank #10 0.82x 1.9M avg vol $110.86 1.34% below" [ref=e403] [cursor=pointer]':
+                - strong [ref=e404]: DLTR
+                - generic [ref=e405]:
+                  - text: Near breakout
+                  - generic [ref=e406]: Below 200 SMA
+                - generic [ref=e407]:
+                  - text: "38"
+                  - generic [ref=e408]: "rank #10"
+                - generic [ref=e409]:
+                  - text: 0.82x
+                  - generic [ref=e410]: 1.9M avg vol
+                - generic [ref=e411]:
+                  - text: $110.86
+                  - generic [ref=e412]: 1.34% below
+          - generic [ref=e413]:
+            - generic [ref=e414]:
+              - generic [ref=e415]:
+                - generic [ref=e416]: Near breakout
+                - heading "EA Watch — 0.9% to resistance" [level=2] [ref=e417]
+                - paragraph [ref=e418]: Watch — 0.9% to resistance. RSI 55. Trend up.
+              - generic [ref=e419]:
+                - generic [ref=e420]: Score
+                - strong [ref=e421]: "80"
+            - generic [ref=e422]:
+              - generic [ref=e423]:
+                - generic [ref=e424]: Price
+                - strong [ref=e425]: $202.01
+              - generic [ref=e426]:
+                - generic [ref=e427]: Resistance
+                - strong [ref=e428]: $203.79
+              - generic [ref=e429]:
+                - generic [ref=e430]: Rel volume
+                - strong [ref=e431]: 1.10x
+              - generic [ref=e432]:
+                - generic [ref=e433]: Touches
+                - strong [ref=e434]: "9"
+            - generic [ref=e435]:
+              - generic [ref=e436]:
+                - generic [ref=e437]: ● Close
+                - generic [ref=e438]: — SMA 20
+                - generic [ref=e439]: — SMA 50
+                - generic [ref=e440]: — SMA 200
+                - generic [ref=e441]: – – Resistance
+              - img [ref=e444]:
+                - generic [ref=e448]:
+                  - generic [ref=e450]: $55
+                  - generic [ref=e452]: $110
+                  - generic [ref=e454]: $165
+                  - generic [ref=e456]: $220
+                - generic [ref=e468]: R $203.79
+              - img [ref=e471]:
+                - generic [ref=e475]:
+                  - generic [ref=e477]: Dec 26
+                  - generic [ref=e479]: Mar 18
+                  - generic [ref=e481]: Jun 2
+                - generic [ref=e483]:
+                  - generic [ref=e485]: "0"
+                  - generic [ref=e487]: 7.5M
+        - generic [ref=e750]:
+          - generic [ref=e751]:
+            - heading "Data notes" [level=2] [ref=e752]
+            - img [ref=e753]
+          - paragraph [ref=e756]: "1 symbol(s) unavailable (not cached, IBKR fetch failed): AZN"
+  - button "Open Next.js Dev Tools" [ref=e209] [cursor=pointer]:
+    - img [ref=e210]
+  - alert [ref=e757]
+  - generic [ref=e758]: "0"

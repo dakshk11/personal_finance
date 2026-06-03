@@ -1,0 +1,250 @@
+- generic [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - link "F FinanceOS" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: F
+          - generic [ref=e7]: FinanceOS
+        - heading "FinanceOS Studio" [level=1] [ref=e8]
+      - generic [ref=e9]:
+        - generic [ref=e10]: OpenAI key saved
+        - link "Portfolio" [ref=e11] [cursor=pointer]:
+          - /url: /portfolio
+        - link "Calculators" [ref=e12] [cursor=pointer]:
+          - /url: /investing
+        - link "Plan" [ref=e13] [cursor=pointer]:
+          - /url: /retirement-analyzer
+        - link "Portfolio dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /dashboard
+    - region "Important legal disclaimer" [ref=e16]:
+      - generic [ref=e17]:
+        - img [ref=e18]
+        - generic [ref=e20]:
+          - generic [ref=e21]: Important legal disclaimer
+          - strong [ref=e22]: Do not treat this website as advice.
+        - button "Show details" [ref=e23] [cursor=pointer]:
+          - text: Show details
+          - img [ref=e24]
+    - tablist "FinanceOS Studio tabs" [ref=e26]:
+      - tab "AI Planner" [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+        - text: AI Planner
+      - tab "Personal CFO" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+        - text: Personal CFO
+      - tab "Wheel Strategy" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+        - text: Wheel Strategy
+      - tab "Portfolio Sync" [ref=e39] [cursor=pointer]:
+        - img [ref=e40]
+        - text: Portfolio Sync
+      - tab "RSI Playbook" [ref=e44] [cursor=pointer]:
+        - img [ref=e45]
+        - text: RSI Playbook
+      - tab "Breakout Scanner" [active] [selected] [ref=e48] [cursor=pointer]:
+        - img [ref=e49]
+        - text: Breakout Scanner
+      - tab "Smart Candles" [ref=e53] [cursor=pointer]:
+        - img [ref=e54]
+        - text: Smart Candles
+      - tab "Composite Signal Algorithm" [ref=e58] [cursor=pointer]:
+        - img [ref=e59]
+        - text: Composite Signal Algorithm
+      - tab "OptiTrade Lab" [ref=e61] [cursor=pointer]:
+        - img [ref=e62]
+        - text: OptiTrade Lab
+      - tab "Equity Research" [ref=e66] [cursor=pointer]:
+        - img [ref=e67]
+        - text: Equity Research
+      - tab "Earnings Agent" [ref=e70] [cursor=pointer]:
+        - img [ref=e71]
+        - text: Earnings Agent
+      - tab "Wheel Scanner" [ref=e74] [cursor=pointer]:
+        - img [ref=e75]
+        - text: Wheel Scanner
+      - tab "Sector Rotation" [ref=e78] [cursor=pointer]:
+        - img [ref=e79]
+        - text: Sector Rotation
+    - generic [ref=e82]:
+      - complementary [ref=e83]:
+        - button "Collapse sidebar" [ref=e84] [cursor=pointer]:
+          - img [ref=e85]
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - heading "OpenAI key" [level=2] [ref=e89]
+            - img [ref=e90]
+          - generic [ref=e93]:
+            - generic [ref=e94]:
+              - generic [ref=e95]: API key
+              - textbox "API key" [ref=e96]:
+                - /placeholder: sk-...
+            - button "Update key" [ref=e213] [cursor=pointer]:
+              - img [ref=e98]
+              - text: Update key
+            - button "Remove key" [ref=e214] [cursor=pointer]:
+              - img [ref=e215]
+              - text: Remove key
+          - paragraph [ref=e102]: Saved key sha256:79d47efffbaea73b
+          - paragraph [ref=e218]: Saved Jun 2, 2026, 6:24 PM
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - heading "Reports" [level=2] [ref=e105]
+            - img [ref=e106]
+          - button "Full Retirement Blueprint ollama:llava · May 31, 2026, 6:06 AM" [ref=e219] [cursor=pointer]:
+            - strong [ref=e220]: Full Retirement Blueprint
+            - generic [ref=e221]: ollama:llava · May 31, 2026, 6:06 AM
+      - generic [ref=e111]:
+        - generic [ref=e222]:
+          - generic [ref=e223]:
+            - paragraph [ref=e224]: Breakout Scanner
+            - heading "S&P 500 breakout research across ceiling, momentum, and near-breakout setups." [level=2] [ref=e225]
+            - generic [ref=e226]:
+              - generic [ref=e227]:
+                - img [ref=e228]
+                - text: S&P 500 only
+              - generic [ref=e232]:
+                - img [ref=e233]
+                - text: Relative volume
+              - generic [ref=e235]:
+                - img [ref=e236]
+                - text: SMA 20 / 50 / 200
+            - generic [ref=e239]:
+              - button "IBKR Live · Nasdaq-100" [ref=e240] [cursor=pointer]
+              - button "Yahoo Finance · S&P 500" [ref=e241] [cursor=pointer]
+          - generic [ref=e242]:
+            - generic [ref=e243]: 0/0 setups
+            - button "Run scan" [ref=e244] [cursor=pointer]:
+              - img [ref=e245]
+              - text: Run scan
+            - button "Force refresh" [ref=e250] [cursor=pointer]:
+              - img [ref=e251]
+              - text: Force refresh
+        - generic [ref=e256]:
+          - generic [ref=e257]:
+            - heading "Watchlist Symbols" [level=2] [ref=e258]
+            - img [ref=e259]
+          - generic [ref=e263]:
+            - textbox "Add watchlist symbols" [ref=e264]:
+              - /placeholder: NVDA, SMCI, ARM
+            - button "Append" [ref=e265] [cursor=pointer]:
+              - img [ref=e266]
+              - text: Append
+        - generic [ref=e267]:
+          - img [ref=e268]
+          - paragraph [ref=e271]: Educational research only. Setups are not buy or sell instructions; manually verify earnings, news, liquidity, risk, and portfolio fit before making decisions.
+        - generic [ref=e272]:
+          - article [ref=e273]:
+            - heading "S&P 500 universe" [level=3] [ref=e274]
+            - strong [ref=e275]: "503"
+            - paragraph [ref=e276]: cached
+          - article [ref=e277]:
+            - heading "Scanned symbols" [level=3] [ref=e278]
+            - strong [ref=e279]: "120"
+            - paragraph [ref=e280]: S&P 500 universe + yfinance/Yahoo Finance v8 OHLCV cache
+          - article [ref=e281]:
+            - heading "Ceiling" [level=3] [ref=e282]
+            - strong [ref=e283]: "0"
+            - paragraph [ref=e284]: breakout setups
+          - article [ref=e285]:
+            - heading "Momentum" [level=3] [ref=e286]
+            - strong [ref=e287]: "0"
+            - paragraph [ref=e288]: breakout setups
+          - article [ref=e289]:
+            - heading "Watch" [level=3] [ref=e290]
+            - strong [ref=e291]: "0"
+            - paragraph [ref=e292]: near-breakout setups
+        - generic [ref=e293]:
+          - generic [ref=e294]:
+            - heading "Detectors" [level=2] [ref=e295]
+            - img [ref=e296]
+          - generic [ref=e300]:
+            - button "Ceiling Breakouts Multi-touch resistance cleared with volume confirmation." [ref=e301] [cursor=pointer]:
+              - strong [ref=e302]: Ceiling Breakouts
+              - generic [ref=e303]: Multi-touch resistance cleared with volume confirmation.
+            - button "Momentum Breakouts Recent highs, strong trend, and broad price follow-through." [ref=e304] [cursor=pointer]:
+              - strong [ref=e305]: Momentum Breakouts
+              - generic [ref=e306]: Recent highs, strong trend, and broad price follow-through.
+            - button "Near-Breakout Watch Stocks coiled just below a tested ceiling for review." [ref=e307] [cursor=pointer]:
+              - strong [ref=e308]: Near-Breakout Watch
+              - generic [ref=e309]: Stocks coiled just below a tested ceiling for review.
+        - generic [ref=e310]:
+          - generic [ref=e311]:
+            - heading "Scanner parameters" [level=2] [ref=e312]
+            - img [ref=e313]
+          - generic [ref=e316]:
+            - generic [ref=e317]:
+              - generic [ref=e318]: Lookback days
+              - spinbutton "Lookback days" [ref=e319]: "420"
+            - generic [ref=e320]:
+              - generic [ref=e321]: Max symbols
+              - spinbutton "Max symbols" [ref=e322]: "120"
+            - generic [ref=e323]:
+              - generic [ref=e324]: Min rel volume
+              - spinbutton "Min rel volume" [ref=e325]: "1.5"
+            - generic [ref=e326]:
+              - generic [ref=e327]: Ideal rel volume
+              - spinbutton "Ideal rel volume" [ref=e328]: "2"
+            - generic [ref=e329]:
+              - generic [ref=e330]: Min touches
+              - spinbutton "Min touches" [ref=e331]: "3"
+            - generic [ref=e332]:
+              - generic [ref=e333]: Ceiling tolerance
+              - spinbutton "Ceiling tolerance 2.5%" [ref=e334]: "0.025"
+              - generic [ref=e335]: 2.5%
+            - generic [ref=e336]:
+              - generic [ref=e337]: Breakout clearance
+              - spinbutton "Breakout clearance 1%" [ref=e338]: "0.01"
+              - generic [ref=e339]: 1%
+            - generic [ref=e340]:
+              - generic [ref=e341]: Near-breakout band
+              - spinbutton "Near-breakout band 3%" [ref=e342]: "0.03"
+              - generic [ref=e343]: 3%
+            - generic [ref=e344]:
+              - generic [ref=e345]: Min dollar volume
+              - spinbutton "Min dollar volume" [ref=e346]: "25000000"
+            - generic [ref=e347]:
+              - checkbox "Require price above SMA 200" [checked] [ref=e348]
+              - generic [ref=e349]: Require price above SMA 200
+        - generic [ref=e350]:
+          - generic [ref=e351]:
+            - generic [ref=e353]:
+              - heading "Ranked setups" [level=2] [ref=e354]
+              - paragraph [ref=e355]: 0 shown from 0 setups · Jun 2, 7:13 PM · S&P 500 universe + yfinance/Yahoo Finance v8 OHLCV cache
+            - generic [ref=e356]:
+              - generic [ref=e357]:
+                - generic [ref=e358]: Symbol
+                - generic [ref=e359]: Setup
+                - generic [ref=e360]: Score
+                - generic [ref=e361]: Rel vol
+                - generic [ref=e362]: Resistance
+              - generic [ref=e363]: No current setups match these parameters.
+          - generic [ref=e365]:
+            - img [ref=e366]
+            - heading "Select a setup" [level=2] [ref=e370]
+            - paragraph [ref=e371]: Price, volume, moving averages, and resistance context appear here.
+        - generic [ref=e372]:
+          - generic [ref=e374]:
+            - heading "Backtest Lab" [level=2] [ref=e375]
+            - paragraph [ref=e376]: Runs the selected detector against cached historical OHLCV and summarizes forward-return distributions.
+          - generic [ref=e377]:
+            - generic [ref=e378]:
+              - generic [ref=e379]: Detector
+              - combobox "Detector" [ref=e380]:
+                - option "Ceiling Breakouts" [selected]
+                - option "Momentum Breakouts"
+                - option "Near-Breakout Watch"
+            - generic [ref=e381]:
+              - generic [ref=e382]: Years
+              - spinbutton "Years" [ref=e383]: "5"
+            - button "Run backtest" [ref=e384] [cursor=pointer]:
+              - img [ref=e385]
+              - text: Run backtest
+        - generic [ref=e388]:
+          - generic [ref=e389]:
+            - heading "Data notes" [level=2] [ref=e390]
+            - img [ref=e391]
+          - paragraph [ref=e394]: Educational scanner only. Breakout setups are research prompts, not trade instructions.
+  - button "Open Next.js Dev Tools" [ref=e209] [cursor=pointer]:
+    - img [ref=e210]
+  - alert [ref=e395]

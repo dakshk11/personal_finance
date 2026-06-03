@@ -1,0 +1,181 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - link "F FinanceOS" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: F
+          - generic [ref=e7]: FinanceOS
+        - heading "FinanceOS Studio" [level=1] [ref=e8]
+      - generic [ref=e9]:
+        - generic [ref=e10]: Key required
+        - link "Portfolio" [ref=e11] [cursor=pointer]:
+          - /url: /portfolio
+        - link "Calculators" [ref=e12] [cursor=pointer]:
+          - /url: /investing
+        - link "Plan" [ref=e13] [cursor=pointer]:
+          - /url: /retirement-analyzer
+        - link "Portfolio dashboard" [ref=e14] [cursor=pointer]:
+          - /url: /dashboard
+    - region "Important legal disclaimer" [ref=e16]:
+      - generic [ref=e17]:
+        - img [ref=e18]
+        - generic [ref=e20]:
+          - generic [ref=e21]: Important legal disclaimer
+          - strong [ref=e22]: Do not treat this website as advice.
+        - button "Show details" [ref=e23] [cursor=pointer]:
+          - text: Show details
+          - img [ref=e24]
+    - tablist "FinanceOS Studio tabs" [ref=e26]:
+      - tab "AI Planner" [selected] [ref=e27] [cursor=pointer]:
+        - img [ref=e28]
+        - text: AI Planner
+      - tab "Personal CFO" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+        - text: Personal CFO
+      - tab "Wheel Strategy" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+        - text: Wheel Strategy
+      - tab "Portfolio Sync" [ref=e39] [cursor=pointer]:
+        - img [ref=e40]
+        - text: Portfolio Sync
+      - tab "RSI Playbook" [ref=e44] [cursor=pointer]:
+        - img [ref=e45]
+        - text: RSI Playbook
+      - tab "Breakout Scanner" [ref=e48] [cursor=pointer]:
+        - img [ref=e49]
+        - text: Breakout Scanner
+      - tab "Smart Candles" [ref=e53] [cursor=pointer]:
+        - img [ref=e54]
+        - text: Smart Candles
+      - tab "Composite Signal Algorithm" [ref=e58] [cursor=pointer]:
+        - img [ref=e59]
+        - text: Composite Signal Algorithm
+      - tab "OptiTrade Lab" [ref=e61] [cursor=pointer]:
+        - img [ref=e62]
+        - text: OptiTrade Lab
+      - tab "Equity Research" [ref=e66] [cursor=pointer]:
+        - img [ref=e67]
+        - text: Equity Research
+      - tab "Earnings Agent" [ref=e70] [cursor=pointer]:
+        - img [ref=e71]
+        - text: Earnings Agent
+      - tab "Wheel Scanner" [ref=e74] [cursor=pointer]:
+        - img [ref=e75]
+        - text: Wheel Scanner
+      - tab "Sector Rotation" [ref=e78] [cursor=pointer]:
+        - img [ref=e79]
+        - text: Sector Rotation
+    - generic [ref=e82]:
+      - complementary [ref=e83]:
+        - button "Collapse sidebar" [ref=e84] [cursor=pointer]:
+          - img [ref=e85]
+        - generic [ref=e87]:
+          - generic [ref=e88]:
+            - heading "OpenAI key" [level=2] [ref=e89]
+            - img [ref=e90]
+          - generic [ref=e93]:
+            - generic [ref=e94]:
+              - generic [ref=e95]: API key
+              - textbox "API key" [ref=e96]:
+                - /placeholder: sk-...
+            - button "Save key" [ref=e97] [cursor=pointer]:
+              - img [ref=e98]
+              - text: Save key
+          - paragraph [ref=e102]: Keys are encrypted in the database and never shown again after save.
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - heading "Reports" [level=2] [ref=e105]
+            - img [ref=e106]
+          - paragraph [ref=e110]: No AI retirement reports generated yet.
+      - generic [ref=e111]:
+        - generic [ref=e112]:
+          - generic [ref=e113]:
+            - paragraph [ref=e114]: AI Planner
+            - heading "Generate a saved AI retirement report from complete client inputs." [level=2] [ref=e115]
+            - paragraph [ref=e116]: Choose one planning module, complete every required field, select a model, and generate a database-saved report using your saved OpenAI key.
+          - generic [ref=e117]:
+            - img [ref=e118]
+            - text: Saved history
+        - generic [ref=e121]:
+          - generic [ref=e122]:
+            - heading "Planning module" [level=2] [ref=e123]
+            - img [ref=e124]
+          - generic [ref=e126]:
+            - button "Full Retirement Blueprint Savings rate, account priority, Social Security timing, inflation, and decade-by-decade portfolio path." [ref=e127] [cursor=pointer]:
+              - strong [ref=e128]: Full Retirement Blueprint
+              - generic [ref=e129]: Savings rate, account priority, Social Security timing, inflation, and decade-by-decade portfolio path.
+            - button "Tax Optimization Traditional versus Roth, conversion ladder, backdoor Roth, withdrawal sequencing, and missing tax-advantaged strategies." [ref=e130] [cursor=pointer]:
+              - strong [ref=e131]: Tax Optimization
+              - generic [ref=e132]: Traditional versus Roth, conversion ladder, backdoor Roth, withdrawal sequencing, and missing tax-advantaged strategies.
+            - button "Portfolio Strategy Allocation critique, target allocation, five-year glide path, ETFs, expense ratios, and rebalance process." [ref=e133] [cursor=pointer]:
+              - strong [ref=e134]: Portfolio Strategy
+              - generic [ref=e135]: Allocation critique, target allocation, five-year glide path, ETFs, expense ratios, and rebalance process.
+            - button "Retirement Risk Stress Test Sequence risk, withdrawal rate, good/average/bad markets, inflation, guardrails, buffers, and income floors." [ref=e136] [cursor=pointer]:
+              - strong [ref=e137]: Retirement Risk Stress Test
+              - generic [ref=e138]: Sequence risk, withdrawal rate, good/average/bad markets, inflation, guardrails, buffers, and income floors.
+            - button "Social Security Optimization Claiming break-evens, married-couple claiming strategies, spousal benefit review, and portfolio-withdrawal fit." [ref=e139] [cursor=pointer]:
+              - strong [ref=e140]: Social Security Optimization
+              - generic [ref=e141]: Claiming break-evens, married-couple claiming strategies, spousal benefit review, and portfolio-withdrawal fit.
+        - generic [ref=e142]:
+          - generic [ref=e143]:
+            - generic [ref=e144]:
+              - heading "Full Retirement Blueprint" [level=2] [ref=e145]
+              - paragraph [ref=e146]: 11 required inputs remaining
+            - radiogroup "AI model" [ref=e147]:
+              - button "Quality gpt-5.5" [ref=e148] [cursor=pointer]:
+                - strong [ref=e149]: Quality
+                - generic [ref=e150]: gpt-5.5
+              - button "Balanced gpt-5.4" [ref=e151] [cursor=pointer]:
+                - strong [ref=e152]: Balanced
+                - generic [ref=e153]: gpt-5.4
+              - button "Cost gpt-5.4-mini" [ref=e154] [cursor=pointer]:
+                - strong [ref=e155]: Cost
+                - generic [ref=e156]: gpt-5.4-mini
+              - button "Ollama Local model" [ref=e157] [cursor=pointer]:
+                - strong [ref=e158]: Ollama
+                - generic [ref=e159]: Local model
+          - generic [ref=e160]:
+            - generic [ref=e161]:
+              - generic [ref=e162]: Current age
+              - textbox "Current age" [ref=e163]
+            - generic [ref=e164]:
+              - generic [ref=e165]: Annual income
+              - textbox "Annual income" [ref=e166]
+            - generic [ref=e167]:
+              - generic [ref=e168]: Current savings
+              - textbox "Current savings" [ref=e169]
+            - generic [ref=e170]:
+              - generic [ref=e171]: Retirement age
+              - textbox "Retirement age" [ref=e172]
+            - generic [ref=e173]:
+              - generic [ref=e174]: Target monthly retirement income
+              - textbox "Target monthly retirement income" [ref=e175]
+            - generic [ref=e176]:
+              - generic [ref=e177]: Current accounts
+              - textbox "Current accounts" [ref=e178]
+            - generic [ref=e179]:
+              - generic [ref=e180]: Account balances
+              - textbox "Account balances" [ref=e181]
+            - generic [ref=e182]:
+              - generic [ref=e183]: Employer 401k match percent
+              - textbox "Employer 401k match percent" [ref=e184]
+            - generic [ref=e185]:
+              - generic [ref=e186]: Employer match limit
+              - textbox "Employer match limit" [ref=e187]
+            - generic [ref=e188]:
+              - generic [ref=e189]: Number of dependents
+              - textbox "Number of dependents" [ref=e190]
+            - generic [ref=e191]:
+              - generic [ref=e192]: Monthly expenses
+              - textbox "Monthly expenses" [ref=e193]
+          - generic [ref=e194]: Save an OpenAI API key before generating a report.
+          - button "Generate retirement report" [disabled] [ref=e195]:
+            - img [ref=e196]
+            - text: Generate retirement report
+        - generic [ref=e198]:
+          - img [ref=e199]
+          - heading "No AI retirement report selected" [level=2] [ref=e202]
+          - paragraph [ref=e203]: Generated reports appear here and remain available in the report history.
+  - button "Open Next.js Dev Tools" [ref=e209] [cursor=pointer]:
+    - img [ref=e210]
