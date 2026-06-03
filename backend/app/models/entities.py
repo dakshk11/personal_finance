@@ -37,6 +37,7 @@ class User(Base):
     portfolio_sync_provider_credential: Mapped["PortfolioSyncProviderCredential | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     portfolio_sync_credential: Mapped["PortfolioSyncCredential | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     portfolio_sync_snapshot: Mapped["PortfolioSyncSnapshot | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
+    sector_rotation_accepted_allocations: Mapped[list["SectorRotationAcceptedAllocation"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class RetirementAnalyzerState(Base):
@@ -821,6 +822,53 @@ class Trade(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     portfolio: Mapped["Portfolio"] = relationship(back_populates="trades")
+
+
+class SectorRotationAcceptedAllocation(Base):
+    __tablename__ = "sector_rotation_accepted_allocations"
+    __table_args__ = (Index("ix_sector_rotation_allocation_user_created", "user_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    account_type: Mapped[str] = mapped_column(String(32), default="taxable", index=True)
+    time_frame: Mapped[str] = mapped_column(String(32), default="annual", index=True)
+    weighting_method: Mapped[str] = mapped_column(String(32), default="equal", index=True)
+    cash_amount: Mapped[float] = mapped_column(Float, default=0)
+    as_of_year: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    rebalance_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    rebalance_status: Mapped[str] = mapped_column(String(32), default="planned", index=True)
+    rebalance_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="sector_rotation_accepted_allocations")
+    trades: Mapped[list["SectorRotationAcceptedTrade"]] = relationship(
+        back_populates="allocation",
+        cascade="all, delete-orphan",
+        order_by="SectorRotationAcceptedTrade.id",
+    )
+
+
+class SectorRotationAcceptedTrade(Base):
+    __tablename__ = "sector_rotation_accepted_trades"
+    __table_args__ = (Index("ix_sector_rotation_trade_allocation_symbol", "allocation_id", "ticker"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    allocation_id: Mapped[int] = mapped_column(ForeignKey("sector_rotation_accepted_allocations.id", ondelete="CASCADE"), index=True)
+    ticker: Mapped[str] = mapped_column(String(16), index=True)
+    sector_name: Mapped[str] = mapped_column(String(120), default="")
+    target_weight: Mapped[float] = mapped_column(Float, default=0)
+    target_amount: Mapped[float] = mapped_column(Float, default=0)
+    shares: Mapped[float] = mapped_column(Float, default=0)
+    cost_basis_per_share: Mapped[float] = mapped_column(Float, default=0)
+    current_price: Mapped[float] = mapped_column(Float, default=0)
+    purchase_date: Mapped[date] = mapped_column(Date, index=True)
+    market_value: Mapped[float] = mapped_column(Float, default=0)
+    cost_basis: Mapped[float] = mapped_column(Float, default=0)
+    gain_loss: Mapped[float] = mapped_column(Float, default=0)
+
+    allocation: Mapped["SectorRotationAcceptedAllocation"] = relationship(back_populates="trades")
 
 
 class BacktestRun(Base):

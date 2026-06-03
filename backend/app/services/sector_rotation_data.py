@@ -22,6 +22,25 @@ SECTOR_NAMES: dict[str, str] = {
     "SPY":  "S&P 500",
 }
 
+# Approximate S&P 500 sector weights by calendar year, mapped to Select Sector SPDR ETFs.
+# Values are used only to normalize selected sectors in "market_weight" mode.
+# 2026 weights use SIFMA April 2026 sector-weight data; historical values are
+# static approximations aligned to the backtest's annual data grain.
+SPY_SECTOR_WEIGHTS_BY_YEAR: dict[int, dict[str, float]] = {
+    2015: {"XLK": 0.200, "XLF": 0.160, "XLE": 0.075, "XLV": 0.150, "XLI": 0.100, "XLY": 0.125, "XLP": 0.095, "XLB": 0.030, "XLRE": 0.030, "XLU": 0.035, "XLC": 0.000},
+    2016: {"XLK": 0.210, "XLF": 0.145, "XLE": 0.070, "XLV": 0.145, "XLI": 0.100, "XLY": 0.120, "XLP": 0.095, "XLB": 0.030, "XLRE": 0.030, "XLU": 0.035, "XLC": 0.000},
+    2017: {"XLK": 0.235, "XLF": 0.145, "XLE": 0.060, "XLV": 0.135, "XLI": 0.100, "XLY": 0.120, "XLP": 0.085, "XLB": 0.030, "XLRE": 0.030, "XLU": 0.030, "XLC": 0.000},
+    2018: {"XLK": 0.205, "XLF": 0.135, "XLE": 0.060, "XLV": 0.150, "XLI": 0.095, "XLY": 0.105, "XLP": 0.075, "XLB": 0.030, "XLRE": 0.030, "XLU": 0.030, "XLC": 0.085},
+    2019: {"XLK": 0.230, "XLF": 0.130, "XLE": 0.045, "XLV": 0.140, "XLI": 0.095, "XLY": 0.100, "XLP": 0.075, "XLB": 0.028, "XLRE": 0.030, "XLU": 0.030, "XLC": 0.097},
+    2020: {"XLK": 0.275, "XLF": 0.105, "XLE": 0.025, "XLV": 0.135, "XLI": 0.080, "XLY": 0.115, "XLP": 0.065, "XLB": 0.025, "XLRE": 0.025, "XLU": 0.028, "XLC": 0.122},
+    2021: {"XLK": 0.290, "XLF": 0.110, "XLE": 0.030, "XLV": 0.130, "XLI": 0.080, "XLY": 0.115, "XLP": 0.060, "XLB": 0.025, "XLRE": 0.028, "XLU": 0.025, "XLC": 0.127},
+    2022: {"XLK": 0.250, "XLF": 0.115, "XLE": 0.052, "XLV": 0.145, "XLI": 0.085, "XLY": 0.100, "XLP": 0.070, "XLB": 0.028, "XLRE": 0.028, "XLU": 0.030, "XLC": 0.097},
+    2023: {"XLK": 0.285, "XLF": 0.125, "XLE": 0.045, "XLV": 0.125, "XLI": 0.085, "XLY": 0.105, "XLP": 0.060, "XLB": 0.025, "XLRE": 0.025, "XLU": 0.025, "XLC": 0.095},
+    2024: {"XLK": 0.310, "XLF": 0.130, "XLE": 0.037, "XLV": 0.110, "XLI": 0.085, "XLY": 0.100, "XLP": 0.058, "XLB": 0.023, "XLRE": 0.023, "XLU": 0.025, "XLC": 0.099},
+    2025: {"XLK": 0.330, "XLF": 0.135, "XLE": 0.032, "XLV": 0.095, "XLI": 0.088, "XLY": 0.102, "XLP": 0.052, "XLB": 0.021, "XLRE": 0.020, "XLU": 0.024, "XLC": 0.091},
+    2026: {"XLK": 0.350, "XLF": 0.120, "XLE": 0.035, "XLV": 0.085, "XLI": 0.088, "XLY": 0.100, "XLP": 0.049, "XLB": 0.019, "XLRE": 0.019, "XLU": 0.023, "XLC": 0.110},
+}
+
 # Annual total returns (dividends reinvested), indexed 0=2015..10=2025
 # None = ETF did not exist (XLC pre-Sept-2018)
 ANNUAL_RETURNS: dict[str, list[float | None]] = {

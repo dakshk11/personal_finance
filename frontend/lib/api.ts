@@ -3,7 +3,7 @@ export function apiUrl() {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   if (typeof window !== "undefined") {
-    return `${window.location.protocol}//${window.location.hostname}:8000`;
+    return "/api";
   }
   return "http://127.0.0.1:8000";
 }
@@ -513,6 +513,7 @@ export type BreakoutDetectorType = "ceiling_breakout" | "momentum_breakout" | "n
 
 export type BreakoutScannerConfig = {
   detectors: BreakoutDetectorType[];
+  custom_symbols: string[];
   lookback_days: number;
   min_relative_volume: number;
   ideal_relative_volume: number;
@@ -545,6 +546,9 @@ export type BreakoutUniverse = {
 
 export type BreakoutChartPoint = {
   date: string;
+  open?: number | null;
+  high?: number | null;
+  low?: number | null;
   close: number;
   volume: number;
   sma20?: number | null;
@@ -612,6 +616,104 @@ export type BreakoutBacktest = {
   signal_count: number;
   config: BreakoutScannerConfig;
   horizons: BreakoutBacktestHorizon[];
+  warnings: string[];
+};
+
+export type SmartCandleColor = "blue" | "pink" | "red" | "neutral";
+
+export type SmartCandleScanRequest = {
+  custom_symbols: string[];
+  lookback_days: number;
+  min_relative_volume: number;
+  min_avg_dollar_volume: number;
+  max_symbols: number;
+  include_neutral: boolean;
+  trend_filter: "all" | "above_sma200" | "below_sma200";
+};
+
+export type SmartCandleComponent = {
+  label: string;
+  passed: boolean;
+  value: string;
+};
+
+export type SmartCandleChartPoint = {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  sma20?: number | null;
+  sma50?: number | null;
+  sma200?: number | null;
+  candle_color?: SmartCandleColor | null;
+};
+
+export type SmartCandleSignal = {
+  symbol: string;
+  company_name: string;
+  sector: string;
+  candle_color: SmartCandleColor;
+  signal_label: string;
+  score: number;
+  rank: number;
+  price: number;
+  as_of_date?: string | null;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  body_pct?: number | null;
+  body_to_range?: number | null;
+  close_location?: number | null;
+  upper_wick_pct?: number | null;
+  lower_wick_pct?: number | null;
+  relative_volume?: number | null;
+  avg_volume_50d?: number | null;
+  avg_dollar_volume?: number | null;
+  rsi14?: number | null;
+  return_5d?: number | null;
+  return_20d?: number | null;
+  sma20?: number | null;
+  sma50?: number | null;
+  sma200?: number | null;
+  trend_label: string;
+  summary: string;
+  components: SmartCandleComponent[];
+  data_source: string;
+  warnings: string[];
+  chart: SmartCandleChartPoint[];
+};
+
+export type SmartCandleScan = {
+  scanned_at: string;
+  market_date: string;
+  data_source: string;
+  universe_count: number;
+  scanned_symbols: number;
+  config: SmartCandleScanRequest;
+  signals: SmartCandleSignal[];
+  warnings: string[];
+};
+
+export type SmartCandleBacktestHorizon = {
+  candle_color: SmartCandleColor;
+  horizon_days: number;
+  signal_count: number;
+  win_rate?: number | null;
+  average_return?: number | null;
+  median_return?: number | null;
+  p10_return?: number | null;
+  p90_return?: number | null;
+};
+
+export type SmartCandleBacktest = {
+  candle_color: SmartCandleColor;
+  evaluated_years: number;
+  signal_count: number;
+  config: SmartCandleScanRequest;
+  horizons: SmartCandleBacktestHorizon[];
   warnings: string[];
 };
 

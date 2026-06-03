@@ -73,6 +73,22 @@ def get_all_analytics() -> dict:
     return dict(_cache)
 
 
+def compute_from_bars(closes: list[float], volumes: list[float]) -> dict:
+    """Compute the same analytics shape for an on-demand custom symbol."""
+    sata_score, stage, sata_attrs = _compute_sata(closes, volumes, _spx_closes)
+    mansfield = _mansfield_rs(closes, _spx_closes) if _spx_closes else None
+    return {
+        "rsi":             _rsi(closes),
+        "bb_pct":          _bb_pct(closes),
+        "stage":           stage,
+        "sata_score":      sata_score,
+        "sata_attributes": sata_attrs,
+        "mansfield_rs":    mansfield,
+        "ma150":           _last_sma(closes, 150),
+        "ma200":           _last_sma(closes, 200),
+    }
+
+
 # ── Moving averages ───────────────────────────────────────────────────────────
 
 def _sma(values: list[float], period: int) -> list[float]:

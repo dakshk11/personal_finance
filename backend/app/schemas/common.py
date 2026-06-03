@@ -60,6 +60,59 @@ class AIAdvisorReportOut(AIAdvisorReportSummaryOut):
     error: dict[str, Any] | None = None
 
 
+class WheelScannerChatMessageIn(BaseModel):
+    role: Literal["user", "assistant"] | str
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class WheelScannerChatQuoteIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=16)
+    price: float | None = None
+    change_pct: float | None = None
+    stage: int | None = None
+    sata_score: float | None = None
+    mansfield_rs: float | None = None
+    rsi: float | None = None
+    bb_pct: float | None = None
+    iv_rank: float | None = None
+    csp_30d: float | None = None
+    cc_30d: float | None = None
+    volume: float | None = None
+    signals: list[str] = Field(default_factory=list)
+    source: str | None = None
+
+
+class WheelScannerChatOptionSummaryIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=16)
+    puts_count: int = Field(default=0, ge=0)
+    calls_count: int = Field(default=0, ge=0)
+    best_put: dict[str, Any] | None = None
+    best_call: dict[str, Any] | None = None
+
+
+class WheelScannerChatContextIn(BaseModel):
+    status: dict[str, Any] | None = None
+    active_tab: str = Field(default="watchlist", max_length=40)
+    filters: dict[str, Any] = Field(default_factory=dict)
+    custom_symbols: list[str] = Field(default_factory=list)
+    selected_quotes: list[WheelScannerChatQuoteIn] = Field(min_length=1, max_length=25)
+    selected_options_summary: WheelScannerChatOptionSummaryIn | None = None
+    recent_messages: list[WheelScannerChatMessageIn] = Field(default_factory=list, max_length=8)
+
+
+class WheelScannerChatRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=2000)
+    model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
+    ollama_base_url: str | None = Field(default=None, max_length=200)
+    context: WheelScannerChatContextIn
+
+
+class WheelScannerChatOut(BaseModel):
+    response_text: str
+    model: str
+    usage: dict[str, Any] = Field(default_factory=dict)
+
+
 class EarningsAgentRunRequest(BaseModel):
     query: str = Field(min_length=1, max_length=160)
     model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
@@ -239,6 +292,7 @@ BreakoutDetectorLiteral = Literal["ceiling_breakout", "momentum_breakout", "near
 
 class BreakoutScannerConfigIn(BaseModel):
     detectors: list[BreakoutDetectorLiteral] = Field(default_factory=lambda: ["ceiling_breakout", "momentum_breakout", "near_breakout"])
+    custom_symbols: list[str] = Field(default_factory=list)
     lookback_days: int = Field(default=420, ge=120, le=1600)
     min_relative_volume: float = Field(default=1.5, ge=0.1, le=10)
     ideal_relative_volume: float = Field(default=2.0, ge=0.1, le=20)
@@ -338,6 +392,110 @@ class BreakoutBacktestOut(BaseModel):
     signal_count: int
     config: dict[str, Any]
     horizons: list[BreakoutBacktestHorizonOut]
+    warnings: list[str] = Field(default_factory=list)
+
+
+SmartCandleColorLiteral = Literal["blue", "pink", "red", "neutral"]
+
+
+class SmartCandleScanRequest(BaseModel):
+    custom_symbols: list[str] = Field(default_factory=list)
+    lookback_days: int = Field(default=420, ge=120, le=1600)
+    min_relative_volume: float = Field(default=1.1, ge=0.1, le=10)
+    min_avg_dollar_volume: float = Field(default=25_000_000, ge=0, le=5_000_000_000)
+    max_symbols: int = Field(default=120, ge=1, le=505)
+    include_neutral: bool = False
+    trend_filter: Literal["all", "above_sma200", "below_sma200"] = "all"
+
+
+class SmartCandleComponentOut(BaseModel):
+    label: str
+    passed: bool
+    value: str
+
+
+class SmartCandleChartPointOut(BaseModel):
+    date: date
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    sma20: float | None = None
+    sma50: float | None = None
+    sma200: float | None = None
+    candle_color: SmartCandleColorLiteral | None = None
+
+
+class SmartCandleSignalOut(BaseModel):
+    symbol: str
+    company_name: str
+    sector: str
+    candle_color: SmartCandleColorLiteral
+    signal_label: str
+    score: float
+    rank: int
+    price: float
+    as_of_date: date | None = None
+    open: float
+    high: float
+    low: float
+    close: float
+    body_pct: float | None = None
+    body_to_range: float | None = None
+    close_location: float | None = None
+    upper_wick_pct: float | None = None
+    lower_wick_pct: float | None = None
+    relative_volume: float | None = None
+    avg_volume_50d: float | None = None
+    avg_dollar_volume: float | None = None
+    rsi14: float | None = None
+    return_5d: float | None = None
+    return_20d: float | None = None
+    sma20: float | None = None
+    sma50: float | None = None
+    sma200: float | None = None
+    trend_label: str
+    summary: str
+    components: list[SmartCandleComponentOut] = Field(default_factory=list)
+    data_source: str
+    warnings: list[str] = Field(default_factory=list)
+    chart: list[SmartCandleChartPointOut] = Field(default_factory=list)
+
+
+class SmartCandleScanOut(BaseModel):
+    scanned_at: datetime
+    market_date: date
+    data_source: str
+    universe_count: int
+    scanned_symbols: int
+    config: dict[str, Any]
+    signals: list[SmartCandleSignalOut]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class SmartCandleBacktestRequest(SmartCandleScanRequest):
+    candle_color: SmartCandleColorLiteral = "blue"
+    years: int = Field(default=5, ge=1, le=10)
+
+
+class SmartCandleBacktestHorizonOut(BaseModel):
+    candle_color: SmartCandleColorLiteral
+    horizon_days: int
+    signal_count: int
+    win_rate: float | None = None
+    average_return: float | None = None
+    median_return: float | None = None
+    p10_return: float | None = None
+    p90_return: float | None = None
+
+
+class SmartCandleBacktestOut(BaseModel):
+    candle_color: SmartCandleColorLiteral
+    evaluated_years: int
+    signal_count: int
+    config: dict[str, Any]
+    horizons: list[SmartCandleBacktestHorizonOut]
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -1385,11 +1543,13 @@ class DiversifyRecommendationsOut(BaseModel):
 
 class SectorRotationBacktestRequest(BaseModel):
     starting_capital: float = Field(default=100_000.0, gt=0)
+    weighting_method: Literal["equal", "market_weight"] = "equal"
 
 
 class SectorRotationLiveRequest(BaseModel):
     cash_amount: float = Field(gt=0)
     time_frame: str = Field(default="annual")
+    weighting_method: Literal["equal", "market_weight"] = "equal"
 
 
 class SectorAllocationOut(BaseModel):
@@ -1440,6 +1600,7 @@ class SectorRotationScenarioResultOut(BaseModel):
 
 class SectorRotationBacktestOut(BaseModel):
     starting_capital: float
+    weighting_method: str = "equal"
     tax_rates: dict[str, float]
     scenarios: list[SectorRotationScenarioResultOut]
     comparison: dict[str, Any]
@@ -1448,15 +1609,79 @@ class SectorRotationBacktestOut(BaseModel):
 class SectorRotationLiveOut(BaseModel):
     as_of_year: int
     time_frame: str
+    weighting_method: str = "equal"
     allocations: list[SectorAllocationOut]
     sp500_signals: dict[str, Any]
     rebalance_guidance: str
 
 
+class SectorRotationAcceptedTradeIn(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    sector_name: str = Field(default="", max_length=120)
+    target_weight: float = Field(default=0, ge=0)
+    target_amount: float = Field(default=0, ge=0)
+    shares: float = Field(gt=0)
+    cost_basis_per_share: float = Field(gt=0)
+    current_price: float = Field(gt=0)
+    purchase_date: date
+
+
+class SectorRotationAcceptedAllocationIn(BaseModel):
+    account_type: Literal["taxable", "tax_deferred"] = "taxable"
+    time_frame: str = Field(default="annual", max_length=32)
+    weighting_method: Literal["equal", "market_weight"] = "equal"
+    cash_amount: float = Field(default=0, ge=0)
+    as_of_year: int = Field(default=0, ge=0)
+    rebalance_date: date | None = None
+    rebalance_status: Literal["planned", "completed", "partial", "skipped"] = "planned"
+    rebalance_notes: str | None = Field(default=None, max_length=1000)
+    notes: str | None = Field(default=None, max_length=1000)
+    trades: list[SectorRotationAcceptedTradeIn] = Field(min_length=1)
+
+
+class SectorRotationAcceptedAllocationUpdate(BaseModel):
+    rebalance_date: date | None = None
+    rebalance_status: Literal["planned", "completed", "partial", "skipped"] = "planned"
+    rebalance_notes: str | None = Field(default=None, max_length=1000)
+
+
+class SectorRotationAcceptedTradeOut(BaseModel):
+    id: int
+    ticker: str
+    sector_name: str
+    target_weight: float
+    target_amount: float
+    shares: float
+    cost_basis_per_share: float
+    current_price: float
+    purchase_date: date
+    market_value: float
+    cost_basis: float
+    gain_loss: float
+
+
+class SectorRotationAcceptedAllocationOut(BaseModel):
+    id: int
+    account_type: str
+    time_frame: str
+    weighting_method: str
+    cash_amount: float
+    as_of_year: int
+    rebalance_date: date | None = None
+    rebalance_status: str = "planned"
+    rebalance_notes: str | None = None
+    notes: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    trades: list[SectorRotationAcceptedTradeOut]
+
+
 class SelectionHistoryRowOut(BaseModel):
     year: int
     selected_sectors: list[str]
+    sector_weights: dict[str, float] = Field(default_factory=dict)
     algo_return_pct: float
     spy_return_pct: float
     delta_pct: float
     key_signal: str
+    weighting_method: str = "equal"

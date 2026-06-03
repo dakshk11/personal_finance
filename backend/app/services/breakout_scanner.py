@@ -110,7 +110,7 @@ def run_breakout_scan(db: Session, user_id: int, payload: Any | None = None, *, 
                 return result
 
     universe = load_sp500_universe(db)
-    items = _universe_items_from_out(universe)[: config["max_symbols"]]
+    items = _append_custom_universe_items(_universe_items_from_out(universe)[: config["max_symbols"]], config["custom_symbols"])
     start_date = market_date - timedelta(days=max(260, int(config["lookback_days"]) + 80))
     histories, history_warnings = load_ohlcv_histories(
         db,
@@ -177,7 +177,7 @@ def run_breakout_backtest(db: Session, user_id: int, payload: Any | None = None)
     market_date = date.today()
     start_date = market_date - timedelta(days=(years * 365) + int(config["lookback_days"]) + 120)
     universe = load_sp500_universe(db)
-    items = _universe_items_from_out(universe)[: config["max_symbols"]]
+    items = _append_custom_universe_items(_universe_items_from_out(universe)[: config["max_symbols"]], config["custom_symbols"])
     histories, history_warnings = load_ohlcv_histories(db, [item.symbol for item in items], start_date, market_date, force_refresh=False)
 
     returns_by_horizon: dict[int, list[float]] = {horizon: [] for horizon in SCAN_HORIZONS}
@@ -233,6 +233,7 @@ def normalize_scan_config(payload: Any | None = None) -> dict[str, Any]:
     ideal_relative_volume = max(min_relative_volume, _clamp_float(_payload_value(payload, "ideal_relative_volume", 2.0), 0.1, 20))
     return {
         "detectors": detectors,
+        "custom_symbols": _custom_symbols(_payload_value(payload, "custom_symbols", [])),
         "lookback_days": _clamp_int(_payload_value(payload, "lookback_days", 420), 120, 1600),
         "min_relative_volume": min_relative_volume,
         "ideal_relative_volume": ideal_relative_volume,
@@ -244,6 +245,35 @@ def normalize_scan_config(payload: Any | None = None) -> dict[str, Any]:
         "require_above_sma200": bool(_payload_value(payload, "require_above_sma200", True)),
         "max_symbols": _clamp_int(_payload_value(payload, "max_symbols", 120), 1, 505),
     }
+
+
+def _custom_symbols(value: Any) -> list[str]:
+    raw_symbols = value if isinstance(value, list) else []
+    normalized: list[str] = []
+    for raw in raw_symbols:
+        symbol = normalize_symbol(str(raw))
+        if not symbol or len(symbol) > 12:
+            continue
+        if symbol not in normalized:
+            normalized.append(symbol)
+    return normalized[:25]
+
+
+def _append_custom_universe_items(items: list[BreakoutUniverseItem], custom_symbols: list[str]) -> list[BreakoutUniverseItem]:
+    existing = {item.symbol for item in items}
+    appended = list(items)
+    for symbol in custom_symbols:
+        if symbol in existing:
+            continue
+        appended.append(BreakoutUniverseItem(
+            symbol=symbol,
+            company_name=symbol,
+            sector="Custom watchlist",
+            source="User watchlist",
+            source_url="",
+        ))
+        existing.add(symbol)
+    return appended
 
 
 def load_ohlcv_histories(
@@ -538,6 +568,9 @@ def _chart_points(context: dict[str, Any]) -> list[dict[str, Any]]:
         rows.append(
             {
                 "date": bars[index].date,
+                "open": round(bars[index].open, 4),
+                "high": round(bars[index].high, 4),
+                "low": round(bars[index].low, 4),
                 "close": round(_close(bars[index]), 4),
                 "volume": round(max(0, bars[index].volume), 2),
                 "sma20": _round_or_none(context["sma20_series"][index]),

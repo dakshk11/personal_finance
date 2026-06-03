@@ -42,8 +42,9 @@ class PortfolioAnalysisTests(unittest.TestCase):
         self.assertEqual(result.hidden_holding_count, 1)
         self.assertEqual(result.analyzed_holding_count, 2)
         self.assertGreater(result.total_market_value, 0)
-        self.assertTrue(all(row.forward_pe is not None for row in result.holdings))
+        self.assertTrue(all(row.forward_pe is None for row in result.holdings))
         self.assertTrue(all("deterministic" in row.data_source for row in result.holdings))
+        self.assertTrue(all("unavailable" in row.data_source for row in result.holdings))
         self.assertEqual(db.scalar(select(func.count(PriceBar.id))), 3)
         self.assertEqual(db.scalar(select(func.count(SecurityMetricSnapshot.id))), 3)
 

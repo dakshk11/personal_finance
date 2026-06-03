@@ -22,6 +22,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Query
+from ib_insync import Stock
 
 import services.ibkr_service as ibkr_svc
 from data.tickers import ALL_TICKERS, SP500
@@ -80,10 +81,14 @@ async def _fetch_from_ibkr(sym: str) -> Optional[pd.DataFrame]:
         return None
     contracts = ibkr_svc.get_contracts()
     contract = contracts.get(sym)
-    if contract is None:
-        return None
     ib = ibkr_svc.get_ib()
     try:
+        if contract is None:
+            qualified = await ib.qualifyContractsAsync(Stock(sym, "SMART", "USD"))
+            if not qualified:
+                return None
+            contract = qualified[0]
+
         bars = await ib.reqHistoricalDataAsync(
             contract,
             endDateTime="",
@@ -135,6 +140,9 @@ def _build_chart(df: pd.DataFrame) -> list[dict]:
         date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
         points.append({
             "date":   date_str,
+            "open":   _safe_float(row["Open"]),
+            "high":   _safe_float(row["High"]),
+            "low":    _safe_float(row["Low"]),
             "close":  _safe_float(row["Close"]),
             "volume": int(row["Volume"]) if not math.isnan(float(row["Volume"])) else 0,
             "sma20":  _safe_float(sma20[i]),

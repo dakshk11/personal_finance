@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Activity,
   Bot,
   CandlestickChart,
   CheckCircle2,
@@ -25,12 +26,15 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { BreakoutScannerTool } from "@/components/BreakoutScannerTool";
+import { CompositeSignalTool } from "@/components/CompositeSignalTool";
 import { EarningsAgentTool } from "@/components/EarningsAgentTool";
 import { LegalDisclaimer } from "@/components/LegalDisclaimer";
 import { OptionStrategyTool } from "@/components/OptionStrategyTool";
+import { OptiTradeLabTool } from "@/components/OptiTradeLabTool";
 import { PersonalCFOTool } from "@/components/PersonalCFOTool";
 import { PortfolioSyncTool } from "@/components/PortfolioSyncTool";
 import { RSIPlaybookTool } from "@/components/RSIPlaybookTool";
+import { SmartCandleTool } from "@/components/SmartCandleTool";
 import { StockAnalysisTool } from "@/components/StockAnalysisTool";
 import { WheelScannerTool } from "@/components/WheelScannerTool";
 import { SectorRotationTool } from "@/components/SectorRotationTool";
@@ -44,7 +48,7 @@ import {
 } from "@/lib/api";
 
 type AIModel = "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "ollama";
-type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook" | "breakout-scanner" | "earnings-agent" | "equity-research" | "wheel-scanner" | "sector-rotation";
+type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook" | "breakout-scanner" | "smart-candles" | "composite-signal" | "optitrade-lab" | "earnings-agent" | "equity-research" | "wheel-scanner" | "sector-rotation";
 
 type RetirementField = {
   id: string;
@@ -348,6 +352,33 @@ export default function AIAdvisorPage() {
           <CandlestickChart size={16} /> Breakout Scanner
         </button>
         <button
+          className={activeTab === "smart-candles" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "smart-candles"}
+          onClick={() => setActiveTab("smart-candles")}
+        >
+          <CandlestickChart size={16} /> Smart Candles
+        </button>
+        <button
+          className={activeTab === "composite-signal" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "composite-signal"}
+          onClick={() => setActiveTab("composite-signal")}
+        >
+          <Activity size={16} /> Composite Signal Algorithm
+        </button>
+        <button
+          className={activeTab === "optitrade-lab" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "optitrade-lab"}
+          onClick={() => setActiveTab("optitrade-lab")}
+        >
+          <CandlestickChart size={16} /> OptiTrade Lab
+        </button>
+        <button
           className={activeTab === "equity-research" ? "active" : ""}
           type="button"
           role="tab"
@@ -568,10 +599,16 @@ export default function AIAdvisorPage() {
             <RSIPlaybookTool />
           ) : activeTab === "breakout-scanner" ? (
             <BreakoutScannerTool />
+          ) : activeTab === "smart-candles" ? (
+            <SmartCandleTool />
+          ) : activeTab === "composite-signal" ? (
+            <CompositeSignalTool />
+          ) : activeTab === "optitrade-lab" ? (
+            <OptiTradeLabTool />
           ) : activeTab === "equity-research" ? (
             <StockAnalysisTool keyStatus={keyStatus} />
           ) : activeTab === "wheel-scanner" ? (
-            <WheelScannerTool />
+            <WheelScannerTool keyStatus={keyStatus} />
           ) : activeTab === "sector-rotation" ? (
             <SectorRotationTool />
           ) : (

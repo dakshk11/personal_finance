@@ -98,6 +98,29 @@ class BreakoutScannerTests(unittest.TestCase):
         self.assertNotEqual(first["scan_run_id"], other["scan_run_id"])
         self.assertGreaterEqual(len(first["signals"]), 1)
 
+    def test_custom_symbols_append_to_scan_universe(self) -> None:
+        db, user = self._seed_user()
+        universe = _universe_out()
+        histories = {
+            "AAA": _ceiling_bars(date.today() - timedelta(days=360)),
+            "NVDA": _momentum_bars(date.today() - timedelta(days=360)),
+        }
+
+        with (
+            patch("app.services.breakout_scanner.load_sp500_universe", return_value=universe),
+            patch("app.services.breakout_scanner.load_ohlcv_histories", return_value=(histories, [])) as history_loader,
+        ):
+            result = breakout_scanner.run_breakout_scan(
+                db,
+                user.id,
+                {"max_symbols": 1, "custom_symbols": ["nvda", "AAA", "nvda"], "min_avg_dollar_volume": 0, "require_above_sma200": False, "min_relative_volume": 0.5},
+            )
+
+        self.assertEqual(history_loader.call_args.args[1], ["AAA", "NVDA"])
+        self.assertEqual(result["scanned_symbols"], 2)
+        self.assertEqual(result["config"]["custom_symbols"], ["NVDA", "AAA"])
+        self.assertIn("NVDA", {signal["symbol"] for signal in result["signals"]})
+
     def test_backtest_returns_distribution_rows(self) -> None:
         db, user = self._seed_user()
         universe = _universe_out()

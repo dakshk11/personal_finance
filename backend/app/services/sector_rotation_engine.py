@@ -19,6 +19,7 @@ from app.services.sector_rotation_data import (
     ALL_SECTOR_TICKERS,
     INITIAL_NO_REBALANCE_SECTORS,
     SECTOR_NAMES,
+    SPY_SECTOR_WEIGHTS_BY_YEAR,
     YEARS,
     get_annual_return,
     get_forward_eps,
@@ -75,6 +76,31 @@ class SelectedSector:
 DEFAULT_CONFIG = SelectionConfig()
 
 
+def _weighting_method(value: str | None) -> str:
+    return "market_weight" if value == "market_weight" else "equal"
+
+
+def _selected_weights(tickers: list[str], year: int, config: SelectionConfig) -> dict[str, float]:
+    if not tickers:
+        return {}
+
+    if _weighting_method(config.weighting_method) == "market_weight":
+        yearly = SPY_SECTOR_WEIGHTS_BY_YEAR.get(year) or SPY_SECTOR_WEIGHTS_BY_YEAR[max(SPY_SECTOR_WEIGHTS_BY_YEAR)]
+        raw = {ticker: max(0.0, yearly.get(ticker, 0.0)) for ticker in tickers}
+        total = sum(raw.values())
+        if total > 0:
+            return {ticker: raw[ticker] / total for ticker in tickers}
+
+    n = len(tickers)
+    return {ticker: 1.0 / n for ticker in tickers}
+
+
+def _weighted_sector_return(tickers: list[str], year: int, config: SelectionConfig) -> tuple[float, dict[str, float]]:
+    weights = _selected_weights(tickers, year, config)
+    weighted_return = sum(weights[ticker] * get_annual_return(ticker, year) for ticker in tickers)
+    return weighted_return, weights
+
+
 def select_sectors(year: int, config: SelectionConfig = DEFAULT_CONFIG) -> list[SelectedSector]:
     """Run the two-criteria sector selection for a given calendar year."""
     sp500_trailing = get_trailing_eps("SPY", year) or 0.0
@@ -119,23 +145,8 @@ def select_sectors(year: int, config: SelectionConfig = DEFAULT_CONFIG) -> list[
     if not selected:
         return []
 
-    n = len(selected)
-    weights = {t: 1.0 / n for t, *_ in selected}
-
-    # Apply 35% max weight cap with redistribution; skip if all sectors exceed cap
-    for _ in range(10):
-        over = {t: w for t, w in weights.items() if w > config.max_single_sector_weight}
-        if not over:
-            break
-        under = {t: w for t, w in weights.items() if w < config.max_single_sector_weight}
-        if not under:
-            break  # all sectors at or above cap — keep equal weights as-is
-        excess = sum(w - config.max_single_sector_weight for w in over.values())
-        for t in over:
-            weights[t] = config.max_single_sector_weight
-        total_under = sum(under.values())
-        for t in under:
-            weights[t] += excess * (weights[t] / total_under)
+    selected_tickers = [t for t, *_ in selected]
+    weights = _selected_weights(selected_tickers, year, config)
 
     result = []
     for ticker, trailing_beat, forward_beat, score in selected:
@@ -342,7 +353,7 @@ def run_spy_buy_hold(starting_capital: float, rates: CaliforniaTaxRates) -> Scen
 
 # ── Scenario 2: Algo Annual LTCG ─────────────────────────────────────────────
 
-def run_algo_annual_ltcg(starting_capital: float, rates: CaliforniaTaxRates) -> ScenarioResult:
+def run_algo_annual_ltcg(starting_capital: float, rates: CaliforniaTaxRates, weighting_method: str = "equal") -> ScenarioResult:
     """
     Uses Appendix B historical selection returns (authoritative).
     cumulative_value = gross compound (no taxes) for charting.
@@ -355,18 +366,21 @@ def run_algo_annual_ltcg(starting_capital: float, rates: CaliforniaTaxRates) -> 
     snapshots: list[PeriodSnapshot] = []
 
     history = {row["year"]: row for row in ALGO_SELECTION_HISTORY}
+    config = SelectionConfig(weighting_method=_weighting_method(weighting_method))
 
     for year in YEARS:
         row = history.get(year)
         if row:
             selected_tickers = row["sectors"]
-            algo_return = row["algo_return"]
+            if config.weighting_method == "market_weight":
+                algo_return, sector_weights = _weighted_sector_return(selected_tickers, year, config)
+            else:
+                algo_return = row["algo_return"]
+                sector_weights = _selected_weights(selected_tickers, year, config)
         else:
             selected_tickers = ["SPY"]
             algo_return = get_annual_return("SPY", year)
-
-        n = len(selected_tickers)
-        sector_weights = {t: 1.0 / n for t in selected_tickers}
+            sector_weights = {"SPY": 1.0}
 
         # Track raw (gross) value
         raw_value *= (1 + algo_return / 100)
@@ -384,7 +398,7 @@ def run_algo_annual_ltcg(starting_capital: float, rates: CaliforniaTaxRates) -> 
         snapshots.append(PeriodSnapshot(
             year=year,
             sectors_held=selected_tickers,
-            sector_weights=sector_weights,
+            sector_weights={t: round(w, 4) for t, w in sector_weights.items()},
             period_return_pct=round(algo_return, 2),
             cumulative_value=round(raw_value, 2),
             taxes_paid_period=round(tax, 2),
@@ -401,7 +415,7 @@ def run_algo_annual_ltcg(starting_capital: float, rates: CaliforniaTaxRates) -> 
 
 # ── Scenario 3: Algo Quarterly STCG ──────────────────────────────────────────
 
-def run_algo_quarterly_stcg(starting_capital: float, rates: CaliforniaTaxRates) -> ScenarioResult:
+def run_algo_quarterly_stcg(starting_capital: float, rates: CaliforniaTaxRates, weighting_method: str = "equal") -> ScenarioResult:
     """
     Uses Appendix B returns, applies STCG rate (54.1%) since quarterly rebalancing
     means positions are held < 12 months.
@@ -413,18 +427,21 @@ def run_algo_quarterly_stcg(starting_capital: float, rates: CaliforniaTaxRates) 
     snapshots: list[PeriodSnapshot] = []
 
     history = {row["year"]: row for row in ALGO_SELECTION_HISTORY}
+    config = SelectionConfig(weighting_method=_weighting_method(weighting_method))
 
     for year in YEARS:
         row = history.get(year)
         if row:
             selected_tickers = row["sectors"]
-            algo_return = row["algo_return"]
+            if config.weighting_method == "market_weight":
+                algo_return, sector_weights = _weighted_sector_return(selected_tickers, year, config)
+            else:
+                algo_return = row["algo_return"]
+                sector_weights = _selected_weights(selected_tickers, year, config)
         else:
             selected_tickers = ["SPY"]
             algo_return = get_annual_return("SPY", year)
-
-        n = len(selected_tickers)
-        sector_weights = {t: 1.0 / n for t in selected_tickers}
+            sector_weights = {"SPY": 1.0}
 
         net_start = net_value
         net_value *= (1 + algo_return / 100)
@@ -438,7 +455,7 @@ def run_algo_quarterly_stcg(starting_capital: float, rates: CaliforniaTaxRates) 
         snapshots.append(PeriodSnapshot(
             year=year,
             sectors_held=selected_tickers,
-            sector_weights=sector_weights,
+            sector_weights={t: round(w, 4) for t, w in sector_weights.items()},
             period_return_pct=round(algo_return, 2),
             cumulative_value=round(net_value, 2),
             taxes_paid_period=round(tax, 2),
@@ -455,11 +472,12 @@ def run_algo_quarterly_stcg(starting_capital: float, rates: CaliforniaTaxRates) 
 
 # ── Scenario 4: Algo No-Rebalance ────────────────────────────────────────────
 
-def run_algo_no_rebalance(starting_capital: float, rates: CaliforniaTaxRates) -> ScenarioResult:
+def run_algo_no_rebalance(starting_capital: float, rates: CaliforniaTaxRates, weighting_method: str = "equal") -> ScenarioResult:
     """Select sectors once (2015 initial = XLK, XLV, XLP, XLRE); drift; defer LTCG."""
     initial_sectors = INITIAL_NO_REBALANCE_SECTORS
-    n = len(initial_sectors)
-    positions: dict[str, float] = {t: starting_capital / n for t in initial_sectors}
+    config = SelectionConfig(weighting_method=_weighting_method(weighting_method))
+    initial_weights = _selected_weights(initial_sectors, YEARS[0], config)
+    positions: dict[str, float] = {t: starting_capital * initial_weights[t] for t in initial_sectors}
     cost_basis = starting_capital
     snapshots: list[PeriodSnapshot] = []
 
@@ -552,13 +570,14 @@ def run_ew_no_rebalance(starting_capital: float, rates: CaliforniaTaxRates) -> S
 
 # ── Main backtest runner ──────────────────────────────────────────────────────
 
-def run_backtest(starting_capital: float = 100_000.0) -> list[ScenarioResult]:
+def run_backtest(starting_capital: float = 100_000.0, weighting_method: str = "equal") -> list[ScenarioResult]:
     rates = CA_RATES
+    method = _weighting_method(weighting_method)
     return [
         run_spy_buy_hold(starting_capital, rates),
-        run_algo_annual_ltcg(starting_capital, rates),
-        run_algo_quarterly_stcg(starting_capital, rates),
-        run_algo_no_rebalance(starting_capital, rates),
+        run_algo_annual_ltcg(starting_capital, rates, method),
+        run_algo_quarterly_stcg(starting_capital, rates, method),
+        run_algo_no_rebalance(starting_capital, rates, method),
         run_ew_no_rebalance(starting_capital, rates),
     ]
 
@@ -576,7 +595,7 @@ class LiveAllocation:
     composite_score: float
 
 
-def get_live_allocation(cash_amount: float, time_frame: str = "annual") -> tuple[list[LiveAllocation], dict, str]:
+def get_live_allocation(cash_amount: float, time_frame: str = "annual", weighting_method: str = "equal") -> tuple[list[LiveAllocation], dict, str]:
     """
     Return current sector allocation recommendation.
     Per spec timing: the February rebalance uses Q4 of the PRIOR year's data.
@@ -584,16 +603,19 @@ def get_live_allocation(cash_amount: float, time_frame: str = "annual") -> tuple
     """
     signal_year = YEARS[-2]   # 2024 — the signal used to build the 2025 portfolio
     latest_year = YEARS[-1]   # 2025 — the portfolio year
-    config = SelectionConfig()
+    config = SelectionConfig(weighting_method=_weighting_method(weighting_method))
     selected = select_sectors(signal_year, config)
 
     sp500_trailing = get_trailing_eps("SPY", signal_year) or 0.0
     sp500_forward = get_forward_eps("SPY", signal_year) or 0.0
 
     allocations = []
-    total_weight = sum(s.weight for s in selected)
+    live_weight_year = max(SPY_SECTOR_WEIGHTS_BY_YEAR)
+    live_weights = _selected_weights([s.ticker for s in selected], live_weight_year, config)
+    total_weight = sum(live_weights.values())
     for s in selected:
-        norm_weight = s.weight / total_weight if total_weight > 0 else s.weight
+        source_weight = live_weights.get(s.ticker, s.weight)
+        norm_weight = source_weight / total_weight if total_weight > 0 else source_weight
         allocations.append(LiveAllocation(
             ticker=s.ticker,
             sector_name=s.sector_name,
@@ -610,6 +632,7 @@ def get_live_allocation(cash_amount: float, time_frame: str = "annual") -> tuple
         "signal_year": signal_year,
         "portfolio_year": latest_year,
         "as_of_year": latest_year,
+        "weighting_method": config.weighting_method,
     }
 
     tax_label = "37.1% LTCG" if time_frame in ("annual", "one_time") else "54.1% STCG"
@@ -620,12 +643,34 @@ def get_live_allocation(cash_amount: float, time_frame: str = "annual") -> tuple
     }
     rebalance_freq = rebalance_map.get(time_frame, "annually")
     tickers_str = ", ".join(a.ticker for a in allocations)
+    weight_label = "S&P 500 sector market weights" if config.weighting_method == "market_weight" else "equal weights"
     guidance = (
         f"Signal source: {signal_year} Q4 EPS data (FactSet Earnings Insight). "
         f"Algorithm selects {tickers_str} for {latest_year}. "
+        f"Weighting: {weight_label}, normalized across selected sectors. "
         f"Rebalance {rebalance_freq}. "
         f"California effective tax rate: {tax_label}. "
         f"Total allocation: ${cash_amount:,.2f} across {len(allocations)} sectors."
     )
 
     return allocations, sp500_signals, guidance
+
+
+def get_selection_history(weighting_method: str = "equal") -> list[dict]:
+    config = SelectionConfig(weighting_method=_weighting_method(weighting_method))
+    rows = []
+    for row in ALGO_SELECTION_HISTORY:
+        selected = row["sectors"]
+        if config.weighting_method == "market_weight":
+            algo_return, sector_weights = _weighted_sector_return(selected, row["year"], config)
+        else:
+            algo_return = row["algo_return"]
+            sector_weights = _selected_weights(selected, row["year"], config)
+        rows.append({
+            **row,
+            "algo_return": round(algo_return, 2),
+            "delta": round(algo_return - row["spy_return"], 2),
+            "sector_weights": {ticker: round(weight, 4) for ticker, weight in sector_weights.items()},
+            "weighting_method": config.weighting_method,
+        })
+    return rows

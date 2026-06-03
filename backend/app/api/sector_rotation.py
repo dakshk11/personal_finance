@@ -1,12 +1,17 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
-from app.models.entities import User
+from app.models.entities import SectorRotationAcceptedAllocation, SectorRotationAcceptedTrade, User
 from app.schemas.common import (
     SelectionHistoryRowOut,
     SectorAllocationOut,
+    SectorRotationAcceptedAllocationIn,
+    SectorRotationAcceptedAllocationOut,
+    SectorRotationAcceptedAllocationUpdate,
+    SectorRotationAcceptedTradeOut,
     SectorRotationBacktestOut,
     SectorRotationBacktestRequest,
     SectorRotationLiveOut,
@@ -15,10 +20,43 @@ from app.schemas.common import (
     SectorRotationScenarioMetricsOut,
     SectorRotationScenarioResultOut,
 )
-from app.services.sector_rotation_data import ALGO_SELECTION_HISTORY
-from app.services.sector_rotation_engine import CA_RATES, get_live_allocation, run_backtest
+from app.services.sector_rotation_engine import CA_RATES, get_live_allocation, get_selection_history, run_backtest
 
 router = APIRouter(prefix="/sector-rotation", tags=["sector-rotation"])
+
+
+def _accepted_allocation_out(row: SectorRotationAcceptedAllocation) -> SectorRotationAcceptedAllocationOut:
+    return SectorRotationAcceptedAllocationOut(
+        id=row.id,
+        account_type=row.account_type,
+        time_frame=row.time_frame,
+        weighting_method=row.weighting_method,
+        cash_amount=row.cash_amount,
+        as_of_year=row.as_of_year,
+        rebalance_date=row.rebalance_date,
+        rebalance_status=row.rebalance_status,
+        rebalance_notes=row.rebalance_notes,
+        notes=row.notes,
+        created_at=row.created_at,
+        updated_at=row.updated_at or row.created_at,
+        trades=[
+            SectorRotationAcceptedTradeOut(
+                id=trade.id,
+                ticker=trade.ticker,
+                sector_name=trade.sector_name,
+                target_weight=trade.target_weight,
+                target_amount=trade.target_amount,
+                shares=trade.shares,
+                cost_basis_per_share=trade.cost_basis_per_share,
+                current_price=trade.current_price,
+                purchase_date=trade.purchase_date,
+                market_value=trade.market_value,
+                cost_basis=trade.cost_basis,
+                gain_loss=trade.gain_loss,
+            )
+            for trade in row.trades
+        ],
+    )
 
 
 @router.post("/backtest", response_model=SectorRotationBacktestOut)
@@ -28,7 +66,7 @@ def backtest(
     db: Session = Depends(get_db),
 ) -> SectorRotationBacktestOut:
     del user, db
-    results = run_backtest(payload.starting_capital)
+    results = run_backtest(payload.starting_capital, payload.weighting_method)
     rates = CA_RATES
 
     scenario_outs = []
@@ -99,6 +137,7 @@ def backtest(
 
     return SectorRotationBacktestOut(
         starting_capital=payload.starting_capital,
+        weighting_method=payload.weighting_method,
         tax_rates={
             "ltcg_effective": rates.ltcg_effective,
             "stcg_effective": rates.stcg_effective,
@@ -119,7 +158,7 @@ def live_allocation(
     db: Session = Depends(get_db),
 ) -> SectorRotationLiveOut:
     del user, db
-    allocations, sp500_signals, guidance = get_live_allocation(payload.cash_amount, payload.time_frame)
+    allocations, sp500_signals, guidance = get_live_allocation(payload.cash_amount, payload.time_frame, payload.weighting_method)
 
     alloc_outs = [
         SectorAllocationOut(
@@ -137,14 +176,92 @@ def live_allocation(
     return SectorRotationLiveOut(
         as_of_year=sp500_signals["as_of_year"],
         time_frame=payload.time_frame,
+        weighting_method=payload.weighting_method,
         allocations=alloc_outs,
         sp500_signals=sp500_signals,
         rebalance_guidance=guidance,
     )
 
 
+@router.get("/accepted-allocations", response_model=list[SectorRotationAcceptedAllocationOut])
+def list_accepted_allocations(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[SectorRotationAcceptedAllocationOut]:
+    rows = db.scalars(
+        select(SectorRotationAcceptedAllocation)
+        .where(SectorRotationAcceptedAllocation.user_id == user.id)
+        .order_by(SectorRotationAcceptedAllocation.created_at.desc(), SectorRotationAcceptedAllocation.id.desc())
+    ).all()
+    return [_accepted_allocation_out(row) for row in rows]
+
+
+@router.post("/accepted-allocations", response_model=SectorRotationAcceptedAllocationOut, status_code=status.HTTP_201_CREATED)
+def create_accepted_allocation(
+    payload: SectorRotationAcceptedAllocationIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SectorRotationAcceptedAllocationOut:
+    allocation = SectorRotationAcceptedAllocation(
+        user_id=user.id,
+        account_type=payload.account_type,
+        time_frame=payload.time_frame,
+        weighting_method=payload.weighting_method,
+        cash_amount=payload.cash_amount,
+        as_of_year=payload.as_of_year,
+        rebalance_date=payload.rebalance_date or min((trade.purchase_date for trade in payload.trades), default=None),
+        rebalance_status=payload.rebalance_status,
+        rebalance_notes=payload.rebalance_notes,
+        notes=payload.notes,
+    )
+    for item in payload.trades:
+        market_value = round(item.shares * item.current_price, 2)
+        cost_basis = round(item.shares * item.cost_basis_per_share, 2)
+        allocation.trades.append(SectorRotationAcceptedTrade(
+            ticker=item.ticker.upper(),
+            sector_name=item.sector_name,
+            target_weight=item.target_weight,
+            target_amount=item.target_amount,
+            shares=item.shares,
+            cost_basis_per_share=item.cost_basis_per_share,
+            current_price=item.current_price,
+            purchase_date=item.purchase_date,
+            market_value=market_value,
+            cost_basis=cost_basis,
+            gain_loss=round(market_value - cost_basis, 2),
+        ))
+    db.add(allocation)
+    db.commit()
+    db.refresh(allocation)
+    return _accepted_allocation_out(allocation)
+
+
+@router.patch("/accepted-allocations/{allocation_id}", response_model=SectorRotationAcceptedAllocationOut)
+def update_accepted_allocation(
+    allocation_id: int,
+    payload: SectorRotationAcceptedAllocationUpdate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SectorRotationAcceptedAllocationOut:
+    allocation = db.scalar(
+        select(SectorRotationAcceptedAllocation)
+        .where(SectorRotationAcceptedAllocation.id == allocation_id)
+        .where(SectorRotationAcceptedAllocation.user_id == user.id)
+    )
+    if allocation is None:
+        raise HTTPException(status_code=404, detail="Accepted allocation not found")
+
+    allocation.rebalance_date = payload.rebalance_date
+    allocation.rebalance_status = payload.rebalance_status
+    allocation.rebalance_notes = payload.rebalance_notes
+    db.commit()
+    db.refresh(allocation)
+    return _accepted_allocation_out(allocation)
+
+
 @router.get("/selection-history", response_model=list[SelectionHistoryRowOut])
 def selection_history(
+    weighting_method: str = Query("equal", pattern="^(equal|market_weight)$"),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[SelectionHistoryRowOut]:
@@ -153,10 +270,12 @@ def selection_history(
         SelectionHistoryRowOut(
             year=row["year"],
             selected_sectors=row["sectors"],
+            sector_weights=row["sector_weights"],
             algo_return_pct=row["algo_return"],
             spy_return_pct=row["spy_return"],
             delta_pct=row["delta"],
             key_signal=row["signal"],
+            weighting_method=row["weighting_method"],
         )
-        for row in ALGO_SELECTION_HISTORY
+        for row in get_selection_history(weighting_method)
     ]

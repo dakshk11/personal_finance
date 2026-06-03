@@ -5,9 +5,13 @@ import {
   ChevronRight,
   ChevronUp,
   ExternalLink,
+  Loader2,
+  MessageSquare,
   RefreshCw,
   RotateCcw,
+  Send,
   Settings,
+  Sparkles,
   Star,
   TrendingDown,
   TrendingUp,
@@ -16,6 +20,8 @@ import {
   X
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AIAdvisorOpenAIKeyStatus, apiFetch } from "@/lib/api";
+import { OllamaConfigStrip, OllamaModelButton, effectiveModelId } from "@/components/OllamaModelPicker";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,6 +88,14 @@ type SortDir = "asc" | "desc";
 type SubTab = "watchlist" | "wheel-hub";
 type HubFilter = "all" | "csp" | "cc" | "leap";
 type OptionsTab = "P" | "C";
+type WheelChatModel = "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "ollama";
+type WheelChatMessage = { role: "user" | "assistant"; content: string };
+
+type WheelScannerChatResponse = {
+  response_text: string;
+  model: string;
+  usage: Record<string, unknown>;
+};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -147,6 +161,12 @@ const WATCHLIST_COLS = [
   { key: "cc_30d",      label: "30Δ CC %",  right: true  },
   { key: "volume",      label: "Volume",    right: true  },
   { key: "signals",     label: "Signals",   right: false },
+];
+
+const OPENAI_MODELS: Array<{ id: Exclude<WheelChatModel, "ollama">; label: string; helper: string }> = [
+  { id: "gpt-5.5", label: "Quality", helper: "gpt-5.5" },
+  { id: "gpt-5.4", label: "Balanced", helper: "gpt-5.4" },
+  { id: "gpt-5.4-mini", label: "Cost", helper: "gpt-5.4-mini" },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -517,19 +537,27 @@ function ChartModal({ symbol, quote, onClose }: { symbol: string; quote: WheelQu
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function WheelScannerTool() {
+export function WheelScannerTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyStatus | null }) {
   const [status, setStatus]         = useState<WheelStatus | null>(null);
   const [quotes, setQuotes]         = useState<WheelQuote[]>([]);
   const [subTab, setSubTab]         = useState<SubTab>("watchlist");
   const [hubFilter, setHubFilter]   = useState<HubFilter>("all");
   const [sort, setSort]             = useState<{ key: string; dir: SortDir }>({ key: "symbol", dir: "asc" });
   const [search, setSearch]         = useState("");
+  const [selectedSymbols, setSelectedSymbols] = useState<Set<string>>(new Set());
   const [customSymbols, setCustomSymbols] = useState<Set<string>>(new Set());
   const [customInput, setCustomInput]     = useState("");
   const [optionsSymbol, setOptionsSymbol] = useState<string | null>(null);
   const [optionsData, setOptionsData]     = useState<{ puts: WheelOptionRow[]; calls: WheelOptionRow[] } | null>(null);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [chartSymbol, setChartSymbol]     = useState<string | null>(null);
+  const [chatModel, setChatModel] = useState<WheelChatModel>("gpt-5.4");
+  const [ollamaModelName, setOllamaModelName] = useState("llama3");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<WheelChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState("");
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -537,17 +565,23 @@ export function WheelScannerTool() {
   const wsRef         = useRef<WebSocket | null>(null);
   const reconnectRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const quotesMapRef  = useRef<Record<string, WheelQuote>>({});
+  const customSymbolsRef = useRef<Set<string>>(new Set());
 
   // ── Custom symbols (localStorage) ──────────────────────────────────────────
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem("wheelscan_custom_symbols");
-      if (saved) setCustomSymbols(new Set(JSON.parse(saved) as string[]));
+      if (saved) {
+        const parsed = new Set(JSON.parse(saved) as string[]);
+        customSymbolsRef.current = parsed;
+        setCustomSymbols(parsed);
+      }
     } catch { /* ignore */ }
   }, []);
 
   function saveCustomSymbols(syms: Set<string>) {
+    customSymbolsRef.current = syms;
     setCustomSymbols(syms);
     localStorage.setItem("wheelscan_custom_symbols", JSON.stringify([...syms]));
   }
@@ -565,7 +599,8 @@ export function WheelScannerTool() {
     const next = new Set(customSymbols);
     next.delete(sym);
     saveCustomSymbols(next);
-    setQuotes((prev) => prev.filter((q) => !next.has(q.symbol) || q.symbol !== sym ? true : false));
+    delete quotesMapRef.current[sym];
+    setQuotes((prev) => prev.filter((q) => q.symbol !== sym));
   }
 
   // ── Data fetching ──────────────────────────────────────────────────────────
@@ -581,6 +616,7 @@ export function WheelScannerTool() {
       for (const q of watchlistData.tickers) map[q.symbol] = q;
       quotesMapRef.current = { ...quotesMapRef.current, ...map };
       setQuotes(Object.values(quotesMapRef.current));
+      if (customSymbolsRef.current.size) void fetchCustom([...customSymbolsRef.current]);
       setLastUpdated(new Date());
       setError("");
     } catch (err) {
@@ -647,7 +683,6 @@ export function WheelScannerTool() {
 
   useEffect(() => {
     void loadWatchlist();
-    if (customSymbols.size) void fetchCustom([...customSymbols]);
     connectWs();
     const pollId = setInterval(() => { void loadWatchlist(); }, 30_000);
     return () => {
@@ -689,12 +724,123 @@ export function WheelScannerTool() {
     setSort((s) => ({ key, dir: s.key === key && s.dir === "asc" ? "desc" : "asc" }));
   }
 
+  function toggleSelectedSymbol(symbol: string) {
+    setSelectedSymbols((current) => {
+      const next = new Set(current);
+      if (next.has(symbol)) next.delete(symbol);
+      else next.add(symbol);
+      return next;
+    });
+  }
+
+  function selectVisibleRows() {
+    const rows = subTab === "wheel-hub" ? hubCandidates : filteredWatchlist;
+    setSelectedSymbols(new Set(rows.map((row) => row.symbol)));
+  }
+
+  function selectAllWatchlistRows() {
+    setSelectedSymbols(new Set(quotes.map((row) => row.symbol)));
+  }
+
+  function selectStageRows(stage: number) {
+    setSelectedSymbols(new Set(quotes.filter((row) => row.stage === stage).map((row) => row.symbol)));
+  }
+
+  function selectedQuotes() {
+    return quotes
+      .filter((quote) => selectedSymbols.has(quote.symbol))
+      .slice(0, 25)
+      .map((quote) => ({
+        symbol: quote.symbol,
+        price: quote.price,
+        change_pct: quote.change_pct,
+        stage: quote.stage,
+        sata_score: quote.sata_score,
+        mansfield_rs: quote.mansfield_rs,
+        rsi: quote.rsi,
+        bb_pct: quote.bb_pct,
+        iv_rank: quote.iv_rank,
+        csp_30d: quote.csp_30d,
+        cc_30d: quote.cc_30d,
+        volume: quote.volume,
+        signals: quote.signals ?? [],
+        source: quote.source,
+      }));
+  }
+
+  function optionSummary(options: WheelOptionRow[] | undefined, optionType: "P" | "C") {
+    const rows = options ?? [];
+    const recommended = findRecommendedOcc(rows);
+    const picked = rows.find((row) => row.occ_symbol === recommended) ?? rows[0];
+    if (!picked) return null;
+    return {
+      option_type: optionType,
+      expiry: picked.expiry,
+      dte: picked.dte,
+      strike: picked.strike,
+      mid: picked.mid,
+      delta: picked.delta,
+      annualized_yield: picked.annualized_yield,
+      pct_away: picked.pct_away,
+      pop: picked.pop,
+      open_interest: picked.open_interest,
+    };
+  }
+
+  async function sendWheelChat() {
+    const query = chatInput.trim();
+    const rows = selectedQuotes();
+    const isOllama = chatModel === "ollama";
+    if (!query || !rows.length || (!isOllama && !keyStatus?.has_key)) return;
+
+    setChatLoading(true);
+    setChatError("");
+    setChatInput("");
+    const nextMessages: WheelChatMessage[] = [...chatMessages, { role: "user", content: query }];
+    setChatMessages(nextMessages);
+    try {
+      const response = await apiFetch<WheelScannerChatResponse>("/wheel-scanner/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          query,
+          model: effectiveModelId(chatModel, ollamaModelName, false),
+          ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://localhost:11434" } : {}),
+          context: {
+            status,
+            active_tab: subTab,
+            filters: { search, hub_filter: hubFilter, sort },
+            custom_symbols: [...customSymbols],
+            selected_quotes: rows,
+            selected_options_summary: optionsSymbol && optionsData ? {
+              symbol: optionsSymbol,
+              puts_count: optionsData.puts.length,
+              calls_count: optionsData.calls.length,
+              best_put: optionSummary(optionsData.puts, "P"),
+              best_call: optionSummary(optionsData.calls, "C"),
+            } : null,
+            recent_messages: chatMessages.slice(-6),
+          },
+        }),
+      });
+      setChatMessages((current) => [...current, { role: "assistant", content: response.response_text }]);
+    } catch (err) {
+      setChatMessages(chatMessages);
+      setChatInput(query);
+      setChatError(err instanceof Error ? err.message : "Wheel Scanner AI chat failed.");
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
   function SortIcon({ col }: { col: string }) {
     if (sort.key !== col) return <span className="wheel-sort-neutral">⇅</span>;
     return sort.dir === "asc"
       ? <ChevronUp size={12} style={{ display: "inline", marginLeft: "2px", color: "var(--forest)" }} />
       : <ChevronDown size={12} style={{ display: "inline", marginLeft: "2px", color: "var(--forest)" }} />;
   }
+
+  const isChatOllama = chatModel === "ollama";
+  const canSendChat = Boolean(chatInput.trim() && selectedSymbols.size && (isChatOllama || keyStatus?.has_key) && !chatLoading);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -755,6 +901,78 @@ export function WheelScannerTool() {
         </button>
       </div>
 
+      <section className="wheel-ai-chat-panel">
+        <div className="wheel-ai-chat-head">
+          <div>
+            <p className="eyebrow">Wheel Scanner AI Chat</p>
+            <h3><MessageSquare size={16} /> Ask about selected wheel setups</h3>
+          </div>
+          <span className={isChatOllama || keyStatus?.has_key ? "status-pill" : "risk-pill"}>
+            {isChatOllama ? `Ollama · ${ollamaModelName || "llama3"}` : keyStatus?.has_key ? "OpenAI key ready" : "OpenAI key required"}
+          </span>
+        </div>
+
+        <div className="wheel-ai-select-row">
+          <span className="fine-print">{selectedSymbols.size} selected rows</span>
+          <button type="button" className="ghost-button" onClick={selectVisibleRows}>Select visible</button>
+          <button type="button" className="ghost-button" onClick={selectAllWatchlistRows}>Select all watchlist</button>
+          {[1, 2, 3, 4].map((stage) => (
+            <button type="button" className="ghost-button" key={stage} onClick={() => selectStageRows(stage)}>
+              Stage {stage}
+            </button>
+          ))}
+          <button type="button" className="ghost-button" onClick={() => setSelectedSymbols(new Set())}>Clear</button>
+        </div>
+
+        <div className="stock-analysis-model-control wheel-ai-model-control" role="radiogroup" aria-label="Wheel scanner AI model">
+          {OPENAI_MODELS.map((item) => (
+            <button type="button" key={item.id} className={chatModel === item.id ? "active" : ""} onClick={() => setChatModel(item.id)}>
+              <strong>{item.label}</strong>
+              <span>{item.helper}</span>
+            </button>
+          ))}
+          <OllamaModelButton active={isChatOllama} onClick={() => setChatModel("ollama")} />
+        </div>
+        {isChatOllama && (
+          <OllamaConfigStrip
+            modelName={ollamaModelName}
+            baseUrl={ollamaBaseUrl}
+            useGoose={false}
+            showGoose={false}
+            onModelNameChange={setOllamaModelName}
+            onBaseUrlChange={setOllamaBaseUrl}
+            onUseGooseChange={() => undefined}
+          />
+        )}
+
+        <div className="wheel-chat-history">
+          {chatMessages.length ? chatMessages.map((message, index) => (
+            <div key={`${message.role}-${index}`} className={`wheel-chat-message ${message.role}`}>
+              <strong>{message.role === "user" ? "You" : "AI"}</strong>
+              <p>{message.content}</p>
+            </div>
+          )) : (
+            <p className="fine-print">Select rows, then ask for CSP/CC fit, risk flags, or symbol comparisons.</p>
+          )}
+        </div>
+
+        <div className="wheel-chat-input-row">
+          <textarea
+            value={chatInput}
+            onChange={(event) => setChatInput(event.target.value)}
+            placeholder="Ask about selected wheel setups…"
+            rows={3}
+          />
+          <button type="button" className="primary-button" disabled={!canSendChat} onClick={() => void sendWheelChat()}>
+            {chatLoading ? <Loader2 size={16} className="spin-icon" /> : <Send size={16} />}
+            Send
+          </button>
+        </div>
+        {!isChatOllama && !keyStatus?.has_key && <div className="error">Save an OpenAI key before using OpenAI chat, or switch to Ollama.</div>}
+        {!selectedSymbols.size && <p className="fine-print">No rows selected. Use the checkboxes in Watchlist or Wheel Hub.</p>}
+        {chatError && <div className="error">{chatError}</div>}
+      </section>
+
       {error && !quotes.length && (
         <div className="error" style={{ margin: "0 0 12px" }}>{error}</div>
       )}
@@ -779,6 +997,7 @@ export function WheelScannerTool() {
               onKeyDown={(e) => { if (e.key === "Enter") addCustomSymbols(); }}
             />
             <button type="button" className="ghost-button" onClick={addCustomSymbols} style={{ padding: "6px 12px" }}>Add</button>
+            <span className="fine-print">{selectedSymbols.size} selected</span>
           </div>
 
           {loading && !quotes.length ? (
@@ -788,6 +1007,7 @@ export function WheelScannerTool() {
               <table className="wheel-table">
                 <thead>
                   <tr>
+                    <th>Select</th>
                     {WATCHLIST_COLS.map((c) => (
                       <th
                         key={c.key}
@@ -810,6 +1030,14 @@ export function WheelScannerTool() {
                         onClick={() => setChartSymbol(q.symbol)}
                         title={`Click to view ${q.symbol} chart`}
                       >
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedSymbols.has(q.symbol)}
+                            onChange={() => toggleSelectedSymbol(q.symbol)}
+                            aria-label={`Select ${q.symbol}`}
+                          />
+                        </td>
                         <td className="wheel-muted" style={{ fontSize: "0.8rem" }}>{i + 1}</td>
                         <td>
                           <div className="wheel-symbol-cell">
@@ -906,7 +1134,7 @@ export function WheelScannerTool() {
                 </button>
               ))}
             </div>
-            <span className="fine-print">{hubCandidates.length} candidates · click row for chart</span>
+            <span className="fine-print">{hubCandidates.length} candidates · {selectedSymbols.size} selected · click row for chart</span>
           </div>
 
           {/* Hub table */}
@@ -914,6 +1142,7 @@ export function WheelScannerTool() {
             <table className="wheel-table">
               <thead>
                 <tr>
+                  <th>Select</th>
                   <th>#</th>
                   <th>Symbol</th>
                   <th className="right">Price</th>
@@ -937,6 +1166,14 @@ export function WheelScannerTool() {
                     onClick={() => setChartSymbol(q.symbol)}
                     title={`Click to view ${q.symbol} chart`}
                   >
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedSymbols.has(q.symbol)}
+                        onChange={() => toggleSelectedSymbol(q.symbol)}
+                        aria-label={`Select ${q.symbol}`}
+                      />
+                    </td>
                     <td className="wheel-muted" style={{ fontSize: "0.8rem" }}>{i + 1}</td>
                     <td><strong>{q.symbol}</strong></td>
                     <td className="right">{fmtPrice(q.price)}</td>

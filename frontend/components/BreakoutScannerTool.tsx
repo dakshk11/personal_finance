@@ -6,26 +6,17 @@ import {
   CandlestickChart,
   Gauge,
   Loader2,
+  Plus,
   RefreshCw,
   ShieldCheck,
   Target,
-  TrendingUp
+  TrendingUp,
+  X
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Area,
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from "recharts";
-import {
   BreakoutBacktest,
+  BreakoutChartPoint,
   BreakoutDetectorType,
   BreakoutScan,
   BreakoutScannerConfig,
@@ -46,6 +37,7 @@ const detectorCards: Array<{ id: BreakoutDetectorType; title: string; summary: s
 
 const defaultConfig: BreakoutScannerConfig = {
   detectors: ["ceiling_breakout", "momentum_breakout", "near_breakout"],
+  custom_symbols: [],
   lookback_days: 420,
   min_relative_volume: 1.5,
   ideal_relative_volume: 2,
@@ -66,6 +58,7 @@ export function BreakoutScannerTool() {
   const [universe, setUniverse] = useState<BreakoutUniverse | null>(null);
   const [scan, setScan] = useState<BreakoutScan | null>(null);
   const [selectedKey, setSelectedKey] = useState("");
+  const [watchlistInput, setWatchlistInput] = useState("");
   const [backtestDetector, setBacktestDetector] = useState<BreakoutDetectorType>("ceiling_breakout");
   const [backtestYears, setBacktestYears] = useState(5);
   const [backtest, setBacktest] = useState<BreakoutBacktest | null>(null);
@@ -78,13 +71,20 @@ export function BreakoutScannerTool() {
     void bootstrap();
   }, []);
 
-  useEffect(() => {
-    if (!scan?.signals.length) return;
-    if (selectedKey && scan.signals.some((signal) => signalKey(signal) === selectedKey)) return;
-    setSelectedKey(signalKey(scan.signals[0]));
-  }, [scan, selectedKey]);
+  const visibleSignals = useMemo(() => {
+    const activeDetectors = new Set(config.detectors);
+    return (scan?.signals ?? []).filter((signal) => activeDetectors.has(signal.detector_type as BreakoutDetectorType));
+  }, [config.detectors, scan]);
+  const selected = useMemo(() => visibleSignals.find((signal) => signalKey(signal) === selectedKey) ?? visibleSignals[0] ?? null, [selectedKey, visibleSignals]);
 
-  const selected = useMemo(() => scan?.signals.find((signal) => signalKey(signal) === selectedKey) ?? scan?.signals[0] ?? null, [scan, selectedKey]);
+  useEffect(() => {
+    if (!visibleSignals.length) {
+      setSelectedKey("");
+      return;
+    }
+    if (selectedKey && visibleSignals.some((signal) => signalKey(signal) === selectedKey)) return;
+    setSelectedKey(signalKey(visibleSignals[0]));
+  }, [selectedKey, visibleSignals]);
   const counts = useMemo(() => {
     const signals = scan?.signals ?? [];
     return {
@@ -95,14 +95,11 @@ export function BreakoutScannerTool() {
   }, [scan]);
 
   async function bootstrap() {
-    // Fetch IBKR status non-blocking
     fetch(`${IBKR_API}/api/breakout/status`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((s: IbkrBreakoutStatus | null) => { if (s) setIbkrStatus(s); })
       .catch(() => {});
 
-    // Default is IBKR mode — auto-run IBKR scan immediately
-    // Also fetch yfinance universe info in background (used when switching to yfinance mode)
     apiFetch<BreakoutUniverse>("/breakout-scanner/universe")
       .then(setUniverse)
       .catch(() => {});
@@ -110,11 +107,13 @@ export function BreakoutScannerTool() {
     await loadIbkrScan();
   }
 
-  async function loadIbkrScan() {
+  async function loadIbkrScan(extraSymbols = config.custom_symbols) {
     setLoading("scan");
     setError("");
     try {
-      const res = await fetch(`${IBKR_API}/api/breakout/scan?source=ibkr&index=ndx100`, { cache: "no-store" });
+      const params = new URLSearchParams({ source: "ibkr", index: "ndx100" });
+      if (extraSymbols.length) params.set("extra", extraSymbols.join(","));
+      const res = await fetch(`${IBKR_API}/api/breakout/scan?${params.toString()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`IBKR breakout scan failed (${res.status})`);
       const result = await res.json() as BreakoutScan;
       setScan(result);
@@ -136,12 +135,16 @@ export function BreakoutScannerTool() {
     if (dataSource === "ibkr") {
       return loadIbkrScan();
     }
+    return loadYfinanceScan(force);
+  }
+
+  async function loadYfinanceScan(force: boolean, nextConfig = config) {
     setLoading(force ? "refresh" : "scan");
     setError("");
     try {
       const result = await apiFetch<BreakoutScan>(`/breakout-scanner/scan${force ? "?force=true" : ""}`, {
         method: "POST",
-        body: JSON.stringify(config)
+        body: JSON.stringify(nextConfig)
       });
       setScan(result);
       setBacktest(null);
@@ -183,6 +186,27 @@ export function BreakoutScannerTool() {
     });
   }
 
+  function appendWatchlistSymbols() {
+    const symbols = watchlistInput
+      .split(/[\s,]+/)
+      .map((value) => value.trim().toUpperCase().replace(/[^A-Z0-9.-]/g, ""))
+      .filter(Boolean)
+      .slice(0, 10);
+    if (!symbols.length) return;
+    const nextSymbols = Array.from(new Set([...config.custom_symbols, ...symbols])).slice(0, 25);
+    const nextConfig = { ...config, custom_symbols: nextSymbols };
+    setConfig(nextConfig);
+    setWatchlistInput("");
+    setError("");
+    void (dataSource === "ibkr" ? loadIbkrScan(nextSymbols) : loadYfinanceScan(false, nextConfig));
+  }
+
+  function removeWatchlistSymbol(symbol: string) {
+    const nextConfig = { ...config, custom_symbols: config.custom_symbols.filter((item) => item !== symbol) };
+    setConfig(nextConfig);
+    void (dataSource === "ibkr" ? loadIbkrScan(nextConfig.custom_symbols) : loadYfinanceScan(false, nextConfig));
+  }
+
   return (
     <>
       <section className="dashboard-panel breakout-head">
@@ -204,14 +228,24 @@ export function BreakoutScannerTool() {
             <button
               type="button"
               className={dataSource === "ibkr" ? "active" : ""}
-              onClick={() => { setDataSource("ibkr"); setScan(null); setError(""); }}
+              onClick={() => {
+                setDataSource("ibkr");
+                setScan(null);
+                setError("");
+                void loadIbkrScan();
+              }}
             >
               IBKR Live · Nasdaq-100
             </button>
             <button
               type="button"
               className={dataSource === "yfinance" ? "active" : ""}
-              onClick={() => { setDataSource("yfinance"); setScan(null); setError(""); }}
+              onClick={() => {
+                setDataSource("yfinance");
+                setScan(null);
+                setError("");
+                void loadYfinanceScan(false);
+              }}
             >
               Yahoo Finance · S&P 500
             </button>
@@ -223,7 +257,7 @@ export function BreakoutScannerTool() {
               {ibkrStatus.ibkr_connected ? "IBKR live" : "IBKR offline"} · {ibkrStatus.fresh_today}/{ibkrStatus.ndx100_count} cached
             </span>
           )}
-          <span className="status-pill">{scan ? `${scan.signals.length} setups` : "No scan yet"}</span>
+          <span className="status-pill">{scan ? `${visibleSignals.length}/${scan.signals.length} setups` : "No scan yet"}</span>
           <button className="ghost-button" type="button" onClick={() => loadScan(false)} disabled={Boolean(loading)}>
             {loading === "scan" || loading === "initial" ? <Loader2 size={16} className="spin-icon" /> : <RefreshCw size={16} />}
             Run scan
@@ -235,6 +269,41 @@ export function BreakoutScannerTool() {
             </button>
           )}
         </div>
+      </section>
+
+      <section className="dashboard-panel breakout-watchlist-panel">
+        <div className="panel-header">
+          <h2>Watchlist Symbols</h2>
+          <Target size={18} />
+        </div>
+        <div className="breakout-watchlist-form">
+          <input
+            type="text"
+            value={watchlistInput}
+            onChange={(event) => setWatchlistInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                appendWatchlistSymbols();
+              }
+            }}
+            placeholder="NVDA, SMCI, ARM"
+            aria-label="Add watchlist symbols"
+          />
+          <button className="secondary-button" type="button" onClick={appendWatchlistSymbols}>
+            <Plus size={16} /> Append
+          </button>
+        </div>
+        {config.custom_symbols.length > 0 && (
+          <div className="breakout-watchlist-pills">
+            {config.custom_symbols.map((symbol) => (
+              <button type="button" key={symbol} onClick={() => removeWatchlistSymbol(symbol)}>
+                {symbol}
+                <X size={13} />
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="dashboard-panel breakout-notice">
@@ -303,7 +372,7 @@ export function BreakoutScannerTool() {
           <div className="panel-header">
             <div>
               <h2>Ranked setups</h2>
-              <p className="fine-print">{scan ? `${formatDateTime(scan.scanned_at)} · ${scan.data_source}` : "Run a scan to populate ranked setups"}</p>
+              <p className="fine-print">{scan ? `${visibleSignals.length} shown from ${scan.signals.length} setups · ${formatDateTime(scan.scanned_at)} · ${scan.data_source}` : "Run a scan to populate ranked setups"}</p>
             </div>
           </div>
           <div className="breakout-table">
@@ -316,7 +385,7 @@ export function BreakoutScannerTool() {
             </div>
             {loading === "initial" && !scan ? (
               <div className="breakout-loading-row"><Loader2 size={18} className="spin-icon" /> Loading breakout scan</div>
-            ) : scan?.signals.length ? scan.signals.map((signal) => (
+            ) : visibleSignals.length ? visibleSignals.map((signal) => (
               <button
                 className={`breakout-row ${selected && signalKey(selected) === signalKey(signal) ? "active" : ""}`}
                 type="button"
@@ -330,7 +399,7 @@ export function BreakoutScannerTool() {
                 <span>{signal.resistance_level == null ? "N/A" : currencyCents(signal.resistance_level)}<small>{breakoutContext(signal)}</small></span>
               </button>
             )) : (
-              <div className="breakout-loading-row">No current setups match these parameters.</div>
+              <div className="breakout-loading-row">{scan?.signals.length ? "No setups match the selected detector filters." : "No current setups match these parameters."}</div>
             )}
           </div>
         </section>
@@ -416,53 +485,123 @@ function BreakoutDetails({ signal }: { signal: BreakoutSignal }) {
         <div><span>Rel volume</span><strong>{signal.relative_volume == null ? "N/A" : `${signal.relative_volume.toFixed(2)}x`}</strong></div>
         <div><span>Touches</span><strong>{signal.touch_count}</strong></div>
       </div>
-      <div className="breakout-chart-panel">
-        <div className="breakout-chart-legend">
-          <span style={{ color: "#5eead4" }}>● Close</span>
-          <span style={{ color: "#38bdf8" }}>— SMA 20</span>
-          <span style={{ color: "#f59e0b" }}>— SMA 50</span>
-          <span style={{ color: "#c084fc" }}>— SMA 200</span>
-          {signal.resistance_level != null && <span style={{ color: "#fb7185" }}>– – Resistance</span>}
-        </div>
-        <ResponsiveContainer width="100%" height={290}>
-          <ComposedChart data={signal.chart} margin={{ left: 4, right: 18, top: 8, bottom: 0 }}>
-            <defs>
-              <linearGradient id="closeGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#5eead4" stopOpacity={0.22} />
-                <stop offset="95%" stopColor="#5eead4" stopOpacity={0.01} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="#17352d" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="date" hide />
-            <YAxis yAxisId="price" width={64} tickFormatter={(v) => compactCurrency(Number(v))} tick={{ fontSize: 11, fill: "#8da99e" }} axisLine={false} tickLine={false} />
-            <Tooltip content={<BreakoutTooltip />} />
-            <Area yAxisId="price" type="monotoneX" dataKey="close" name="Close" stroke="#5eead4" strokeWidth={2} fill="url(#closeGradient)" dot={false} isAnimationActive={false} />
-            <Line yAxisId="price" type="monotoneX" dataKey="sma20" name="SMA 20" stroke="#38bdf8" strokeWidth={1.2} dot={false} connectNulls isAnimationActive={false} />
-            <Line yAxisId="price" type="monotoneX" dataKey="sma50" name="SMA 50" stroke="#f59e0b" strokeWidth={1.2} dot={false} connectNulls isAnimationActive={false} />
-            <Line yAxisId="price" type="monotoneX" dataKey="sma200" name="SMA 200" stroke="#c084fc" strokeWidth={1.2} dot={false} connectNulls isAnimationActive={false} />
-            {signal.resistance_level != null && (
-              <ReferenceLine
-                yAxisId="price"
-                y={signal.resistance_level}
-                stroke="#fb7185"
-                strokeDasharray="5 3"
-                strokeWidth={1.5}
-                label={{ value: `R ${currencyCents(signal.resistance_level)}`, fill: "#fb7185", fontSize: 10, position: "insideTopRight" }}
-              />
-            )}
-          </ComposedChart>
-        </ResponsiveContainer>
-        <ResponsiveContainer width="100%" height={78}>
-          <ComposedChart data={signal.chart} margin={{ left: 4, right: 18, top: 2, bottom: 8 }}>
-            <CartesianGrid stroke="#17352d" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="date" minTickGap={40} tickFormatter={formatMonthDay} tick={{ fontSize: 10, fill: "#8da99e" }} axisLine={{ stroke: "#1e3a34" }} tickLine={false} />
-            <YAxis width={64} tickFormatter={(v) => compactNumber(Number(v))} tick={{ fontSize: 10, fill: "#8da99e" }} axisLine={false} tickLine={false} tickCount={2} />
-            <Tooltip content={<VolumeTooltip />} />
-            <Bar dataKey="volume" name="Volume" fill="#2dd4bf" opacity={0.45} radius={[1, 1, 0, 0]} isAnimationActive={false} />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
+      <BreakoutCandlestickChart signal={signal} />
     </>
+  );
+}
+
+function BreakoutCandlestickChart({ signal }: { signal: BreakoutSignal }) {
+  const rows = normalizeBreakoutCandles(signal.chart).slice(-84);
+  if (!rows.length) {
+    return <div className="breakout-empty-detail">No chart bars available for this setup.</div>;
+  }
+
+  const width = 920;
+  const height = 370;
+  const left = 58;
+  const right = 66;
+  const top = 18;
+  const priceBottom = 252;
+  const volumeTop = 284;
+  const volumeBottom = 342;
+  const plotWidth = width - left - right;
+  const step = rows.length > 1 ? plotWidth / (rows.length - 1) : plotWidth;
+  const candleWidth = Math.max(3, Math.min(9, step * 0.58));
+  const resistance = signal.resistance_level;
+  const priceValues = rows.flatMap((row) => [row.high, row.low, row.sma20, row.sma50, row.sma200, resistance].filter(isNumber));
+  const rawMin = Math.min(...priceValues);
+  const rawMax = Math.max(...priceValues);
+  const padding = Math.max((rawMax - rawMin) * 0.08, rawMax * 0.005);
+  const minPrice = rawMin - padding;
+  const maxPrice = rawMax + padding;
+  const maxVolume = Math.max(...rows.map((row) => row.volume), 1);
+  const latest = rows[rows.length - 1];
+  const priceTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => maxPrice - (maxPrice - minPrice) * ratio);
+  const dateTickIndexes = [0, 0.25, 0.5, 0.75, 1].map((ratio) => Math.min(rows.length - 1, Math.round((rows.length - 1) * ratio)));
+
+  function x(index: number) {
+    return left + index * step;
+  }
+
+  function y(value: number) {
+    const ratio = (maxPrice - value) / Math.max(maxPrice - minPrice, 0.0001);
+    return top + ratio * (priceBottom - top);
+  }
+
+  function volumeY(value: number) {
+    return volumeBottom - (value / maxVolume) * (volumeBottom - volumeTop);
+  }
+
+  return (
+    <div className="breakout-chart-panel">
+      <div className="breakout-chart-legend">
+        <span style={{ color: "#2dd4bf" }}>Up candle</span>
+        <span style={{ color: "#fb7185" }}>Down candle</span>
+        <span style={{ color: "#38bdf8" }}>SMA 20</span>
+        <span style={{ color: "#f59e0b" }}>SMA 50</span>
+        <span style={{ color: "#c084fc" }}>SMA 200</span>
+        {isNumber(resistance) && <span style={{ color: "#facc15" }}>Resistance</span>}
+      </div>
+      <div className="breakout-candle-chart-shell">
+        <div className="breakout-candle-chart-topline">
+          <div>
+            <strong>{signal.symbol} daily breakout chart</strong>
+            <span>{formatMonthDay(rows[0].date)} to {formatMonthDay(latest.date)} · volume shown below candles</span>
+          </div>
+          <b>{detectorLabel(signal.detector_type)}</b>
+        </div>
+        <svg className="breakout-candle-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${signal.symbol} breakout candlestick chart with volume`}>
+          <rect x={left} y={top} width={plotWidth} height={priceBottom - top} rx="8" fill="rgba(9, 24, 21, 0.72)" stroke="#17352d" />
+          <rect x={left} y={volumeTop} width={plotWidth} height={volumeBottom - volumeTop} rx="8" fill="rgba(9, 24, 21, 0.72)" stroke="#17352d" />
+
+          {priceTicks.map((tick) => (
+            <g key={tick}>
+              <line x1={left} x2={left + plotWidth} y1={y(tick)} y2={y(tick)} stroke="#17352d" strokeDasharray="3 4" />
+              <text x={width - 8} y={y(tick) + 4} textAnchor="end" className="breakout-candle-axis-text">{compactCurrency(tick)}</text>
+            </g>
+          ))}
+
+          {dateTickIndexes.map((index) => (
+            <text key={`${rows[index].date}-${index}`} x={x(index)} y={height - 9} textAnchor={index === 0 ? "start" : index === rows.length - 1 ? "end" : "middle"} className="breakout-candle-axis-text">
+              {formatMonthDay(rows[index].date)}
+            </text>
+          ))}
+
+          <text x={left - 12} y={volumeTop + 14} textAnchor="end" className="breakout-candle-axis-text">Vol</text>
+          <text x={width - 8} y={volumeTop + 14} textAnchor="end" className="breakout-candle-axis-text">{compactNumber(maxVolume)}</text>
+
+          {rows.map((row, index) => {
+            const up = row.close >= row.open;
+            const fill = up ? "#2dd4bf" : "#fb7185";
+            const center = x(index);
+            const openY = y(row.open);
+            const closeY = y(row.close);
+            const bodyTop = Math.min(openY, closeY);
+            const bodyHeight = Math.max(2, Math.abs(openY - closeY));
+            const volumeTopY = volumeY(row.volume);
+            return (
+              <g key={`${row.date}-${index}`}>
+                <title>{`${row.date} O ${currencyCents(row.open)} H ${currencyCents(row.high)} L ${currencyCents(row.low)} C ${currencyCents(row.close)} Vol ${compactNumber(row.volume)}`}</title>
+                <rect x={center - candleWidth / 2} y={volumeTopY} width={Math.max(2, candleWidth)} height={Math.max(1, volumeBottom - volumeTopY)} fill={fill} opacity="0.34" rx="1.5" />
+                <line x1={center} x2={center} y1={y(row.high)} y2={y(row.low)} stroke={fill} strokeWidth="1.2" />
+                <rect x={center - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} fill={fill} stroke={fill} strokeWidth="0.8" rx="1.5" />
+              </g>
+            );
+          })}
+
+          <path d={linePath(rows, "sma20", x, y)} fill="none" stroke="#38bdf8" strokeWidth="1.4" />
+          <path d={linePath(rows, "sma50", x, y)} fill="none" stroke="#f59e0b" strokeWidth="1.4" />
+          <path d={linePath(rows, "sma200", x, y)} fill="none" stroke="#c084fc" strokeWidth="1.4" />
+
+          {isNumber(resistance) && (
+            <g>
+              <line x1={left} x2={left + plotWidth} y1={y(resistance)} y2={y(resistance)} stroke="#facc15" strokeDasharray="5 4" strokeWidth="1.5" />
+              <text x={width - 8} y={y(resistance) - 6} textAnchor="end" fill="#facc15" fontSize="11" fontWeight="760">R {currencyCents(resistance)}</text>
+            </g>
+          )}
+        </svg>
+      </div>
+    </div>
   );
 }
 
@@ -512,30 +651,6 @@ function Stat({ label, value, helper }: { label: string; value: number; helper: 
   );
 }
 
-function BreakoutTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color?: string }>; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="option-chart-tooltip">
-      <strong>{formatShortDate(label)}</strong>
-      {payload.filter((item) => item.value != null).map((item) => (
-        <span key={item.name} style={{ color: item.color }}>
-          {item.name}: {item.name === "Volume" ? compactNumber(Number(item.value)) : currencyCents(Number(item.value))}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function VolumeTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number }>; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="option-chart-tooltip">
-      <strong>{formatShortDate(label)}</strong>
-      <span style={{ color: "#2dd4bf" }}>Volume: {compactNumber(Number(payload[0]?.value))}</span>
-    </div>
-  );
-}
-
 function detectorLabel(value: string) {
   if (value === "ceiling_breakout") return "Ceiling";
   if (value === "momentum_breakout") return "Momentum";
@@ -567,6 +682,47 @@ function compactNumber(value: number) {
   if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
   if (Math.abs(value) >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
   return `${Math.round(value)}`;
+}
+
+type BreakoutCandlePoint = BreakoutChartPoint & {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+function normalizeBreakoutCandles(points: BreakoutChartPoint[]): BreakoutCandlePoint[] {
+  return points.map((point) => {
+    const close = numberOr(point.close, 0);
+    const open = numberOr(point.open, close);
+    const high = Math.max(numberOr(point.high, Math.max(open, close)), open, close);
+    const low = Math.min(numberOr(point.low, Math.min(open, close)), open, close);
+    return { ...point, open, high, low, close, volume: Math.max(0, numberOr(point.volume, 0)) };
+  }).filter((point) => point.close > 0);
+}
+
+function linePath(rows: BreakoutCandlePoint[], key: "sma20" | "sma50" | "sma200", x: (index: number) => number, y: (value: number) => number) {
+  let output = "";
+  let drawing = false;
+  rows.forEach((row, index) => {
+    const value = row[key];
+    if (!isNumber(value)) {
+      drawing = false;
+      return;
+    }
+    output += `${drawing ? "L" : "M"}${x(index).toFixed(2)} ${y(value).toFixed(2)} `;
+    drawing = true;
+  });
+  return output.trim();
+}
+
+function numberOr(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function formatMonthDay(value: string) {

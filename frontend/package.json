@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:contracts": "node scripts/check-breakout-contract.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

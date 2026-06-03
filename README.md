@@ -27,11 +27,14 @@ The product is designed to help users understand tradeoffs before taking action:
 | Ideas Workspace | Review self-managed investor playbooks for sector ETF TLH, asset location, retirement buckets, TIPS ladders, charitable giving, Roth windows, and rebalancing bands. |
 | Research Center | Explain the methodology, tax-loss harvesting assumptions, wash-sale safeguards, model design, and source references in plain language. |
 | 13F Research | Search investment managers, watch filings, download holdings, and simulate copycat performance from SEC 13F data. |
-| FinanceOS Studio | Save an encrypted OpenAI API key, generate saved AI Planner reports, run Personal CFO projects, review Wheel Strategy, RSI Playbook, and Breakout Scanner, open Portfolio Sync, run Equity Research and Earnings Agent digests, and use the live IBKR Wheel Scanner. |
+| FinanceOS Studio | Save an encrypted OpenAI API key, generate saved AI Planner reports, run Personal CFO projects, review Wheel Strategy, RSI Playbook, Breakout Scanner, Smart Candles, Composite Signal Algorithm, OptiTrade Lab, Portfolio Sync, Equity Research, Earnings Agent digests, and the live IBKR Wheel Scanner. |
 | Wheel Strategy | Run a daily educational wheel-strategy scan for S&P 500 top holdings, Nasdaq top holdings, core ETFs, and leveraged ETFs using live yfinance option chains when available. |
-| Wheel Scanner (IBKR) | Live Nasdaq-100 + leveraged ETF scanner powered by IBKR TWS real-time quotes and CBOE 15-min delayed option chains. Combines a full sortable watchlist with RSI(14), Bollinger Band%, 30Δ CSP/CC annualised yields, and a Wheel Hub view showing the 4-stage cycle (Sell CSP → Manage → Sell CC → Exit & Repeat) with signal-filtered candidates. Falls back to CBOE delayed prices when TWS is offline. |
+| Wheel Scanner / IBKR Labs | Standalone IBKR backend on port 8002 powers the live Nasdaq-100 + leveraged ETF Wheel Scanner, Composite Signal Algorithm, OptiTrade Lab, and IBKR-backed Breakout Scanner. Wheel data falls back to CBOE delayed prices when TWS is offline; historical-bar tools require a clean TWS connection. |
 | RSI Playbook | Combine Wheel Strategy and Portfolio Sync symbols, compute RSI/EMA history, and map every stock to the requested RSI action zone with chart details. |
-| Breakout Scanner | Scan S&P 500 stocks only for ceiling breakouts, momentum breakouts, and near-breakout watch setups with relative-volume, trend, and backtest context. |
+| Breakout Scanner | Scan IBKR Nasdaq-100 live/cache data by default, or Yahoo Finance S&P 500 data, for ceiling breakouts, momentum breakouts, and near-breakout watch setups with relative-volume, trend, candlestick charts, and backtest context. |
+| Smart Candles | Educational FinanceOS Smart Candle Signals tab that classifies latest daily candles as blue, pink, red, or neutral using transparent OHLCV, RSI, trend, volume, and reversal/distribution rules. |
+| Composite Signal Algorithm | IBKR historical-bar lab for SOXL, TQQQ, and UPRO using underlying ETF proxies and monthly trend/momentum/RSI components. |
+| OptiTrade Lab | IBKR historical-bar leveraged ETF signal cockpit with trend regime, anti-chop filtering, ATR/swing stops, take-profit modeling, charts, and settings-aware backtests. |
 | Equity Research | Enter a ticker or company, pull free market and five-year financial data, run peer/DCF context, and generate an educational Wall Street-style research stance. |
 | Earnings Agent | Resolve a ticker or company, fetch recent SEC earnings exhibits, company IR slides/remarks, and matching transcript coverage, then use the encrypted OpenAI key to create an educational digest. |
 
@@ -75,7 +78,7 @@ The ideas workspace organizes self-managed investor concepts into reviewable tab
 
 ### FinanceOS Studio
 
-FinanceOS Studio brings together encrypted OpenAI-key workflows, AI Planner reports, Personal CFO, Portfolio Sync, Wheel Strategy, RSI Playbook, Breakout Scanner, Equity Research, and Earnings Agent in one research workspace.
+FinanceOS Studio brings together encrypted OpenAI-key workflows, AI Planner reports, Personal CFO, Portfolio Sync, Wheel Strategy, RSI Playbook, Breakout Scanner, Smart Candles, Composite Signal Algorithm, OptiTrade Lab, Equity Research, Earnings Agent, and the IBKR Wheel Scanner in one research workspace.
 
 <img src="docs/screenshots/studio.jpg" alt="FinanceOS Studio workspace" width="900">
 
@@ -104,6 +107,9 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
   - Encrypted user-owned OpenAI API key storage
   - Saved retirement-planning report history
   - Personal CFO project workspace with a seven-phase interview, editable markdown files, optional financial CSV upload, dashboard summaries, generated one-pager, and one refinement round
+  - Smart Candles tab with explainable blue/pink/red/neutral daily-candle classifications, candlestick charts, rule components, custom watchlists, and forward-return backtest distributions
+  - Breakout Scanner tab that defaults to IBKR Nasdaq-100 live/cache data, supports Yahoo Finance S&P 500 scans, and renders candlestick charts with SMA/resistance/volume context
+  - Composite Signal Algorithm and OptiTrade Lab tabs powered by the IBKR backend historical-bar endpoints
   - Equity Research tab that combines yfinance profile/valuation data, five-year financial statement rows, same-sector peer context, a simple DCF model, recent earnings source metadata, and a saved educational research stance
   - Earnings Agent tab that resolves tickers/company names, fetches recent SEC 8-K Exhibit 99.1/99.2 earnings materials, company investor-relations slides/prepared remarks, and Motley Fool transcript coverage when available, and saves educational digest history
 - Portfolio Sync workspace with:
@@ -120,10 +126,18 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
   - Requested action zones: RSI 70+ go to cash, RSI 55-65 sell puts far OTM, RSI 45-55 sell puts ATM, RSI 30-45 buy the stock, and RSI 30 and below buy LEAP aggressively
   - Per-symbol summary table and click-through chart details with price, EMA overlays, RSI bands, source labels, and manual-verification notes
 - Breakout Scanner workspace with:
-  - S&P 500-only universe from the current public constituents table, with SPY-holdings fallback clearly labeled
+  - IBKR Nasdaq-100 + leveraged ETF scan path by default, with Yahoo Finance S&P 500 scan/backtest path available
   - Breakout-specific OHLCV cache for high/low/volume data without changing the close-only price cache
   - Ceiling breakout, momentum breakout, and near-breakout watch detectors using resistance touches, relative volume, SMA trend context, and liquidity filters
-  - Ranked setup table, click-through price/SMA/resistance/volume chart, and Backtest Lab distributions for 5/10/20/60 trading-day forward returns
+  - Ranked setup table, click-through candlestick/SMA/resistance/volume chart, and Backtest Lab distributions for 5/10/20/60 trading-day forward returns
+- Smart Candles workspace with:
+  - S&P 500 plus custom-watchlist scan using the shared OHLCV cache
+  - Transparent candle-color approximation rules for blue accumulation/reversal, pink caution/distribution, red breakdown, and neutral candles
+  - Candlestick chart with SMA and volume overlays plus color-specific backtest distributions
+- IBKR research labs with:
+  - Composite Signal Algorithm endpoint for monthly SOXL/TQQQ/UPRO trend research using SOXX/QQQ/SPY proxies
+  - OptiTrade Lab endpoints for leveraged ETF signal packages and settings-aware backtests
+  - Local process guardrails to avoid duplicate TWS client-id connections
 - Wheel Strategy workspace with:
   - Daily scan universe built from S&P 500 top holdings, Nasdaq top holdings, plus `QQQ`, `SPY`, `SMH`, `XLE`, `XLI`, `UPRO`, `TQQQ`, and `SOXL`
   - yfinance option-chain adapter for 30-45 DTE cash-secured put candidates
@@ -166,13 +180,14 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
 ```text
 .
 ├── backend/                  Main FastAPI app, services, models, schemas, tests
-│   └── ibkr/                 Standalone IBKR Wheel Scanner backend (port 8002)
-│       ├── main.py           FastAPI app — status, watchlist, options, scanner, WebSocket
+│   └── ibkr/                 Standalone IBKR research backend (port 8002)
+│       ├── main.py           FastAPI app — status, watchlist, options, scanners, labs, WebSocket
 │       ├── config.py         Pydantic settings (TWS host/port, CBOE URL, cache TTLs)
+│       ├── start.sh          Single-instance launcher that cleans stale TWS client-id workers
 │       ├── requirements.txt  Python deps including ib_insync
 │       ├── .env.example      Environment template (copy to .env before starting)
 │       ├── data/
-│       │   ├── tickers.py    Nasdaq-100 + SOXL/TQQQ/UPRO universe (107 symbols)
+│       │   ├── tickers.py    Nasdaq-100 + leveraged ETF universe
 │       │   └── cboe_daily_cache.json  Persistent daily option-chain cache
 │       └── services/
 │           ├── ibkr_service.py       TWS connection, contract qualification, snapshot poll
@@ -185,7 +200,7 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
 │   ├── PORTFOLIO_SYNC.md     SnapTrade read-only sync behavior, API, setup, and tests
 │   ├── EARNINGS_AGENT.md     SEC/company IR/Motley source retrieval, digest API, storage, and tests
 │   ├── RSI_PLAYBOOK.md       RSI Playbook rules, API, chart data, and test notes
-│   ├── BREAKOUT_SCANNER.md   S&P 500 breakout detection, OHLCV cache, backtest lab, and test notes
+│   ├── BREAKOUT_SCANNER.md   Breakout detection, OHLCV cache, backtest lab, and test notes
 │   ├── WHEEL_STRATEGY.md     Wheel Strategy behavior, API, scoring, and test notes
 │   └── screenshots/          README and guide screenshots
 ├── docker-compose.yml        Local Postgres, Redis, backend, worker, beat, frontend
@@ -213,7 +228,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-This starts all services including the IBKR Wheel Scanner backend on port 8002. No extra steps are needed — the Wheel Scanner tab will show CBOE delayed prices immediately and switch to IBKR live data automatically when TWS is running.
+This starts all services including the IBKR research backend on port 8002. No extra steps are needed for delayed Wheel Scanner data. Composite Signal Algorithm, OptiTrade Lab, and IBKR historical-bar features require TWS/Gateway to be running with API access enabled.
 
 ## Quickstart
 
@@ -222,7 +237,7 @@ Requirements:
 - Docker Desktop or a compatible Docker engine
 - Docker Compose
 
-Run the full local stack (includes IBKR Wheel Scanner backend):
+Run the full local stack (includes the IBKR research backend):
 
 ```bash
 cp .env.example .env
@@ -234,8 +249,8 @@ Open:
 - Frontend: http://localhost:3000
 - Backend API docs: http://localhost:8000/docs
 - Health check: http://localhost:8000/health
-- IBKR Scanner API: http://localhost:8002/api/status
-- IBKR Scanner docs: http://localhost:8002/docs
+- IBKR research API: http://localhost:8002/api/status
+- IBKR research docs: http://localhost:8002/docs
 
 All seven services start together: `db`, `redis`, `backend`, `worker`, `beat`, `frontend`, and `ibkr-backend`.
 
@@ -286,6 +301,10 @@ Copy `.env.example` to `.env` before running Docker Compose.
 | `SNAPTRADE_CLIENT_ID` | Optional SnapTrade client id for read-only Portfolio Sync brokerage connections; hosted deployments should prefer env setup |
 | `SNAPTRADE_CONSUMER_KEY` | Optional SnapTrade consumer key for read-only Portfolio Sync brokerage connections; local users can also enter it in Portfolio Sync where it is encrypted in the backend database |
 | `BROKER_SYNC_ENCRYPTION_SECRET` | Server-side secret used to encrypt SnapTrade provider consumer keys and user secrets before database storage; use at least 32 random characters and never commit real values |
+| `TWS_HOST` | Hostname or IP for TWS/Gateway socket API used by the IBKR research backend |
+| `TWS_PORT` | TWS/Gateway socket port, usually `7496` for live or `7497` for paper |
+| `TWS_CLIENT_ID` | TWS API client id; keep one running IBKR backend per id to avoid duplicate-client disconnects |
+| `NEXT_PUBLIC_IBKR_API_URL` | Browser-visible URL for the IBKR research backend, default `http://localhost:8002` |
 
 ## API Highlights
 
@@ -298,16 +317,20 @@ The backend exposes the main planning workflows through FastAPI routes:
 - `/option-strategy/universe`, `/option-strategy/config`, `/option-strategy/scan?force=false`, `/option-strategy/signals`, `/option-strategy/positions`, and `/option-strategy/alerts` support the Wheel Strategy workspace.
 - `/portfolio-sync/status`, `/portfolio-sync/provider-credentials`, `/portfolio-sync/connect`, `/portfolio-sync/connections`, `/portfolio-sync/sync`, and `/portfolio-sync/summary` support encrypted SnapTrade provider setup, read-only broker connection, and holdings snapshots.
 - `/rsi-playbook/scan?force=false` supports the combined Wheel Strategy + Portfolio Sync RSI action workspace.
-- `/breakout-scanner/universe`, `/breakout-scanner/scan?force=false`, and `/breakout-scanner/backtest` support the S&P 500-only Breakout Scanner workspace.
+- `/breakout-scanner/universe`, `/breakout-scanner/scan?force=false`, and `/breakout-scanner/backtest` support the Yahoo Finance/S&P 500 Breakout Scanner path.
+- `/smart-candles/scan?force=false` and `/smart-candles/backtest` support the Smart Candles workspace.
 
-The **IBKR Wheel Scanner backend** (port 8002) exposes its own set of routes:
+The **IBKR research backend** (port 8002) exposes its own set of routes:
 
 - `/api/status` — IBKR connection state, quote count, price source (`ibkr` or `cboe_delayed`)
-- `/api/watchlist` — All 107 Nasdaq-100 + leveraged ETF symbols with live quotes, RSI(14), BB%(20), 30Δ CSP/CC annualised yields, ATM IV, and signals
+- `/api/watchlist` — Configured Nasdaq-100 + leveraged ETF universe with live quotes, RSI(14), BB%(20), 30Δ CSP/CC annualised yields, ATM IV, and signals
 - `/api/quotes?symbols=SYM1,SYM2` — On-demand quotes for up to 20 custom tickers
 - `/api/options/{symbol}` — Full CBOE option chain split into puts and calls with Greeks, DTE, yields, and PoP
 - `/api/scanner/csp` — Cash-Secured Put scan (params: `dte_min`, `dte_max`, `delta_min`, `delta_max`, `min_ann_yield`, `min_oi`, `limit`)
 - `/api/scanner/cc` — Covered Call scan (same params)
+- `/api/breakout/status` and `/api/breakout/scan?source=ibkr&index=ndx100` — IBKR-backed Breakout Scanner status and scan path
+- `/api/composite-signal` — Composite Signal Algorithm historical-bar package
+- `/api/optitrade-lab/signals` and `/api/optitrade-lab/backtest` — OptiTrade Lab signal and backtest packages
 - `/ws/quotes` — WebSocket streaming: snapshot on connect, then 1 s diffs of changed quotes
 
 See [docs/WHEEL_STRATEGY.md](docs/WHEEL_STRATEGY.md) for the Wheel Strategy API contract and scoring details.
@@ -341,9 +364,9 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 If the backend is run without `DATABASE_URL`, it falls back to a local SQLite database. Background workflows still require Redis and Celery.
 For backend-only local runs, place API-specific overrides such as `AI_ADVISOR_KEY_ENCRYPTION_SECRET` in `backend/.env` or export them in the shell; the repo-root `.env` is intended for Docker Compose.
 
-### IBKR Wheel Scanner Backend (port 8002)
+### IBKR Research Backend (port 8002)
 
-The Wheel Scanner tab in FinanceOS Studio is powered by a separate lightweight FastAPI service that connects to Interactive Brokers TWS for live quotes and CBOE for delayed option chains. It runs independently of the main backend and does not require Postgres, Redis, or Celery.
+Wheel Scanner, IBKR Breakout Scanner, Composite Signal Algorithm, and OptiTrade Lab are powered by a separate lightweight FastAPI service that connects to Interactive Brokers TWS for live quotes/historical bars and CBOE for delayed option chains. It runs independently of the main backend and does not require Postgres, Redis, or Celery.
 
 Requirements: **Python 3.11 or 3.12**. Check with `python3 --version`. If you have both, prefer `python3.12`.
 
@@ -362,14 +385,16 @@ cp .env.example .env
 
 ```bash
 cd backend/ibkr
-.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+./start.sh
 ```
 
 Verify it is running: open http://localhost:8002/api/status — you should see a JSON response.
 
+Always use `./start.sh`, not `uvicorn --reload`. The launcher cleans stale workers that can hold the TWS client id open and cause `client id is already in use` failures.
+
 **Step 3 — IBKR TWS configuration (optional — only needed for live quotes):**
 
-TWS is not required. Without it the backend starts normally and all prices fall back to CBOE 15-minute delayed data. The connection status is shown in the Wheel Scanner tab header.
+TWS is not required for the Wheel Scanner watchlist and option-chain fallback. Without TWS, the backend starts normally and Wheel prices fall back to CBOE 15-minute delayed data. Composite Signal Algorithm, OptiTrade Lab, and IBKR historical-bar scans require TWS/Gateway to be connected.
 
 To enable live IBKR quotes:
 
@@ -388,32 +413,45 @@ TWS_PORT=7496        # change to 7497 for paper trading
 TWS_CLIENT_ID=1
 ```
 
+If TWS reports that the client id is already in use, stop duplicate local workers and restart with:
+
+```bash
+cd backend/ibkr
+./start.sh
+```
+
 ## Tests and Checks
+
+Run the full local commit gate:
+
+```bash
+./scripts/check-before-commit.sh
+```
+
+The gate runs backend pytest, AI Advisor IBKR endpoint contract checks, frontend typecheck, and a production build. A local `.git/hooks/pre-commit` can call this script; hooks are machine-local and are not pushed with Git commits.
 
 Backend unit tests:
 
 ```bash
-PYTHONPATH=backend python3 -m unittest discover backend/tests
+PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests
 ```
 
-After backend dependencies are installed, pytest can also run the suite:
+Frontend IBKR contract checks:
 
 ```bash
-PYTHONPATH=backend pytest backend/tests
+npm --prefix frontend run test:contracts
 ```
 
 Frontend typecheck:
 
 ```bash
-cd frontend
-npm run typecheck
+npm --prefix frontend run typecheck
 ```
 
 Frontend production build:
 
 ```bash
-cd frontend
-npm run build
+npm --prefix frontend run build
 ```
 
 ## Data Behavior
@@ -428,7 +466,9 @@ Portfolio Sync uses SnapTrade when backend env credentials are configured or whe
 
 The RSI Playbook uses the Wheel Strategy universe and any latest Portfolio Sync holdings snapshot, then pulls cached daily market history for RSI and EMA calculations. If provider history is unavailable, it labels deterministic fallback chart data.
 
-The Breakout Scanner uses only S&P 500 constituents, caches breakout-specific OHLCV bars, and runs ceiling, momentum, and near-breakout detectors with relative-volume and SMA context. Backtest Lab summarizes historical forward-return distributions and labels survivorship-bias and provider-fallback limits.
+The Breakout Scanner defaults to the IBKR Nasdaq-100 live/cache path and can switch to the Yahoo Finance S&P 500 path. It caches breakout-specific OHLCV bars and runs ceiling, momentum, and near-breakout detectors with relative-volume and SMA context. Backtest Lab summarizes historical forward-return distributions and labels survivorship-bias and provider-fallback limits.
+
+Smart Candles uses the same educational OHLCV cache family to classify latest daily candles with transparent FinanceOS rules. This implementation is an explainable approximation and not a trading signal.
 
 Earnings Agent uses SEC company metadata, SEC submissions JSON, EDGAR filing archives, known company investor-relations pages, bounded Motley Fool transcript searches, and manual-review YouTube/Quartr discovery status when transcript text is unavailable. It stores source metadata, short excerpts, prompt/response metadata, and the parsed digest, but does not store full third-party transcript text.
 
@@ -450,7 +490,7 @@ Backtest and trade outputs are hypothetical. They depend on cached data, simplif
 
 FinanceOS is educational planning software only. It is not a registered investment adviser, broker-dealer, law firm, CPA firm, tax preparer, fiduciary, custodian, or trading system.
 
-Nothing in the app, README, backtests, tax-loss-harvesting output, transition plans, retirement analyzer, FinanceOS Studio reports, Personal CFO output, Wheel Strategy scans, RSI Playbook outputs, Breakout Scanner outputs, Equity Research analyses, Earnings Agent digests, Portfolio Sync snapshots, exports, or data displays is tax, legal, accounting, investment, fiduciary, brokerage, or trading advice. Consult qualified professionals before making financial decisions.
+Nothing in the app, README, backtests, tax-loss-harvesting output, transition plans, retirement analyzer, FinanceOS Studio reports, Personal CFO output, Wheel Strategy scans, RSI Playbook outputs, Breakout Scanner outputs, Smart Candles outputs, Composite Signal Algorithm outputs, OptiTrade Lab outputs, Equity Research analyses, Earnings Agent digests, Portfolio Sync snapshots, exports, or data displays is tax, legal, accounting, investment, fiduciary, brokerage, or trading advice. Consult qualified professionals before making financial decisions.
 
 ## Contributing
 
@@ -481,7 +521,7 @@ cd ~/github/personal_finance/backend
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-**Terminal 2 — IBKR Wheel Scanner backend (port 8002):**
+**Terminal 2 — IBKR research backend (port 8002):**
 
 ```bash
 cd ~/github/personal_finance/backend/ibkr
@@ -490,7 +530,7 @@ cd ~/github/personal_finance/backend/ibkr
 
 > **First-time only:** `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt && cp .env.example .env`
 >
-> Always use `./start.sh` — **never** `uvicorn ... --reload`. The `--reload` flag creates orphaned worker processes that hold open IBKR market-data subscriptions and trigger TWS error 101 ("Max number of tickers has been reached"). The start script kills any existing process on port 8002 before starting, ensuring a single clean connection to TWS.
+> Always use `./start.sh` — **never** `uvicorn ... --reload`. The `--reload` flag can create orphaned worker processes that hold open IBKR market-data subscriptions or TWS client ids and trigger TWS errors such as "client id is already in use" or "Max number of tickers has been reached". The start script kills existing and orphaned port-8002 workers before starting, ensuring a single clean connection to TWS.
 
 **Terminal 3 — Frontend (port 3000):**
 
@@ -505,8 +545,8 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev -- --hostname 0.0.0.0 --po
 |---|---|---|
 | Frontend | http://localhost:3000 | FinanceOS Studio UI |
 | Main API | http://localhost:8000/health | Portfolios, AI Advisor, etc. |
-| IBKR Scanner API | http://localhost:8002/api/status | Wheel Scanner backend |
+| IBKR research API | http://localhost:8002/api/status | Wheel, Breakout, Composite, OptiTrade backend |
 | API docs | http://localhost:8000/docs | Main backend OpenAPI |
-| Scanner docs | http://localhost:8002/docs | IBKR backend OpenAPI |
+| IBKR docs | http://localhost:8002/docs | IBKR backend OpenAPI |
 
-The Wheel Scanner tab at http://localhost:3000/ai-advisor connects to the IBKR backend at port 8002. It works without TWS — CBOE delayed prices load automatically as fallback.
+The AI Advisor tabs at http://localhost:3000/ai-advisor connect to the IBKR backend at port 8002 for Wheel Scanner, IBKR Breakout Scanner, Composite Signal Algorithm, and OptiTrade Lab. Wheel Scanner can load CBOE delayed fallback data without TWS; historical-bar labs require TWS/Gateway.

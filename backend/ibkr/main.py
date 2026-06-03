@@ -26,8 +26,9 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from typing import Any
 
-from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from ib_insync import Stock
 
 import services.ibkr_service as ibkr
 import services.analytics_service as analytics
@@ -303,6 +304,619 @@ def _build_watchlist_rows() -> dict[str, dict]:
     return rows
 
 
+def _pf(val) -> float | None:
+    if val is None:
+        return None
+    try:
+        f = float(val)
+        return None if f != f else f
+    except (TypeError, ValueError):
+        return None
+
+
+def _pi(val) -> int | None:
+    f = _pf(val)
+    return int(f) if f is not None else None
+
+
+def _display_volume(val: int | None) -> int | None:
+    return val if val is not None and 0 <= val <= 1_000_000_000 else None
+
+
+async def _build_custom_quote_row(symbol: str) -> dict:
+    """Fetch one non-watchlist symbol from IBKR, then merge option metrics."""
+    row: dict[str, Any] = {
+        "symbol":     symbol,
+        "price":      None,
+        "bid":        None,
+        "ask":        None,
+        "last":       None,
+        "close":      None,
+        "change":     None,
+        "change_pct": None,
+        "volume":     None,
+        "source":     "none",
+    }
+
+    if ibkr.is_connected():
+        try:
+            contract = Stock(symbol, "SMART", "USD")
+            qualified = await ibkr.get_ib().qualifyContractsAsync(contract)
+            if qualified and qualified[0].conId:
+                contract = qualified[0]
+
+                try:
+                    tickers = await ibkr.get_ib().reqTickersAsync(contract, regulatorySnapshot=False)
+                    ticker = tickers[0] if tickers else None
+                    if ticker:
+                        bid = _pf(ticker.bid)
+                        ask = _pf(ticker.ask)
+                        last = _pf(ticker.last)
+                        close = _pf(ticker.close)
+                        price = ((bid + ask) / 2) if bid and ask else last
+                        row.update({
+                            "price":  price,
+                            "bid":    bid,
+                            "ask":    ask,
+                            "last":   last,
+                            "close":  close,
+                            "volume": _display_volume(_pi(ticker.volume)),
+                            "source": "ibkr" if price is not None else row["source"],
+                        })
+                except Exception as exc:
+                    log.debug("IBKR snapshot %s: %s", symbol, exc)
+
+                bars = await ibkr.get_ib().reqHistoricalDataAsync(
+                    contract,
+                    endDateTime="",
+                    durationStr="1 Y",
+                    barSizeSetting="1 day",
+                    whatToShow="TRADES",
+                    useRTH=True,
+                )
+                bars = [bar for bar in bars if _pf(bar.close) is not None]
+                if bars:
+                    closes = [float(bar.close) for bar in bars]
+                    volumes = [float(bar.volume or 0) for bar in bars]
+                    latest_close = closes[-1]
+                    prior_close = closes[-2] if len(closes) >= 2 else row.get("close")
+                    price = row.get("price") if row.get("price") is not None else latest_close
+                    hist_volume = _display_volume(int(volumes[-1]))
+                    row.update({
+                        "price":  price,
+                        "last":   row.get("last") if row.get("last") is not None else latest_close,
+                        "close":  prior_close,
+                        "volume": row.get("volume") if row.get("volume") is not None else hist_volume,
+                        "source": "ibkr",
+                    })
+                    if price is not None and prior_close:
+                        change = round(float(price) - float(prior_close), 2)
+                        row["change"] = change
+                        row["change_pct"] = round(change / float(prior_close) * 100, 2)
+
+                    row.update(analytics.compute_from_bars(closes, volumes))
+        except Exception as exc:
+            log.debug("custom IBKR quote %s: %s", symbol, exc)
+
+    chain = await get_option_chain(symbol)
+    cboe_price = chain[0].get("stock_price") if chain else None
+    if row.get("price") is None and cboe_price is not None:
+        row.update({
+            "price":  cboe_price,
+            "last":   cboe_price,
+            "source": "cboe",
+        })
+
+    m30 = find_30delta_metrics(symbol)
+    iv = get_atm_iv(symbol)
+    csp, cc = m30.get("csp_30d"), m30.get("cc_30d")
+    signals: list[str] = []
+    if csp is not None and csp > 5:
+        signals.append("CSP")
+    if cc is not None and cc > 5:
+        signals.append("CC")
+    if row.get("rsi") is not None and row.get("bb_pct") is not None and row["rsi"] <= 40 and row["bb_pct"] <= 20:
+        signals.append("LEAP")
+
+    row.setdefault("rsi", None)
+    row.setdefault("bb_pct", None)
+    row.setdefault("stage", None)
+    row.setdefault("sata_score", None)
+    row.setdefault("mansfield_rs", None)
+    row.setdefault("ma150", None)
+    row.setdefault("ma200", None)
+    row.setdefault("sata_attributes", {})
+    row.update({
+        "iv_rank": iv,
+        "hv30": None,
+        "csp_30d": csp,
+        "cc_30d": cc,
+        "signals": signals,
+    })
+    return row
+
+
+async def _fetch_ibkr_daily_bars(symbol: str) -> list[dict[str, Any]]:
+    contract = Stock(symbol, "SMART", "USD")
+    qualified = await ibkr.get_ib().qualifyContractsAsync(contract)
+    if not qualified:
+        raise RuntimeError("contract could not be qualified")
+
+    bars = []
+    for data_type in ("ADJUSTED_LAST", "TRADES"):
+        bars = await ibkr.get_ib().reqHistoricalDataAsync(
+            qualified[0],
+            endDateTime="",
+            durationStr="5 Y",
+            barSizeSetting="1 day",
+            whatToShow=data_type,
+            useRTH=True,
+        )
+        if bars and len(bars) >= 260:
+            break
+    if not bars or len(bars) < 260:
+        raise RuntimeError("insufficient IBKR historical bars")
+
+    return [
+        {
+            "date": bar.date.date() if hasattr(bar.date, "date") else bar.date,
+            "open": float(bar.open),
+            "close": float(bar.close),
+        }
+        for bar in bars
+        if bar.close and bar.close > 0
+    ]
+
+
+def _month_end_closes(daily_bars: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_month: dict[str, dict[str, Any]] = {}
+    for bar in daily_bars:
+        day = bar["date"]
+        month_key = day.strftime("%Y-%m")
+        by_month[month_key] = {
+            "month": month_key,
+            "date": day.isoformat(),
+            "close": float(bar["close"]),
+        }
+    return [by_month[key] for key in sorted(by_month)]
+
+
+def _rsi_monthly(closes: list[float], end: int, period: int = 6) -> float:
+    gains = 0.0
+    losses = 0.0
+    for index in range(end - period + 1, end + 1):
+        delta = closes[index] - closes[index - 1]
+        if delta > 0:
+            gains += delta
+        else:
+            losses -= delta
+    avg_gain = gains / period
+    avg_loss = losses / period
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return round(100 - 100 / (1 + rs), 1)
+
+
+def _latest_rsi_state(closes: list[float], latest_index: int) -> tuple[bool, float]:
+    state = False
+    latest_rsi = 0.0
+    for index in range(6, latest_index + 1):
+        latest_rsi = _rsi_monthly(closes, index)
+        if latest_rsi > 52:
+            state = True
+        elif latest_rsi < 42:
+            state = False
+    return state, latest_rsi
+
+
+def _composite_history_from_monthly(monthly: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if len(monthly) < 13:
+        raise RuntimeError("needs at least 13 monthly closes")
+
+    closes = [float(row["close"]) for row in monthly]
+    history: list[dict[str, Any]] = []
+    rsi_state = False
+
+    for index in range(12, len(closes)):
+        price = closes[index]
+        sma10 = sum(closes[index - 9 : index + 1]) / 10
+        sma_bullish = price >= sma10
+        momentum_12m_pct = (price / closes[index - 12] - 1) * 100
+        momentum_bullish = price > closes[index - 12]
+        rsi6 = _rsi_monthly(closes, index)
+        if rsi6 > 52:
+            rsi_state = True
+        elif rsi6 < 42:
+            rsi_state = False
+        score = int(sma_bullish) + int(momentum_bullish) + int(rsi_state)
+        history.append({
+            "date": monthly[index]["date"],
+            "price": round(price, 2),
+            "sma10": round(sma10, 2),
+            "momentum_12m_pct": round(momentum_12m_pct, 2),
+            "rsi6": rsi6,
+            "score": score,
+            "signal": "BUY" if score >= 2 else "SELL",
+            "components": {
+                "sma10": sma_bullish,
+                "momentum12": momentum_bullish,
+                "rsi6": rsi_state,
+            },
+        })
+
+    return history
+
+
+def _composite_signal_from_monthly(monthly: list[dict[str, Any]]) -> dict[str, Any]:
+    history = _composite_history_from_monthly(monthly)
+    latest = history[-1]
+
+    return {
+        "signal": latest["signal"],
+        "score": latest["score"],
+        "price": latest["price"],
+        "as_of_date": latest["date"],
+        "sma10": latest["sma10"],
+        "momentum_12m_pct": latest["momentum_12m_pct"],
+        "rsi6": latest["rsi6"],
+        "components": latest["components"],
+        "history": history[-36:],
+    }
+
+
+LEVERAGED_UNDERLYING_MAP = {
+    "TQQQ": "QQQ",
+    "SOXL": "SOXX",
+    "UPRO": "SPY",
+}
+
+
+async def _fetch_optitrade_daily_bars(symbol: str, duration: str = "2 Y") -> list[dict[str, Any]]:
+    contract = Stock(symbol, "SMART", "USD")
+    qualified = await ibkr.get_ib().qualifyContractsAsync(contract)
+    if not qualified:
+        raise RuntimeError("contract could not be qualified")
+
+    bars = []
+    for data_type in ("ADJUSTED_LAST", "TRADES"):
+        bars = await ibkr.get_ib().reqHistoricalDataAsync(
+            qualified[0],
+            endDateTime="",
+            durationStr=duration,
+            barSizeSetting="1 day",
+            whatToShow=data_type,
+            useRTH=True,
+        )
+        if bars and len(bars) >= 120:
+            break
+    if not bars or len(bars) < 120:
+        raise RuntimeError("insufficient IBKR historical bars")
+
+    result = []
+    for bar in bars:
+        close = _pf(bar.close)
+        high = _pf(bar.high)
+        low = _pf(bar.low)
+        open_price = _pf(bar.open)
+        if close is None or high is None or low is None or open_price is None or close <= 0:
+            continue
+        result.append({
+            "date": bar.date.date().isoformat() if hasattr(bar.date, "date") else str(bar.date),
+            "open": open_price,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": float(bar.volume or 0),
+        })
+    if len(result) < 120:
+        raise RuntimeError("insufficient clean IBKR historical bars")
+    return result
+
+
+def _ema(values: list[float], period: int) -> list[float | None]:
+    if not values:
+        return []
+    alpha = 2 / (period + 1)
+    result: list[float | None] = [None] * len(values)
+    ema_value = values[0]
+    for index, value in enumerate(values):
+        ema_value = value if index == 0 else alpha * value + (1 - alpha) * ema_value
+        if index >= period - 1:
+            result[index] = ema_value
+    return result
+
+
+def _avg(values: list[float]) -> float:
+    return sum(values) / len(values) if values else 0.0
+
+
+def _atr(bars: list[dict[str, Any]], period: int = 14) -> list[float | None]:
+    true_ranges: list[float] = []
+    for index, bar in enumerate(bars):
+        if index == 0:
+            true_ranges.append(float(bar["high"]) - float(bar["low"]))
+        else:
+            prev_close = float(bars[index - 1]["close"])
+            true_ranges.append(max(
+                float(bar["high"]) - float(bar["low"]),
+                abs(float(bar["high"]) - prev_close),
+                abs(float(bar["low"]) - prev_close),
+            ))
+    result: list[float | None] = [None] * len(bars)
+    for index in range(period - 1, len(true_ranges)):
+        result[index] = _avg(true_ranges[index - period + 1 : index + 1])
+    return result
+
+
+def _rsi_last(closes: list[float], period: int = 14) -> float:
+    value = analytics.compute_from_bars(closes, [0 for _ in closes]).get("rsi")
+    return float(value) if value is not None else 50.0
+
+
+def _momentum_score(closes: list[float], volumes: list[float]) -> tuple[float, float, float]:
+    ema12 = _ema(closes, 12)
+    ema26 = _ema(closes, 26)
+    macd = ((ema12[-1] or closes[-1]) - (ema26[-1] or closes[-1])) / closes[-1] * 100
+    rsi = _rsi_last(closes)
+    slope20 = (closes[-1] / closes[-21] - 1) * 100 if len(closes) > 21 else 0.0
+    score = 50 + (rsi - 50) * 0.55 + macd * 4 + slope20 * 1.2
+    avg_volume = _avg(volumes[-21:-1]) if len(volumes) > 21 else _avg(volumes)
+    volume_score = 50 if avg_volume <= 0 else max(0, min(100, volumes[-1] / avg_volume * 50))
+    return round(max(0, min(100, score)), 1), round(max(0, min(100, volume_score)), 1), round(rsi, 1)
+
+
+def _anti_chop_state(bars: list[dict[str, Any]], atr_value: float) -> tuple[str, bool]:
+    closes = [float(bar["close"]) for bar in bars]
+    latest_close = closes[-1]
+    range_20 = (max(float(bar["high"]) for bar in bars[-20:]) - min(float(bar["low"]) for bar in bars[-20:])) / latest_close * 100
+    atr_pct = atr_value / latest_close * 100 if latest_close else 0
+    trending = range_20 >= 5.5 and atr_pct >= 1.1
+    return ("Trending" if trending else "Chop filter active"), trending
+
+
+def _trend_signal(bars: list[dict[str, Any]]) -> dict[str, Any]:
+    closes = [float(bar["close"]) for bar in bars]
+    volumes = [float(bar["volume"]) for bar in bars]
+    ema21 = _ema(closes, 21)
+    ema55 = _ema(closes, 55)
+    atr_values = _atr(bars)
+    latest_close = closes[-1]
+    latest_ema21 = ema21[-1] or latest_close
+    latest_ema55 = ema55[-1] or latest_close
+    atr_value = atr_values[-1] or max(latest_close * 0.025, 0.01)
+    momentum, volume_score, rsi = _momentum_score(closes, volumes)
+    chop_label, is_trending = _anti_chop_state(bars, atr_value)
+
+    if latest_close > latest_ema21 > latest_ema55:
+        trend_state = "BULLISH"
+    elif latest_close < latest_ema21 < latest_ema55:
+        trend_state = "BEARISH"
+    else:
+        trend_state = "NEUTRAL"
+
+    if not is_trending:
+        signal = "HOLD"
+    elif trend_state == "BULLISH" and momentum >= 55:
+        signal = "BUY"
+    elif trend_state == "BEARISH" and momentum <= 45:
+        signal = "SELL"
+    else:
+        signal = "HOLD"
+
+    return {
+        "signal": signal,
+        "trend_state": trend_state,
+        "anti_chop_state": chop_label,
+        "anti_chop_pass": is_trending,
+        "atr": round(atr_value, 2),
+        "momentum_score": momentum,
+        "volume_score": volume_score,
+        "rsi": rsi,
+        "ema21": latest_ema21,
+        "ema55": latest_ema55,
+        "ema21_series": ema21,
+        "ema55_series": ema55,
+    }
+
+
+def _levels_for_signal(price: float, atr_value: float, signal: str, atr_multiplier: float = 2.5) -> dict[str, Any]:
+    risk = max(atr_value * atr_multiplier, price * 0.03)
+    direction = -1 if signal == "SELL" else 1
+    stop = price - direction * risk
+    take_profits = [price + direction * risk * multiple for multiple in (1, 2, 3, 4)]
+    return {
+        "entry": round(price, 2),
+        "stop_loss": round(stop, 2),
+        "take_profits": [round(value, 2) for value in take_profits],
+        "risk_reward": round(abs((take_profits[1] - price) / (price - stop)), 2) if price != stop else None,
+    }
+
+
+def _optitrade_backtest(
+    leveraged_bars: list[dict[str, Any]],
+    underlying_bars: list[dict[str, Any]],
+    atr_multiplier: float = 2.5,
+    tp_mode: str = "multi",
+    stop_model: str = "atr",
+) -> dict[str, Any]:
+    n = min(len(leveraged_bars), len(underlying_bars))
+    leveraged = leveraged_bars[-n:]
+    underlying = underlying_bars[-n:]
+    atr_values = _atr(leveraged)
+    trades: list[float] = []
+    trade_rows: list[dict[str, Any]] = []
+    equity = 1.0
+    peak = 1.0
+    max_drawdown = 0.0
+    position_signal: str | None = None
+    entry_price = 0.0
+    entry_date = ""
+    entry_index = 0
+    stop_price = 0.0
+    target_price = 0.0
+
+    def _entry_levels(open_signal: str, open_index: int) -> tuple[float, float]:
+        atr_value = float(atr_values[open_index] or 0)
+        atr_risk = max(atr_value * atr_multiplier, entry_price * 0.03)
+        if stop_model == "swing":
+            recent = leveraged[max(0, open_index - 10): open_index + 1]
+            if open_signal == "BUY":
+                swing_stop = min(float(bar["low"]) for bar in recent)
+                risk = entry_price - swing_stop
+            else:
+                swing_stop = max(float(bar["high"]) for bar in recent)
+                risk = swing_stop - entry_price
+            risk = risk if risk > 0 else atr_risk
+        else:
+            risk = atr_risk
+
+        direction = -1 if open_signal == "SELL" else 1
+        stop = entry_price - direction * risk
+        target_multiple = 1 if tp_mode == "single" else 2
+        target = entry_price + direction * risk * target_multiple
+        return stop, target
+
+    def _open_position(open_signal: str, open_index: int) -> None:
+        nonlocal position_signal, entry_price, entry_date, entry_index, stop_price, target_price
+        position_signal = open_signal
+        entry_price = float(leveraged[open_index]["close"])
+        entry_date = leveraged[open_index]["date"]
+        entry_index = open_index
+        stop_price, target_price = _entry_levels(open_signal, open_index)
+
+    def _close_position(close_index: int, exit_price: float, reason: str) -> None:
+        nonlocal equity, peak, max_drawdown, position_signal
+        if not position_signal:
+            return
+        trade_return = (exit_price / entry_price - 1) if position_signal == "BUY" else (entry_price / exit_price - 1)
+        trades.append(trade_return)
+        equity *= 1 + trade_return
+        peak = max(peak, equity)
+        max_drawdown = min(max_drawdown, equity / peak - 1)
+        trade_rows.append({
+            "direction": position_signal,
+            "entry_date": entry_date,
+            "exit_date": leveraged[close_index]["date"],
+            "entry_price": round(entry_price, 2),
+            "exit_price": round(exit_price, 2),
+            "return_pct": round(trade_return * 100, 2),
+            "exit_reason": reason,
+            "bars_held": max(0, close_index - entry_index),
+        })
+        position_signal = None
+
+    for index in range(80, n):
+        signal = _trend_signal(underlying[: index + 1])["signal"]
+        price = float(leveraged[index]["close"])
+        high = float(leveraged[index]["high"])
+        low = float(leveraged[index]["low"])
+
+        if position_signal:
+            stop_label = "Swing stop" if stop_model == "swing" else "ATR stop"
+            target_label = "TP1 single target" if tp_mode == "single" else "TP2 multi target"
+            if position_signal == "BUY":
+                if low <= stop_price:
+                    _close_position(index, stop_price, stop_label)
+                elif tp_mode in ("single", "multi") and high >= target_price:
+                    _close_position(index, target_price, target_label)
+            elif position_signal == "SELL":
+                if high >= stop_price:
+                    _close_position(index, stop_price, stop_label)
+                elif tp_mode in ("single", "multi") and low <= target_price:
+                    _close_position(index, target_price, target_label)
+
+        if signal in ("BUY", "SELL") and position_signal is None:
+            _open_position(signal, index)
+            continue
+        if position_signal and signal in ("BUY", "SELL") and signal != position_signal:
+            _close_position(index, price, f"Flipped to {signal}")
+            _open_position(signal, index)
+
+    if position_signal:
+        price = float(leveraged[-1]["close"])
+        _close_position(n - 1, price, "Open to latest close")
+
+    wins = [trade for trade in trades if trade > 0]
+    losses = [trade for trade in trades if trade <= 0]
+    gross_profit = sum(wins)
+    gross_loss = abs(sum(losses))
+    return {
+        "period": "2Y daily",
+        "settings": {
+            "atr_multiplier": round(atr_multiplier, 2),
+            "tp_mode": tp_mode,
+            "stop_model": stop_model,
+        },
+        "win_rate": round(len(wins) / len(trades) * 100, 1) if trades else 0,
+        "profit_factor": round(gross_profit / gross_loss, 2) if gross_loss else round(gross_profit, 2),
+        "max_drawdown": round(max_drawdown * 100, 1),
+        "total_trades": len(trades),
+        "avg_trade": round(_avg(trades) * 100, 2) if trades else 0,
+        "trades": trade_rows[-25:],
+    }
+
+
+def _optitrade_chart(leveraged_bars: list[dict[str, Any]], trend: dict[str, Any], levels: dict[str, Any]) -> list[dict[str, Any]]:
+    closes = [float(bar["close"]) for bar in leveraged_bars]
+    ema21 = _ema(closes, 21)
+    ema55 = _ema(closes, 55)
+    chart = []
+    for index, bar in enumerate(leveraged_bars[-120:]):
+        source_index = len(leveraged_bars) - 120 + index
+        point = {
+            "date": bar["date"],
+            "close": round(float(bar["close"]), 2),
+            "ema21": round(ema21[source_index], 2) if ema21[source_index] is not None else None,
+            "ema55": round(ema55[source_index], 2) if ema55[source_index] is not None else None,
+            "entry": levels["entry"],
+            "stop_loss": levels["stop_loss"],
+            "tp1": levels["take_profits"][0],
+            "tp2": levels["take_profits"][1],
+            "tp3": levels["take_profits"][2],
+            "tp4": levels["take_profits"][3],
+        }
+        if index == 119 and trend["signal"] in ("BUY", "SELL"):
+            point["marker"] = trend["signal"]
+        chart.append(point)
+    return chart
+
+
+async def _build_optitrade_signal(symbol: str) -> dict[str, Any]:
+    underlying = LEVERAGED_UNDERLYING_MAP.get(symbol)
+    if not underlying:
+        raise RuntimeError(f"{symbol} is not in the leveraged ETF universe")
+    leveraged_bars, underlying_bars = await asyncio.gather(
+        _fetch_optitrade_daily_bars(symbol),
+        _fetch_optitrade_daily_bars(underlying),
+    )
+    trend = _trend_signal(underlying_bars)
+    price = float(leveraged_bars[-1]["close"])
+    leveraged_atr = _atr(leveraged_bars)[-1] or max(price * 0.025, 0.01)
+    levels = _levels_for_signal(price, float(leveraged_atr), trend["signal"])
+
+    return {
+        "symbol": symbol,
+        "underlying": underlying,
+        "as_of_date": leveraged_bars[-1]["date"],
+        "price": round(price, 2),
+        "signal": trend["signal"],
+        "trend_state": trend["trend_state"],
+        "anti_chop_state": trend["anti_chop_state"],
+        "anti_chop_pass": trend["anti_chop_pass"],
+        "entry": levels["entry"],
+        "stop_loss": levels["stop_loss"],
+        "take_profits": levels["take_profits"],
+        "risk_reward": levels["risk_reward"],
+        "atr": trend["atr"],
+        "momentum_score": trend["momentum_score"],
+        "volume_score": trend["volume_score"],
+        "rsi": trend["rsi"],
+        "chart": _optitrade_chart(leveraged_bars, trend, levels),
+        "backtest": _optitrade_backtest(leveraged_bars, underlying_bars),
+    }
+
+
 # ─────────────────────────────────────────────────────────────
 # REST endpoints
 # ─────────────────────────────────────────────────────────────
@@ -327,12 +941,136 @@ def get_watchlist():
     return {"tickers": rows, "count": len(rows)}
 
 
+@app.get("/api/composite-signal")
+async def get_composite_signal():
+    """Monthly composite trend signal for SOXL, TQQQ, and UPRO.
+
+    The signal is computed on the underlying ETF proxy:
+    SOXL→SOXX, TQQQ→QQQ, UPRO→SPY.
+    """
+    if not ibkr.is_connected():
+        raise HTTPException(status_code=503, detail="IBKR is not connected.")
+
+    pairs = [
+        ("SOXL", "SOXX"),
+        ("TQQQ", "QQQ"),
+        ("UPRO", "SPY"),
+    ]
+    results = []
+    warnings: list[str] = []
+
+    for leveraged_symbol, underlying_symbol in pairs:
+        try:
+            daily_bars = await _fetch_ibkr_daily_bars(underlying_symbol)
+            monthly = _month_end_closes(daily_bars)
+            signal = _composite_signal_from_monthly(monthly)
+            results.append({
+                "symbol": leveraged_symbol,
+                "underlying": underlying_symbol,
+                "signal": signal["signal"],
+                "score": signal["score"],
+                "price": signal["price"],
+                "as_of_date": signal["as_of_date"],
+                "sma10": signal["sma10"],
+                "momentum_12m_pct": signal["momentum_12m_pct"],
+                "rsi6": signal["rsi6"],
+                "components": signal["components"],
+                "history": signal["history"],
+                "month_count": len(monthly),
+                "execution_note": "Evaluate at month-end close; execute at the following month's opening price.",
+            })
+        except Exception as exc:
+            warnings.append(f"{leveraged_symbol}/{underlying_symbol}: {exc}")
+
+    if not results:
+        raise HTTPException(status_code=503, detail="No composite signal data could be loaded from IBKR.")
+
+    return {
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "data_source": "IBKR historical daily bars rolled to month-end closes",
+        "signals": results,
+        "warnings": warnings,
+    }
+
+
+@app.get("/api/optitrade-lab/signals")
+async def get_optitrade_lab_signals(symbols: str = Query("TQQQ,SOXL,UPRO", description="Comma-separated leveraged ETF symbols")):
+    """OptiTrade-inspired signal package for leveraged ETFs.
+
+    This is an original educational approximation using IBKR bars; it does not
+    reproduce proprietary TradingView/Pine Script logic.
+    """
+    if not ibkr.is_connected():
+        raise HTTPException(status_code=503, detail="IBKR is not connected.")
+
+    requested = [item.strip().upper() for item in symbols.split(",") if item.strip()]
+    universe = list(dict.fromkeys(requested))[:10] or ["TQQQ", "SOXL", "UPRO"]
+    results = []
+    warnings: list[str] = []
+
+    for symbol in universe:
+        try:
+            results.append(await _build_optitrade_signal(symbol))
+        except Exception as exc:
+            warnings.append(f"{symbol}: {exc}")
+
+    if not results:
+        raise HTTPException(status_code=503, detail="No OptiTrade Lab signal data could be loaded from IBKR.")
+
+    return {
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "data_source": "IBKR historical daily bars; original FinanceOS signal approximation",
+        "signals": results,
+        "warnings": warnings,
+    }
+
+
+@app.get("/api/optitrade-lab/backtest")
+async def get_optitrade_lab_backtest(
+    symbol: str = Query("TQQQ", description="Leveraged ETF symbol"),
+    atr_multiplier: float = Query(2.5, ge=0.1, le=20),
+    tp_mode: str = Query("multi", description="single, multi, or always_in"),
+    stop_model: str = Query("atr", description="atr or swing"),
+):
+    """Settings-aware OptiTrade Lab backtest for one leveraged ETF."""
+    if not ibkr.is_connected():
+        raise HTTPException(status_code=503, detail="IBKR is not connected.")
+
+    symbol = symbol.strip().upper()
+    underlying = LEVERAGED_UNDERLYING_MAP.get(symbol)
+    if not underlying:
+        raise HTTPException(status_code=400, detail=f"{symbol} is not in the leveraged ETF universe.")
+
+    if tp_mode not in {"single", "multi", "always_in"}:
+        raise HTTPException(status_code=400, detail="tp_mode must be single, multi, or always_in.")
+    if stop_model not in {"atr", "swing"}:
+        raise HTTPException(status_code=400, detail="stop_model must be atr or swing.")
+
+    leveraged_bars, underlying_bars = await asyncio.gather(
+        _fetch_optitrade_daily_bars(symbol),
+        _fetch_optitrade_daily_bars(underlying),
+    )
+    return {
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "data_source": "IBKR historical daily bars; settings-aware FinanceOS backtest",
+        "symbol": symbol,
+        "underlying": underlying,
+        "backtest": _optitrade_backtest(
+            leveraged_bars,
+            underlying_bars,
+            atr_multiplier=atr_multiplier,
+            tp_mode=tp_mode,
+            stop_model=stop_model,
+        ),
+    }
+
+
 @app.get("/api/quotes")
 async def get_custom_quotes(symbols: str = Query(..., description="Comma-separated ticker symbols")):
     """Return quote + metrics data for arbitrary tickers (up to 20).
 
     Symbols already in the default watchlist return their full live data.
-    New symbols are fetched on-demand from CBOE (daily cached after first call).
+    New symbols are fetched on-demand from IBKR, with CBOE option metrics merged in.
     """
     raw  = [s.strip().upper() for s in symbols.split(',') if s.strip()]
     syms = list(dict.fromkeys(raw))[:20]   # deduplicate, cap at 20
@@ -345,29 +1083,7 @@ async def get_custom_quotes(symbols: str = Query(..., description="Comma-separat
             results.append(existing[sym])
             continue
 
-        # New symbol — fetch from CBOE and compute metrics
-        chain = await get_option_chain(sym)
-        price = chain[0].get("stock_price") if chain else None
-        m30   = find_30delta_metrics(sym)
-        iv    = get_atm_iv(sym)
-
-        csp, cc = m30.get("csp_30d"), m30.get("cc_30d")
-        signals: list[str] = []
-        if csp and csp > 5: signals.append("CSP")
-        if cc  and cc  > 5: signals.append("CC")
-
-        results.append({
-            "symbol":     sym,
-            "price":      price,
-            "bid":        None, "ask":  None,
-            "last":       price, "close": None,
-            "change":     None, "change_pct": None,
-            "volume":     None, "iv_rank":    iv,
-            "hv30":       None, "rsi":        None,
-            "bb_pct":     None, "csp_30d":    csp,
-            "cc_30d":     cc,   "signals":    signals,
-            "source":     "cboe" if price else "none",
-        })
+        results.append(await _build_custom_quote_row(sym))
 
     return {"tickers": results, "count": len(results)}
 

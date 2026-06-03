@@ -31,6 +31,7 @@ export function OllamaConfigStrip({
   modelName,
   baseUrl,
   useGoose,
+  showGoose = true,
   onModelNameChange,
   onBaseUrlChange,
   onUseGooseChange
@@ -38,6 +39,7 @@ export function OllamaConfigStrip({
   modelName: string;
   baseUrl: string;
   useGoose: boolean;
+  showGoose?: boolean;
   onModelNameChange: (v: string) => void;
   onBaseUrlChange: (v: string) => void;
   onUseGooseChange: (v: boolean) => void;
@@ -62,24 +64,26 @@ export function OllamaConfigStrip({
           autoComplete="off"
         />
       </label>
-      <label className="ollama-config-field ollama-goose-toggle">
-        <span><Zap size={12} /> Enable tool calls</span>
-        <div className="goose-toggle-row">
-          <button
-            type="button"
-            className={`goose-toggle-btn${useGoose ? " active" : ""}`}
-            onClick={() => onUseGooseChange(!useGoose)}
-            title="Route through Goose for web search and real-time tool calls. Requires: goose configure"
-          >
-            {useGoose ? "Goose ON" : "Goose OFF"}
-          </button>
-          {useGoose && (
-            <span className="goose-hint">
-              Requires <code>goose configure</code> with Ollama provider
-            </span>
-          )}
-        </div>
-      </label>
+      {showGoose && (
+        <label className="ollama-config-field ollama-goose-toggle">
+          <span><Zap size={12} /> Enable tool calls</span>
+          <div className="goose-toggle-row">
+            <button
+              type="button"
+              className={`goose-toggle-btn${useGoose ? " active" : ""}`}
+              onClick={() => onUseGooseChange(!useGoose)}
+              title="Route through Goose for web search and real-time tool calls. Requires: goose configure"
+            >
+              {useGoose ? "Goose ON" : "Goose OFF"}
+            </button>
+            {useGoose && (
+              <span className="goose-hint">
+                Requires <code>goose configure</code> with Ollama provider
+              </span>
+            )}
+          </div>
+        </label>
+      )}
     </div>
   );
 }

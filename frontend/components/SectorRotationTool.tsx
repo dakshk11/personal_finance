@@ -75,6 +75,7 @@ type ScenarioResult = {
 
 type BacktestResult = {
   starting_capital: number;
+  weighting_method: WeightingMethod;
   tax_rates: Record<string, number>;
   scenarios: ScenarioResult[];
   comparison: {
@@ -99,18 +100,67 @@ type Allocation = {
 type LiveAllocationResult = {
   as_of_year: number;
   time_frame: string;
+  weighting_method: WeightingMethod;
   allocations: Allocation[];
   sp500_signals: Record<string, number | string>;
   rebalance_guidance: string;
 };
 
+type AccountType = "taxable" | "tax_deferred";
+type WeightingMethod = "equal" | "market_weight";
+type RebalanceStatus = "planned" | "completed" | "partial" | "skipped";
+
+type AcceptedPosition = {
+  ticker: string;
+  sector_name: string;
+  target_weight: number;
+  target_amount: number;
+  shares: string;
+  cost_basis: string;
+  current_price: string;
+  purchase_date: string;
+};
+
+type SavedAcceptedTrade = {
+  id: number;
+  ticker: string;
+  sector_name: string;
+  target_weight: number;
+  target_amount: number;
+  shares: number;
+  cost_basis_per_share: number;
+  current_price: number;
+  purchase_date: string;
+  market_value: number;
+  cost_basis: number;
+  gain_loss: number;
+};
+
+type SavedAcceptedAllocation = {
+  id: number;
+  account_type: AccountType;
+  time_frame: string;
+  weighting_method: WeightingMethod;
+  cash_amount: number;
+  as_of_year: number;
+  rebalance_date?: string | null;
+  rebalance_status: RebalanceStatus;
+  rebalance_notes?: string | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  trades: SavedAcceptedTrade[];
+};
+
 type SelectionHistoryRow = {
   year: number;
   selected_sectors: string[];
+  sector_weights: Record<string, number>;
   algo_return_pct: number;
   spy_return_pct: number;
   delta_pct: number;
   key_signal: string;
+  weighting_method: WeightingMethod;
 };
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -137,6 +187,12 @@ const SECTOR_COLORS = [
 ];
 
 const ALL_SECTORS = ["XLK", "XLF", "XLE", "XLV", "XLI", "XLY", "XLP", "XLB", "XLRE", "XLU", "XLC"];
+const REBALANCE_STATUS_LABELS: Record<RebalanceStatus, string> = {
+  planned: "Planned",
+  completed: "Completed",
+  partial: "Partial",
+  skipped: "Skipped",
+};
 
 function fmt$(n: number) {
   return "$" + Math.round(n).toLocaleString();
@@ -145,10 +201,56 @@ function fmtPct(n: number, decimals = 1) {
   const sign = n > 0 ? "+" : "";
   return sign + n.toFixed(decimals) + "%";
 }
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+function formatDateTime(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+function yearsSince(dateValue: string) {
+  const start = new Date(dateValue);
+  if (Number.isNaN(start.getTime())) return 0;
+  return Math.max((Date.now() - start.getTime()) / (365.25 * 24 * 60 * 60 * 1000), 0);
+}
+function numericInput(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+function effectiveCurrentPrice(currentPrice: string, costBasis: string) {
+  return numericInput(currentPrice) || numericInput(costBasis);
+}
+function cagr(startValue: number, endValue: number, years: number) {
+  if (startValue <= 0 || endValue <= 0 || years <= 0) return 0;
+  return (Math.pow(endValue / startValue, 1 / years) - 1) * 100;
+}
+function weightingLabel(method: WeightingMethod) {
+  return method === "market_weight" ? "Market Weight" : "Equal Weight";
+}
+function allocationTaxRate(allocation: SavedAcceptedAllocation) {
+  if (allocation.account_type === "tax_deferred") return 0;
+  return allocation.time_frame === "quarterly" ? 0.541 : 0.371;
+}
+function savedAllocationStats(allocation: SavedAcceptedAllocation) {
+  const basis = allocation.trades.reduce((sum, trade) => sum + trade.cost_basis, 0);
+  const value = allocation.trades.reduce((sum, trade) => sum + trade.market_value, 0);
+  const gain = value - basis;
+  const taxImpact = gain > 0 ? gain * allocationTaxRate(allocation) : 0;
+  const afterTaxValue = value - taxImpact;
+  const weightedYears = allocation.trades.reduce((sum, trade) => (
+    sum + yearsSince(trade.purchase_date) * trade.market_value
+  ), 0);
+  const avgHoldingYears = value > 0 ? weightedYears / value : 0;
+  const displayCagr = avgHoldingYears >= 30 / 365.25
+    ? fmtPct(cagr(basis, allocation.account_type === "tax_deferred" ? value : afterTaxValue, avgHoldingYears))
+    : "N/A";
+  return { basis, value, gain, taxImpact, afterTaxValue, avgHoldingYears, displayCagr };
+}
 
 // ── Sub-tabs ───────────────────────────────────────────────────────────────
 
-type SubTab = "backtest" | "live-advisor" | "history";
+type SubTab = "backtest" | "live-advisor" | "trades" | "history";
 
 // ── Main component ─────────────────────────────────────────────────────────
 
@@ -196,11 +298,42 @@ export function SectorRotationTool() {
         >
           <Clock size={15} /> Historical Selections
         </button>
+        <button
+          type="button"
+          role="tab"
+          className={subTab === "trades" ? "active" : ""}
+          onClick={() => setSubTab("trades")}
+        >
+          <RefreshCw size={15} /> Trades
+        </button>
       </div>
 
       {subTab === "backtest" && <BacktestTab />}
       {subTab === "live-advisor" && <LiveAdvisorTab />}
+      {subTab === "trades" && <AcceptedTradesTab />}
       {subTab === "history" && <HistoryTab />}
+    </div>
+  );
+}
+
+function WeightingSelector({ value, onChange }: { value: WeightingMethod; onChange: (value: WeightingMethod) => void }) {
+  return (
+    <div className="sector-weight-toggle">
+      <span className="fine-print">Weighting</span>
+      <button
+        type="button"
+        className={value === "equal" ? "active" : ""}
+        onClick={() => onChange("equal")}
+      >
+        Equal Weight
+      </button>
+      <button
+        type="button"
+        className={value === "market_weight" ? "active" : ""}
+        onClick={() => onChange("market_weight")}
+      >
+        Market Weight
+      </button>
     </div>
   );
 }
@@ -209,10 +342,16 @@ export function SectorRotationTool() {
 
 function BacktestTab() {
   const [startingCapital, setStartingCapital] = useState("100000");
+  const [weightingMethod, setWeightingMethod] = useState<WeightingMethod>("equal");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [expandedScenario, setExpandedScenario] = useState<string | null>(null);
+
+  useEffect(() => {
+    setResult(null);
+    setExpandedScenario(null);
+  }, [weightingMethod]);
 
   async function runBacktest() {
     setLoading(true);
@@ -220,7 +359,10 @@ function BacktestTab() {
     try {
       const data = await apiFetch<BacktestResult>("/sector-rotation/backtest", {
         method: "POST",
-        body: JSON.stringify({ starting_capital: parseFloat(startingCapital) || 100000 }),
+        body: JSON.stringify({
+          starting_capital: parseFloat(startingCapital) || 100000,
+          weighting_method: weightingMethod,
+        }),
       });
       setResult(data);
     } catch (err) {
@@ -269,6 +411,7 @@ function BacktestTab() {
         <div style={{ marginTop: 8 }} className="fine-print">
           California investor · Single filer · $1.8M income · LTCG 37.1% · STCG 54.1% (NIIT included)
         </div>
+        <WeightingSelector value={weightingMethod} onChange={setWeightingMethod} />
         {error && (
           <div className="error-message" style={{ marginTop: 8 }}>
             <AlertCircle size={14} /> {error}
@@ -767,9 +910,32 @@ function SelectionHeatmap({ result }: { result: BacktestResult }) {
 function LiveAdvisorTab() {
   const [cashAmount, setCashAmount] = useState("100000");
   const [timeFrame, setTimeFrame] = useState("annual");
+  const [weightingMethod, setWeightingMethod] = useState<WeightingMethod>("equal");
+  const [accountType, setAccountType] = useState<AccountType>("taxable");
+  const [acceptedPositions, setAcceptedPositions] = useState<AcceptedPosition[]>([]);
+  const [savedAllocations, setSavedAllocations] = useState<SavedAcceptedAllocation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [savingAccepted, setSavingAccepted] = useState(false);
   const [error, setError] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
   const [result, setResult] = useState<LiveAllocationResult | null>(null);
+
+  useEffect(() => {
+    setResult(null);
+    setAcceptedPositions([]);
+  }, [weightingMethod]);
+
+  useEffect(() => {
+    void loadAcceptedAllocations();
+  }, []);
+
+  async function loadAcceptedAllocations() {
+    try {
+      setSavedAllocations(await apiFetch<SavedAcceptedAllocation[]>("/sector-rotation/accepted-allocations"));
+    } catch {
+      setSavedAllocations([]);
+    }
+  }
 
   async function getAllocation() {
     setLoading(true);
@@ -780,6 +946,7 @@ function LiveAdvisorTab() {
         body: JSON.stringify({
           cash_amount: parseFloat(cashAmount) || 100000,
           time_frame: timeFrame,
+          weighting_method: weightingMethod,
         }),
       });
       setResult(data);
@@ -790,13 +957,119 @@ function LiveAdvisorTab() {
     }
   }
 
-  const taxRateLabel = timeFrame === "quarterly" ? "54.1% STCG" : "37.1% LTCG";
+  function acceptAllocation() {
+    if (!result) return;
+    setAcceptedPositions(result.allocations.map((alloc) => ({
+      ticker: alloc.ticker,
+      sector_name: alloc.sector_name,
+      target_weight: alloc.weight,
+      target_amount: alloc.dollar_amount,
+      shares: "",
+      cost_basis: "",
+      current_price: "",
+      purchase_date: todayISO(),
+    })));
+  }
+
+  function updateAcceptedPosition(ticker: string, field: keyof AcceptedPosition, value: string) {
+    setAcceptedPositions((rows) => rows.map((row) => (
+      row.ticker === ticker ? { ...row, [field]: value } : row
+    )));
+    setSaveMessage("");
+  }
+
+  async function saveAcceptedTrades() {
+    if (!result) return;
+    const trades = acceptedPositions
+      .map((row) => {
+        const shares = numericInput(row.shares);
+        const cost = numericInput(row.cost_basis);
+        const currentPrice = effectiveCurrentPrice(row.current_price, row.cost_basis);
+        return {
+          ticker: row.ticker,
+          sector_name: row.sector_name,
+          target_weight: row.target_weight,
+          target_amount: row.target_amount,
+          shares,
+          cost_basis_per_share: cost,
+          current_price: currentPrice,
+          purchase_date: row.purchase_date || todayISO(),
+        };
+      })
+      .filter((row) => row.shares > 0 && row.cost_basis_per_share > 0 && row.current_price > 0);
+
+    if (!trades.length) {
+      setSaveMessage("Enter shares and cost per share for at least one ETF before saving.");
+      return;
+    }
+
+    setSavingAccepted(true);
+    setSaveMessage("");
+    try {
+      const saved = await apiFetch<SavedAcceptedAllocation>("/sector-rotation/accepted-allocations", {
+        method: "POST",
+        body: JSON.stringify({
+          account_type: accountType,
+          time_frame: timeFrame,
+          weighting_method: result.weighting_method,
+          cash_amount: parseFloat(cashAmount) || 0,
+          as_of_year: result.as_of_year,
+          rebalance_date: trades[0]?.purchase_date ?? todayISO(),
+          rebalance_status: "planned",
+          trades,
+        }),
+      });
+      setSavedAllocations((rows) => [saved, ...rows]);
+      setSaveMessage(`Saved ${saved.trades.length} accepted trade${saved.trades.length === 1 ? "" : "s"} to database.`);
+    } catch (err) {
+      setSaveMessage(err instanceof Error ? err.message : "Could not save accepted trades.");
+    } finally {
+      setSavingAccepted(false);
+    }
+  }
+
+  const taxableRate = timeFrame === "quarterly" ? 0.541 : 0.371;
+  const taxRateLabel = accountType === "tax_deferred"
+    ? "0.0% tax-deferred"
+    : timeFrame === "quarterly" ? "54.1% STCG" : "37.1% LTCG";
+  const accountGuidance = result && accountType === "tax_deferred"
+    ? result.rebalance_guidance.replace(
+      /California effective tax rate: [^.]+\./,
+      "Tax-deferred account: no current tax drag modeled."
+    )
+    : result?.rebalance_guidance;
   const nextRebalance =
     timeFrame === "annual"
       ? "First Monday of February (annually)"
       : timeFrame === "quarterly"
       ? "First Monday of Feb / May / Aug / Nov"
       : "One-time — no future rebalancing";
+  const portfolioStats = acceptedPositions.reduce((stats, row) => {
+    const shares = numericInput(row.shares);
+    const cost = numericInput(row.cost_basis);
+    const price = effectiveCurrentPrice(row.current_price, row.cost_basis);
+    const basis = shares * cost;
+    const value = shares * price;
+    const gain = value - basis;
+    const taxImpact = accountType === "taxable" && gain > 0 ? gain * taxableRate : 0;
+    const heldYears = yearsSince(row.purchase_date);
+    const weightedYears = value > 0 ? heldYears * value : 0;
+    return {
+      basis: stats.basis + basis,
+      value: stats.value + value,
+      gain: stats.gain + gain,
+      taxImpact: stats.taxImpact + taxImpact,
+      weightedYears: stats.weightedYears + weightedYears,
+    };
+  }, { basis: 0, value: 0, gain: 0, taxImpact: 0, weightedYears: 0 });
+  const afterTaxValue = portfolioStats.value - portfolioStats.taxImpact;
+  const avgHoldingYears = portfolioStats.value > 0 ? portfolioStats.weightedYears / portfolioStats.value : 0;
+  const preTaxCagr = cagr(portfolioStats.basis, portfolioStats.value, avgHoldingYears);
+  const afterTaxCagr = cagr(portfolioStats.basis, afterTaxValue, avgHoldingYears);
+  const displayCagr = avgHoldingYears >= 30 / 365.25
+    ? fmtPct(accountType === "tax_deferred" ? preTaxCagr : afterTaxCagr)
+    : "N/A";
+  const totalTargetAmount = acceptedPositions.reduce((sum, row) => sum + row.target_amount, 0);
 
   return (
     <div className="form-stack">
@@ -843,6 +1116,7 @@ function LiveAdvisorTab() {
             </button>
           </div>
         </div>
+        <WeightingSelector value={weightingMethod} onChange={setWeightingMethod} />
 
         <div
           style={{
@@ -865,6 +1139,24 @@ function LiveAdvisorTab() {
           </div>
         </div>
 
+        <div className="sector-account-toggle">
+          <span className="fine-print">Account Type</span>
+          <button
+            type="button"
+            className={accountType === "taxable" ? "active" : ""}
+            onClick={() => setAccountType("taxable")}
+          >
+            Taxable
+          </button>
+          <button
+            type="button"
+            className={accountType === "tax_deferred" ? "active" : ""}
+            onClick={() => setAccountType("tax_deferred")}
+          >
+            Tax-deferred
+          </button>
+        </div>
+
         {error && (
           <div className="error-message" style={{ marginTop: 8 }}>
             <AlertCircle size={14} /> {error}
@@ -882,7 +1174,10 @@ function LiveAdvisorTab() {
                 <strong style={{ color: "var(--forest)", display: "block", marginBottom: 4 }}>
                   Algorithm Recommendation — {result.as_of_year}
                 </strong>
-                <p style={{ margin: 0, fontSize: 14 }}>{result.rebalance_guidance}</p>
+                <div className="fine-print" style={{ marginBottom: 4 }}>
+                  {weightingLabel(result.weighting_method)} allocation
+                </div>
+                <p style={{ margin: 0, fontSize: 14 }}>{accountGuidance}</p>
               </div>
             </div>
           </section>
@@ -973,7 +1268,154 @@ function LiveAdvisorTab() {
                 </ResponsiveContainer>
               </div>
             </div>
+
+            <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+              <button type="button" className="primary-button" onClick={acceptAllocation}>
+                <CheckCircle2 size={16} /> Accept allocation
+              </button>
+            </div>
           </section>
+
+          {acceptedPositions.length > 0 && (
+            <section className="dashboard-panel">
+              <div className="panel-header">
+                <h2>Accepted Position Performance</h2>
+                <TrendingUp size={18} />
+              </div>
+              <p className="fine-print" style={{ marginTop: -6 }}>
+                Tracking against accepted {weightingLabel(result.weighting_method)} targets.
+              </p>
+              <div className="sector-performance-summary">
+                <article>
+                  <span>Market Value</span>
+                  <strong>{fmt$(portfolioStats.value)}</strong>
+                  <small>Entered positions</small>
+                </article>
+                <article>
+                  <span>Gain / Loss</span>
+                  <strong style={{ color: portfolioStats.gain >= 0 ? "var(--forest)" : "var(--rose)" }}>
+                    {fmt$(portfolioStats.gain)}
+                  </strong>
+                  <small>{portfolioStats.basis > 0 ? fmtPct((portfolioStats.gain / portfolioStats.basis) * 100) : "0.0%"}</small>
+                </article>
+                <article>
+                  <span>After-Tax Value</span>
+                  <strong>{fmt$(afterTaxValue)}</strong>
+                  <small>{accountType === "tax_deferred" ? "No current tax drag" : `${fmt$(portfolioStats.taxImpact)} estimated tax`}</small>
+                </article>
+                <article>
+                  <span>CAGR</span>
+                  <strong>{displayCagr}</strong>
+                  <small>{displayCagr === "N/A" ? "needs 30+ days held" : accountType === "tax_deferred" ? "pre-tax compounding" : "after estimated taxes"}</small>
+                </article>
+              </div>
+
+              <div style={{ overflowX: "auto" }}>
+                <table className="allocation-table sector-position-table">
+                  <thead>
+                    <tr>
+                      <th>ETF</th>
+                      <th>Target</th>
+                      <th>Shares</th>
+                      <th>Cost / Sh.</th>
+                      <th>Current / Sh.</th>
+                      <th>Purchase Date</th>
+                      <th>Value</th>
+                      <th>Return</th>
+                      <th>Drift</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {acceptedPositions.map((row) => {
+                      const shares = numericInput(row.shares);
+                      const cost = numericInput(row.cost_basis);
+                      const price = effectiveCurrentPrice(row.current_price, row.cost_basis);
+                      const basis = shares * cost;
+                      const value = shares * price;
+                      const gainPct = basis > 0 ? ((value / basis) - 1) * 100 : 0;
+                      const actualWeight = portfolioStats.value > 0 ? value / portfolioStats.value : 0;
+                      const targetWeight = totalTargetAmount > 0 ? row.target_amount / totalTargetAmount : row.target_weight;
+                      const drift = (actualWeight - targetWeight) * 100;
+
+                      return (
+                        <tr key={row.ticker}>
+                          <td>
+                            <strong>{row.ticker}</strong>
+                            <div className="fine-print">{row.sector_name}</div>
+                          </td>
+                          <td>{(targetWeight * 100).toFixed(1)}%</td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.0001"
+                              value={row.shares}
+                              onChange={(e) => updateAcceptedPosition(row.ticker, "shares", e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={row.cost_basis}
+                              onChange={(e) => updateAcceptedPosition(row.ticker, "cost_basis", e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              placeholder="defaults to cost"
+                              value={row.current_price}
+                              onChange={(e) => updateAcceptedPosition(row.ticker, "current_price", e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="\\d{4}-\\d{2}-\\d{2}"
+                              placeholder="YYYY-MM-DD"
+                              value={row.purchase_date}
+                              onChange={(e) => updateAcceptedPosition(row.ticker, "purchase_date", e.target.value)}
+                            />
+                          </td>
+                          <td>{fmt$(value)}</td>
+                          <td style={{ color: gainPct >= 0 ? "var(--forest)" : "var(--rose)" }}>{fmtPct(gainPct)}</td>
+                          <td style={{ color: Math.abs(drift) <= 2 ? "var(--forest)" : "var(--amber)" }}>
+                            {fmtPct(drift)} pts
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="fine-print" style={{ marginTop: 10 }}>
+                Taxable estimates apply the selected rebalance tax rate to unrealized gains only. Tax-deferred accounts show performance before current tax drag, which can lift displayed CAGR.
+              </p>
+              <div style={{ marginTop: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <p className="fine-print" style={{ margin: 0 }}>
+                  Saving creates a new accepted allocation batch, so multiple accepted allocations can be tracked over time.
+                </p>
+                <button type="button" className="primary-button" onClick={saveAcceptedTrades} disabled={savingAccepted}>
+                  {savingAccepted ? <Loader2 size={16} className="spin-icon" /> : <CheckCircle2 size={16} />}
+                  Save accepted trades
+                </button>
+              </div>
+              {saveMessage && (
+                <div className="fine-print" style={{ marginTop: 8, color: saveMessage.startsWith("Saved") ? "var(--forest)" : "var(--rose)" }}>
+                  {saveMessage}
+                </div>
+              )}
+            </section>
+          )}
+
+          {savedAllocations.length > 0 && (
+            <SavedAcceptedAllocations allocations={savedAllocations} />
+          )}
 
           {/* EPS signal strength */}
           <section className="dashboard-panel">
@@ -1023,8 +1465,12 @@ function LiveAdvisorTab() {
               >
                 <strong>Step 1 — Liquidate non-selected positions</strong>
                 <p style={{ margin: "4px 0 0", color: "var(--muted)" }}>
-                  Sell any sector ETFs not in the current selection. Gains are taxed at{" "}
-                  <strong>{taxRateLabel}</strong>. Losses create carryforward.
+                  Sell any sector ETFs not in the current selection.{" "}
+                  {accountType === "tax_deferred" ? (
+                    <>No current tax drag is modeled for tax-deferred accounts.</>
+                  ) : (
+                    <>Gains are taxed at <strong>{taxRateLabel}</strong>. Losses create carryforward.</>
+                  )}
                 </p>
               </div>
               {result.allocations.map((alloc, i) => (
@@ -1072,17 +1518,294 @@ function LiveAdvisorTab() {
   );
 }
 
+function AcceptedTradesTab() {
+  const [allocations, setAllocations] = useState<SavedAcceptedAllocation[]>([]);
+  const [drafts, setDrafts] = useState<Record<number, { rebalance_date: string; rebalance_status: RebalanceStatus; rebalance_notes: string }>>({});
+  const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState<number | null>(null);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    void loadTrades();
+  }, []);
+
+  async function loadTrades() {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch<SavedAcceptedAllocation[]>("/sector-rotation/accepted-allocations");
+      setAllocations(data);
+      setDrafts(Object.fromEntries(data.map((allocation) => [allocation.id, {
+        rebalance_date: allocation.rebalance_date ?? "",
+        rebalance_status: allocation.rebalance_status,
+        rebalance_notes: allocation.rebalance_notes ?? "",
+      }])));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load accepted trades.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function updateDraft(id: number, field: "rebalance_date" | "rebalance_status" | "rebalance_notes", value: string) {
+    setDrafts((rows) => ({
+      ...rows,
+      [id]: {
+        rebalance_date: rows[id]?.rebalance_date ?? "",
+        rebalance_status: rows[id]?.rebalance_status ?? "planned",
+        rebalance_notes: rows[id]?.rebalance_notes ?? "",
+        [field]: value,
+      },
+    }));
+    setMessage("");
+  }
+
+  async function saveRebalance(allocation: SavedAcceptedAllocation) {
+    const draft = drafts[allocation.id];
+    if (!draft) return;
+
+    setSavingId(allocation.id);
+    setMessage("");
+    try {
+      const saved = await apiFetch<SavedAcceptedAllocation>(`/sector-rotation/accepted-allocations/${allocation.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          rebalance_date: draft.rebalance_date || null,
+          rebalance_status: draft.rebalance_status,
+          rebalance_notes: draft.rebalance_notes || null,
+        }),
+      });
+      setAllocations((rows) => rows.map((row) => (row.id === saved.id ? saved : row)));
+      setMessage(`Updated ${formatDateTime(saved.updated_at)}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update rebalance status.");
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  if (loading) {
+    return (
+      <section className="dashboard-panel" style={{ textAlign: "center", padding: 40 }}>
+        <Loader2 size={24} className="spin-icon" />
+        <p style={{ marginTop: 8, color: "var(--muted)" }}>Loading accepted trades…</p>
+      </section>
+    );
+  }
+
+  return (
+    <div className="form-stack">
+      <section className="dashboard-panel">
+        <div className="panel-header">
+          <h2>Accepted Trades</h2>
+          <RefreshCw size={18} />
+        </div>
+        <p className="fine-print">
+          Review saved allocation batches, track the account and weighting method used, and record whether the rebalance was completed or changed.
+        </p>
+        {error && (
+          <div className="error-message" style={{ marginTop: 8 }}>
+            <AlertCircle size={14} /> {error}
+          </div>
+        )}
+        {message && (
+          <div className="fine-print" style={{ marginTop: 8, color: "var(--forest)" }}>{message}</div>
+        )}
+      </section>
+
+      {allocations.length === 0 ? (
+        <section className="dashboard-panel">
+          <p style={{ margin: 0, color: "var(--muted)" }}>
+            No accepted trades saved yet. Use Live Advisor, accept an allocation, enter shares and cost, then save accepted trades.
+          </p>
+        </section>
+      ) : (
+        allocations.map((allocation) => {
+          const stats = savedAllocationStats(allocation);
+          const draft = drafts[allocation.id] ?? {
+            rebalance_date: allocation.rebalance_date ?? "",
+            rebalance_status: allocation.rebalance_status,
+            rebalance_notes: allocation.rebalance_notes ?? "",
+          };
+
+          return (
+            <section className="dashboard-panel sector-trade-card" key={allocation.id}>
+              <div className="sector-trade-card-head">
+                <div>
+                  <p className="eyebrow">Portfolio Entry #{allocation.id}</p>
+                  <h2>{formatDateTime(allocation.created_at)}</h2>
+                  <span>
+                    {allocation.account_type === "tax_deferred" ? "Tax-deferred" : "Taxable"} · {weightingLabel(allocation.weighting_method)} · {allocation.time_frame}
+                  </span>
+                </div>
+                <div className={`sector-rebalance-status ${draft.rebalance_status}`}>
+                  {REBALANCE_STATUS_LABELS[draft.rebalance_status]}
+                </div>
+              </div>
+
+              <div className="sector-performance-summary">
+                <article>
+                  <span>Market Value</span>
+                  <strong>{fmt$(stats.value)}</strong>
+                  <small>{allocation.trades.length} ETF entries</small>
+                </article>
+                <article>
+                  <span>Gain / Loss</span>
+                  <strong style={{ color: stats.gain >= 0 ? "var(--forest)" : "var(--rose)" }}>{fmt$(stats.gain)}</strong>
+                  <small>{stats.basis > 0 ? fmtPct((stats.gain / stats.basis) * 100) : "0.0%"}</small>
+                </article>
+                <article>
+                  <span>After-Tax Value</span>
+                  <strong>{fmt$(stats.afterTaxValue)}</strong>
+                  <small>{allocation.account_type === "tax_deferred" ? "No current tax drag" : `${fmt$(stats.taxImpact)} estimated tax`}</small>
+                </article>
+                <article>
+                  <span>CAGR</span>
+                  <strong>{stats.displayCagr}</strong>
+                  <small>{stats.displayCagr === "N/A" ? "needs 30+ days held" : allocation.account_type === "tax_deferred" ? "pre-tax CAGR" : "after estimated taxes"}</small>
+                </article>
+              </div>
+
+              <div className="sector-trade-meta-grid">
+                <div className="field">
+                  <label>Rebalance Date</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="\\d{4}-\\d{2}-\\d{2}"
+                    placeholder="YYYY-MM-DD"
+                    value={draft.rebalance_date}
+                    onChange={(e) => updateDraft(allocation.id, "rebalance_date", e.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label>Rebalance Status</label>
+                  <select
+                    value={draft.rebalance_status}
+                    onChange={(e) => updateDraft(allocation.id, "rebalance_status", e.target.value)}
+                  >
+                    <option value="planned">Planned</option>
+                    <option value="completed">Completed</option>
+                    <option value="partial">Partial / changed</option>
+                    <option value="skipped">Skipped</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Changes Done / Notes</label>
+                  <input
+                    type="text"
+                    value={draft.rebalance_notes}
+                    onChange={(e) => updateDraft(allocation.id, "rebalance_notes", e.target.value)}
+                    placeholder="Example: bought all except XLE, added cash later"
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => saveRebalance(allocation)}
+                  disabled={savingId === allocation.id}
+                >
+                  {savingId === allocation.id ? <Loader2 size={16} className="spin-icon" /> : <CheckCircle2 size={16} />}
+                  Save
+                </button>
+              </div>
+
+              <div style={{ overflowX: "auto" }}>
+                <table className="allocation-table">
+                  <thead>
+                    <tr>
+                      <th>ETF</th>
+                      <th>Sector</th>
+                      <th>Target</th>
+                      <th>Shares</th>
+                      <th>Cost / Sh.</th>
+                      <th>Current / Sh.</th>
+                      <th>Purchase Date</th>
+                      <th>Value</th>
+                      <th>Gain / Loss</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allocation.trades.map((trade) => (
+                      <tr key={trade.id}>
+                        <td><strong>{trade.ticker}</strong></td>
+                        <td>{trade.sector_name}</td>
+                        <td>{(trade.target_weight * 100).toFixed(1)}%</td>
+                        <td>{trade.shares.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
+                        <td>{fmt$(trade.cost_basis_per_share)}</td>
+                        <td>{fmt$(trade.current_price)}</td>
+                        <td>{trade.purchase_date}</td>
+                        <td>{fmt$(trade.market_value)}</td>
+                        <td style={{ color: trade.gain_loss >= 0 ? "var(--forest)" : "var(--rose)" }}>
+                          {fmt$(trade.gain_loss)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function SavedAcceptedAllocations({ allocations }: { allocations: SavedAcceptedAllocation[] }) {
+  return (
+    <section className="dashboard-panel">
+      <div className="panel-header">
+        <h2>Accepted Trades History</h2>
+        <Clock size={18} />
+      </div>
+      <div className="sector-accepted-history">
+        {allocations.map((allocation) => {
+          const stats = savedAllocationStats(allocation);
+          return (
+            <article key={allocation.id}>
+              <div className="sector-accepted-history-head">
+                <div>
+                  <strong>{formatDateTime(allocation.created_at)}</strong>
+                  <span>{weightingLabel(allocation.weighting_method)} · {allocation.account_type === "tax_deferred" ? "Tax-deferred" : "Taxable"} · {REBALANCE_STATUS_LABELS[allocation.rebalance_status]}</span>
+                </div>
+                <div>
+                  <strong>{fmt$(stats.value)}</strong>
+                  <span style={{ color: stats.gain >= 0 ? "var(--forest)" : "var(--rose)" }}>{fmt$(stats.gain)} · {stats.displayCagr}</span>
+                </div>
+              </div>
+              <div className="sector-accepted-trade-grid">
+                {allocation.trades.map((trade) => (
+                  <div key={trade.id}>
+                    <strong>{trade.ticker}</strong>
+                    <span>{trade.shares.toLocaleString(undefined, { maximumFractionDigits: 4 })} sh · {fmt$(trade.current_price)} / sh</span>
+                    <span>{fmt$(trade.market_value)} · {(trade.target_weight * 100).toFixed(1)}% target</span>
+                  </div>
+                ))}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 // ── History Tab ────────────────────────────────────────────────────────────
 
 function HistoryTab() {
   const [rows, setRows] = useState<SelectionHistoryRow[]>([]);
+  const [weightingMethod, setWeightingMethod] = useState<WeightingMethod>("equal");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     void (async () => {
+      setLoading(true);
+      setError("");
       try {
-        const data = await apiFetch<SelectionHistoryRow[]>("/sector-rotation/selection-history");
+        const data = await apiFetch<SelectionHistoryRow[]>(`/sector-rotation/selection-history?weighting_method=${weightingMethod}`);
         setRows(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load history");
@@ -1090,7 +1813,7 @@ function HistoryTab() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [weightingMethod]);
 
   if (loading) {
     return (
@@ -1122,6 +1845,10 @@ function HistoryTab() {
           <h2>Historical Algorithm Selections (2015–2025)</h2>
           <Clock size={18} />
         </div>
+        <WeightingSelector value={weightingMethod} onChange={setWeightingMethod} />
+        <p className="fine-print" style={{ marginTop: 8, marginBottom: 12 }}>
+          Showing {weightingLabel(weightingMethod)} historical returns.
+        </p>
         <div
           style={{
             display: "grid",
@@ -1189,6 +1916,7 @@ function HistoryTab() {
               <tr>
                 <th>Year</th>
                 <th>Selected Sectors</th>
+                <th>Weights</th>
                 <th>Algo Return</th>
                 <th>SPY Return</th>
                 <th>Alpha</th>
@@ -1225,6 +1953,13 @@ function HistoryTab() {
                         </span>
                       ))}
                     </div>
+                  </td>
+                  <td style={{ fontSize: 12 }}>
+                    {row.selected_sectors.map((sector) => (
+                      <span key={sector} style={{ display: "block", whiteSpace: "nowrap" }}>
+                        {sector}: {((row.sector_weights[sector] ?? 0) * 100).toFixed(1)}%
+                      </span>
+                    ))}
                   </td>
                   <td style={{ color: row.algo_return_pct >= 0 ? "var(--forest)" : "var(--rose)", fontWeight: 600 }}>
                     {fmtPct(row.algo_return_pct)}
