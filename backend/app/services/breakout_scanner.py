@@ -462,6 +462,7 @@ def _market_context(bars: list[BreakoutBar], config: dict[str, Any]) -> dict[str
     if len(values) < 50:
         return None
     sma20_series = _sma(values, 20)
+    sma40_series = _sma(values, 40)
     sma50_series = _sma(values, 50)
     sma200_series = _sma(values, 200)
     avg_volume_50 = _average(volumes[-51:-1]) if len(volumes) > 50 else _average(volumes[-50:])
@@ -469,6 +470,7 @@ def _market_context(bars: list[BreakoutBar], config: dict[str, Any]) -> dict[str
     resistance, touch_count, first_touch = _resistance_profile(bars, config)
     price = values[-1]
     sma20 = _last_number(sma20_series)
+    sma40 = _last_number(sma40_series)
     sma50 = _last_number(sma50_series)
     sma200 = _last_number(sma200_series)
     trend_label = _trend_label(price, sma20, sma50, sma200)
@@ -482,9 +484,11 @@ def _market_context(bars: list[BreakoutBar], config: dict[str, Any]) -> dict[str
         "avg_volume_50d": avg_volume_50,
         "avg_dollar_volume": avg_volume_50 * price,
         "sma20": sma20,
+        "sma40": sma40,
         "sma50": sma50,
         "sma200": sma200,
         "sma20_series": sma20_series,
+        "sma40_series": sma40_series,
         "sma50_series": sma50_series,
         "sma200_series": sma200_series,
         "trend_label": trend_label,
@@ -550,6 +554,7 @@ def _setup_out(
         "relative_volume": _round_or_none(context["relative_volume"]),
         "avg_volume_50d": _round_or_none(context["avg_volume_50d"]),
         "sma20": _round_or_none(context["sma20"]),
+        "sma40": _round_or_none(context["sma40"]),
         "sma50": _round_or_none(context["sma50"]),
         "sma200": _round_or_none(context["sma200"]),
         "trend_label": context["trend_label"],
@@ -574,6 +579,7 @@ def _chart_points(context: dict[str, Any]) -> list[dict[str, Any]]:
                 "close": round(_close(bars[index]), 4),
                 "volume": round(max(0, bars[index].volume), 2),
                 "sma20": _round_or_none(context["sma20_series"][index]),
+                "sma40": _round_or_none(context["sma40_series"][index]),
                 "sma50": _round_or_none(context["sma50_series"][index]),
                 "sma200": _round_or_none(context["sma200_series"][index]),
                 "resistance": _round_or_none(context["resistance"]),

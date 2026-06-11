@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import sqlite3
 import ssl
 import subprocess
@@ -23,7 +24,15 @@ from cryptography.fernet import Fernet, InvalidToken
 AI_ADVISOR_OPENAI_MODELS = ("gpt-5.5", "gpt-5.4", "gpt-5.4-mini")
 AI_ADVISOR_MODELS = AI_ADVISOR_OPENAI_MODELS  # backwards compat
 AIAdvisorModel = Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]
-OLLAMA_DEFAULT_BASE_URL = "http://localhost:11434"
+OLLAMA_DEFAULT_BASE_URL = "http://127.0.0.1:11434"
+NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
+NVIDIA_RECOMMENDATION_MODELS = (
+    "minimaxai/minimax-m2.7",
+    "zhipuai/glm-5.1",
+    "moonshot-ai/kimi-2.5",
+    "deepseek-ai/deepseek-v4-flash",
+    "nvidia/nemotron-3-ultra-550b-a55b",
+)
 _GOOSE_SESSIONS_DB = os.path.expanduser("~/.local/share/goose/sessions/sessions.db")
 _GOOSE_HEADER_END = "goose is ready"
 
@@ -193,11 +202,20 @@ def goose_model_name(model: str) -> str:
     return model[len("goose:"):]
 
 
+def is_nvidia_model(model: str) -> bool:
+    return model.startswith("nvidia:")
+
+
+def nvidia_model_name(model: str) -> str:
+    return model[len("nvidia:"):]
+
+
 def valid_ai_advisor_model(model: str) -> bool:
     return (
         model in AI_ADVISOR_OPENAI_MODELS
         or (is_ollama_model(model) and bool(ollama_model_name(model)))
         or (is_goose_model(model) and bool(goose_model_name(model)))
+        or (is_nvidia_model(model) and nvidia_model_name(model) in NVIDIA_RECOMMENDATION_MODELS)
     )
 
 
@@ -234,11 +252,11 @@ def encrypt_api_key(api_key: str, secret: str) -> str:
     return _fernet(secret).encrypt(api_key.encode("utf-8")).decode("utf-8")
 
 
-def decrypt_api_key(ciphertext: str, secret: str) -> str:
+def decrypt_api_key(ciphertext: str, secret: str, label: str = "OpenAI API key") -> str:
     try:
         return _fernet(secret).decrypt(ciphertext.encode("utf-8")).decode("utf-8")
     except InvalidToken as exc:
-        raise AIAdvisorConfigurationError("Stored OpenAI API key could not be decrypted.") from exc
+        raise AIAdvisorConfigurationError(f"Stored {label} could not be decrypted.") from exc
 
 
 def api_key_fingerprint(api_key: str) -> str:
@@ -279,7 +297,49 @@ def create_openai_response(api_key: str, model: str, prompt: str, *, instruction
     return _extract_response_text(response), response
 
 
-def create_ollama_response(model_name: str, prompt: str, base_url: str | None = None) -> tuple[str, dict[str, Any]]:
+def create_openai_web_search_response(api_key: str, model: str, prompt: str, *, instructions: str | None = None) -> tuple[str, dict[str, Any]]:
+    payload = {
+        "model": model,
+        "input": prompt,
+        "tools": [{"type": "web_search"}],
+        "tool_choice": "auto",
+        "include": ["web_search_call.action.sources"],
+        "max_output_tokens": 8000,
+    }
+    if instructions:
+        payload["instructions"] = instructions
+    response = _openai_json_request("https://api.openai.com/v1/responses", api_key, method="POST", payload=payload, timeout=180)
+    return _extract_response_text(response), response
+
+
+def create_nvidia_response(api_key: str, model: str, prompt: str, *, instructions: str | None = None, timeout_seconds: int = 180) -> tuple[str, dict[str, Any]]:
+    if model not in NVIDIA_RECOMMENDATION_MODELS:
+        raise AIAdvisorProviderError("Unsupported NVIDIA model.", status_code=400)
+    messages = []
+    if instructions:
+        messages.append({"role": "system", "content": instructions})
+    messages.append({"role": "user", "content": prompt})
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.2,
+        "max_tokens": 5000,
+    }
+    response = _provider_json_request(
+        f"{NVIDIA_NIM_BASE_URL}/chat/completions",
+        api_key,
+        method="POST",
+        payload=payload,
+        timeout=timeout_seconds,
+        provider_label="NVIDIA NIM",
+    )
+    text = _extract_chat_completion_text(response)
+    if not text:
+        raise AIAdvisorProviderError("NVIDIA NIM response did not include any text.", status_code=502)
+    return text, {**response, "usage": {"provider": "nvidia", "model": model, **response_usage(response)}}
+
+
+def create_ollama_response(model_name: str, prompt: str, base_url: str | None = None, timeout_seconds: int = 120) -> tuple[str, dict[str, Any]]:
     """Call a local Ollama instance and return (response_text, raw_payload)."""
     url = (base_url or OLLAMA_DEFAULT_BASE_URL).rstrip("/")
     payload = {
@@ -295,7 +355,7 @@ def create_ollama_response(model_name: str, prompt: str, base_url: str | None = 
         headers={"Content-Type": "application/json"},
     )
     try:
-        with urlopen(req, timeout=120) as response:
+        with urlopen(req, timeout=timeout_seconds) as response:
             raw = json.loads(response.read().decode("utf-8", errors="ignore") or "{}")
     except HTTPError as exc:
         try:
@@ -303,8 +363,13 @@ def create_ollama_response(model_name: str, prompt: str, base_url: str | None = 
         except Exception:
             detail = ""
         raise AIAdvisorProviderError(
-            f"Ollama error{': ' + detail if detail else ''}. Make sure Ollama is running at {url}.",
+            f"Ollama error{': ' + detail if detail else ''}. Make sure the selected model is pulled and Ollama is running at {url}.",
             status_code=502,
+        ) from exc
+    except (TimeoutError, socket.timeout) as exc:
+        raise AIAdvisorProviderError(
+            f"Ollama timed out while generating with {model_name}. Try a smaller local model or rerun after the model finishes loading.",
+            status_code=504,
         ) from exc
     except (URLError, OSError) as exc:
         raise AIAdvisorProviderError(
@@ -501,6 +566,7 @@ def generate_text(
     api_key: str | None = None,
     ollama_base_url: str | None = None,
     instructions: str | None = None,
+    ollama_timeout_seconds: int = 120,
 ) -> tuple[str, dict[str, Any]]:
     """Route to Goose, Ollama, or OpenAI based on model prefix.
 
@@ -512,7 +578,9 @@ def generate_text(
     if is_goose_model(model):
         return create_goose_response(goose_model_name(model), prompt, base_url=ollama_base_url)
     if is_ollama_model(model):
-        return create_ollama_response(ollama_model_name(model), prompt, base_url=ollama_base_url)
+        return create_ollama_response(ollama_model_name(model), prompt, base_url=ollama_base_url, timeout_seconds=ollama_timeout_seconds)
+    if is_nvidia_model(model):
+        return create_nvidia_response(api_key or "", nvidia_model_name(model), prompt, instructions=instructions, timeout_seconds=ollama_timeout_seconds)
     return create_openai_response(api_key or "", model, prompt, instructions=instructions)
 
 
@@ -574,20 +642,74 @@ def _openai_json_request(
         raise AIAdvisorProviderError(f"OpenAI request failed before reaching the API: {exc}", status_code=502) from exc
 
 
+def _provider_json_request(
+    url: str,
+    api_key: str,
+    *,
+    method: str,
+    payload: dict[str, Any] | None = None,
+    timeout: int = 30,
+    provider_label: str,
+) -> dict[str, Any]:
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = Request(
+        url,
+        data=body,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    try:
+        with urlopen(request, timeout=timeout, context=_openai_ssl_context()) as response:
+            return json.loads(response.read().decode("utf-8", errors="ignore") or "{}")
+    except HTTPError as exc:
+        message = _provider_error_message(exc, provider_label)
+        status_code = 400 if exc.code in {401, 403} else 502
+        raise AIAdvisorProviderError(message, status_code=status_code) from exc
+    except json.JSONDecodeError as exc:
+        raise AIAdvisorProviderError(f"{provider_label} returned an unreadable response. Please try again later.", status_code=502) from exc
+    except URLError as exc:
+        reason = getattr(exc, "reason", exc)
+        raise AIAdvisorProviderError(f"{provider_label} request failed before reaching the API: {reason}", status_code=502) from exc
+    except OSError as exc:
+        raise AIAdvisorProviderError(f"{provider_label} request failed before reaching the API: {exc}", status_code=502) from exc
+
+
 @lru_cache(maxsize=1)
 def _openai_ssl_context() -> ssl.SSLContext:
     return ssl.create_default_context(cafile=certifi.where())
 
 
-def _provider_error_message(exc: HTTPError) -> str:
+def _provider_error_message(exc: HTTPError, provider_label: str = "OpenAI") -> str:
     try:
         payload = json.loads(exc.read().decode("utf-8", errors="ignore") or "{}")
     except json.JSONDecodeError:
-        return "OpenAI request failed."
+        return f"{provider_label} request failed."
     error = payload.get("error")
     if isinstance(error, dict) and isinstance(error.get("message"), str):
         return error["message"]
-    return "OpenAI request failed."
+    return f"{provider_label} request failed."
+
+
+def _extract_chat_completion_text(payload: dict[str, Any]) -> str:
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return ""
+    first = choices[0]
+    if not isinstance(first, dict):
+        return ""
+    message = first.get("message")
+    if isinstance(message, dict):
+        content = message.get("content")
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            parts = [str(part.get("text", "")) for part in content if isinstance(part, dict)]
+            return "\n".join(part for part in parts if part.strip()).strip()
+    text = first.get("text")
+    return text.strip() if isinstance(text, str) else ""
 
 
 def _extract_response_text(payload: dict[str, Any]) -> str:

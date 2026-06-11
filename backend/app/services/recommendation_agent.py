@@ -14,7 +14,9 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.schemas.common import RecommendationAgentRunRequest
 from app.services.ai_advisor import generate_text, response_usage
+from app.services.ai_advisor import NVIDIA_RECOMMENDATION_MODELS, is_nvidia_model, nvidia_model_name
 from app.services.breakout_scanner import run_breakout_scan
+from app.services.recommendation_model_router import RecommendationModelRouter
 from app.services.smart_candles import run_smart_candle_scan
 from app.services.stock_analysis import EQUITY_RESEARCH_JSON_SCHEMA_AND_RULES
 
@@ -24,6 +26,17 @@ RECOMMENDATION_AGENT_INSTRUCTIONS = (
     "Use only the supplied scanner and enrichment data. Do not provide personalized "
     "investment advice, trade instructions, allocations, guarantees, or brokerage orders."
 )
+RECOMMENDATION_AGENT_OLLAMA_TIMEOUT_SECONDS = 420
+
+RECOMMENDATION_MULTI_AGENT_RUBRIC = """
+Multi-agent evaluation rubric:
+- Director lens: develop a concise market thesis for each candidate, including market position, expected trend, technical and fundamental drivers, key opportunities, and key challenges.
+- Quant lens: evaluate the supplied technical indicators, moving-average structure, RSI, Bollinger/volatility context, trend strength, momentum, volume participation, and probability/confidence-style evidence.
+- Sentiment lens: when supplied data contains news, social, analyst, institutional, earnings, or narrative context, summarize sentiment direction, intensity, key themes, critical events, trend changes, and possible contrarian implications.
+- Risk lens: assess drawdown risk, volatility, liquidity, market correlation, concentration overlap with the current portfolio, valuation/extension risk, and red flags that could weaken the idea.
+- Execution-planning lens: discuss educational trade-parameter context only, such as possible entry/exit review zones, stop/target considerations, time horizon, and conditions that would invalidate the thesis. Do not generate brokerage orders, order types, share quantities, personalized position sizing, or buy/sell/hold instructions.
+Use these lenses as internal decision criteria for ranking; the final answer must still follow the Recommendation Agent ranked_ideas schema.
+""".strip()
 
 
 @dataclass
@@ -36,6 +49,7 @@ class CandidateIdea:
     evidence: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     tipranks: dict[str, Any] | None = None
+    lunarcrush: dict[str, Any] | None = None
 
     def score(self) -> float:
         base = sum(self.scanner_scores.values())
@@ -61,6 +75,7 @@ class CandidateIdea:
             "context": self.context,
             "evidence": self.evidence,
             "tipranks": self.tipranks,
+            "lunarcrush": self.lunarcrush,
             "warnings": self.warnings,
         }
 
@@ -209,6 +224,36 @@ class TipRanksRemoteMcpEnricher:
         return _json_post(self.endpoint, payload)
 
 
+class LunarCrushEnricher:
+    base_url = "https://lunarcrush.com/api4"
+
+    def __init__(self, api_key: str) -> None:
+        self.api_key = api_key.strip()
+
+    def enrich(self, symbols: list[str]) -> tuple[dict[str, dict[str, Any]], dict[str, Any], list[str]]:
+        if not self.api_key:
+            return {}, {"status": "skipped", "checked_symbols": [], "provider": "lunarcrush"}, []
+        if not symbols:
+            return {}, {"status": "skipped", "checked_symbols": [], "provider": "lunarcrush"}, []
+
+        enriched: dict[str, dict[str, Any]] = {}
+        warnings: list[str] = []
+        for symbol in symbols:
+            try:
+                data = _json_get(f"{self.base_url}/public/stocks/{quote(symbol)}/v1", headers={"Authorization": f"Bearer {self.api_key}"})
+                compacted = _compact_lunarcrush_payload(data)
+                if compacted:
+                    enriched[symbol] = compacted
+            except Exception as exc:
+                warnings.append(f"LunarCrush unavailable for {symbol}: {exc}")
+        return enriched, {
+            "status": "partial" if warnings else "available",
+            "checked_symbols": symbols,
+            "enriched_count": len(enriched),
+            "provider": "lunarcrush",
+        }, warnings
+
+
 def run_recommendation_agent(
     db: Session,
     user_id: int,
@@ -217,6 +262,7 @@ def run_recommendation_agent(
     api_key: str | None = None,
     settings: Settings | None = None,
     tipranks_enricher: TipRanksEnricher | None = None,
+    lunarcrush_enricher: LunarCrushEnricher | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
     warnings: list[str] = [
@@ -248,12 +294,39 @@ def run_recommendation_agent(
 
     candidate_payload = [item.as_payload() for item in ordered_candidates]
     portfolio_payload = _parse_portfolio_input(payload.current_portfolio)
+    pass_one_prompt = _ranking_prompt(candidate_payload, payload.finalist_count, phase="first-pass", user_context=payload.user_context, portfolio=portfolio_payload)
+    model = payload.model
+    model_routing: dict[str, Any] = {}
+    if payload.model_mode == "nvidia":
+        requested_model = nvidia_model_name(payload.model) if is_nvidia_model(payload.model) else NVIDIA_RECOMMENDATION_MODELS[0]
+        model = f"nvidia:{requested_model}"
+        model_routing = {
+            "mode": "nvidia",
+            "model": model,
+            "display_name": requested_model,
+            "reason": "Selected hosted NVIDIA NIM model for Recommendation Agent.",
+            "provider": "nvidia",
+            "base_url": "https://integrate.api.nvidia.com/v1",
+            "available_models": list(NVIDIA_RECOMMENDATION_MODELS),
+        }
+    elif payload.model_mode:
+        decision = RecommendationModelRouter().route(pass_one_prompt, payload.model_mode, payload.ollama_base_url)
+        model = decision.model
+        model_routing = {
+            "mode": decision.mode,
+            "model": decision.model,
+            "display_name": decision.display_name,
+            "reason": decision.reason,
+            **decision.metadata,
+        }
+
     pass_one_text, pass_one_payload = generate_text(
-        payload.model,
-        _ranking_prompt(candidate_payload, payload.finalist_count, phase="first-pass", user_context=payload.user_context, portfolio=portfolio_payload),
+        model,
+        pass_one_prompt,
         api_key=api_key,
         ollama_base_url=payload.ollama_base_url,
         instructions=RECOMMENDATION_AGENT_INSTRUCTIONS,
+        ollama_timeout_seconds=RECOMMENDATION_AGENT_OLLAMA_TIMEOUT_SECONDS,
     )
     finalist_symbols = _finalist_symbols(pass_one_text, ordered_candidates, payload.finalist_count)
 
@@ -268,25 +341,43 @@ def run_recommendation_agent(
             if symbol in candidates:
                 candidates[symbol].tipranks = data
 
+    lunarcrush_status: dict[str, Any] = {"status": "skipped", "checked_symbols": []}
+    if payload.include_lunarcrush:
+        if lunarcrush_enricher is None and payload.lunarcrush_api_key and payload.lunarcrush_api_key.strip():
+            lunarcrush_enricher = LunarCrushEnricher(payload.lunarcrush_api_key)
+        if lunarcrush_enricher is None:
+            lunarcrush_status = {"status": "unavailable", "checked_symbols": finalist_symbols, "provider": "lunarcrush"}
+            warnings.append("LunarCrush enrichment skipped because no LunarCrush API key is saved or supplied.")
+        else:
+            enriched, lunarcrush_status, lunarcrush_warnings = lunarcrush_enricher.enrich(finalist_symbols)
+            warnings.extend(lunarcrush_warnings)
+            for symbol, data in enriched.items():
+                if symbol in candidates:
+                    candidates[symbol].lunarcrush = data
+
     finalist_payload = [candidates[symbol].as_payload() for symbol in finalist_symbols if symbol in candidates]
     final_text, final_payload = generate_text(
-        payload.model,
+        model,
         _ranking_prompt(finalist_payload, payload.finalist_count, phase="final-pass", user_context=payload.user_context, portfolio=portfolio_payload),
         api_key=api_key,
         ollama_base_url=payload.ollama_base_url,
         instructions=RECOMMENDATION_AGENT_INSTRUCTIONS,
+        ollama_timeout_seconds=RECOMMENDATION_AGENT_OLLAMA_TIMEOUT_SECONDS,
     )
 
     ranked_ideas = _ranked_ideas_from_llm(final_text, [candidates[s] for s in finalist_symbols if s in candidates])
     return {
         "generated_at": datetime.now(timezone.utc),
-        "model": payload.model,
+        "model": model,
+        "model_routing": model_routing,
         "ranked_ideas": ranked_ideas,
         "scanner_summary": scanner_summary,
         "tipranks_status": tipranks_status,
+        "lunarcrush_status": lunarcrush_status,
         "warnings": _unique(warnings),
         "raw_llm_markdown": final_text,
         "usage": {
+            "model_routing": model_routing,
             "first_pass": response_usage(pass_one_payload),
             "final_pass": response_usage(final_payload),
         },
@@ -323,6 +414,9 @@ def _ranking_prompt(
         "Use this extension rule for high-growth AI/semiconductor holdings: 15% above the 40-DMA is caution, 20% above the 40-DMA is dangerous, and 30% above the 40-DMA is very dangerous / partial trim zone.",
         "A dangerous area usually requires price 20%+ above the 40-DMA, RSI above 70, and climax-type/news-driven volume. This does not mean short it; it means do not chase new money and consider trimming or waiting for a pullback to the 20-day/40-day MA.",
         "",
+        "Recommendation multi-agent rubric:",
+        RECOMMENDATION_MULTI_AGENT_RUBRIC,
+        "",
         "Equity Research rubric reused for this agent:",
         EQUITY_RESEARCH_JSON_SCHEMA_AND_RULES,
         "",
@@ -334,9 +428,12 @@ def _ranking_prompt(
         "",
         f"Rank up to {finalist_count} educational research ideas from the supplied JSON.",
         "Prefer candidates with multiple independent scanner confirmations, strong evidence, and fewer unresolved warnings.",
+        "When LunarCrush enrichment is supplied, use sentiment, interactions, social_dominance, and galaxy_score as final-analysis evidence for the Sentiment lens and mention meaningful extremes or contradictions versus scanner evidence.",
         "When a ranked idea overlaps with or materially adds to the current portfolio, point out portfolio-level red flags in rationale, especially concentration, valuation/extension risk, RSI > 70, climax volume, and whether new money should wait for a pullback.",
         "Return concise Markdown plus a JSON object with key 'ranked_ideas'.",
         "Each ranked idea should include: rank, symbol, verdict, rationale.",
+        "Make the rationale visibly reflect the multi-agent rubric. For each ranked_ideas item, write rationale as compact labeled clauses: Director: ... Quant: ... Sentiment: ... Risk: ... Execution-planning: ...",
+        "If a lens lacks supplied evidence, say 'Sentiment: no supplied sentiment evidence' or the equivalent rather than inventing outside facts.",
         "Do not include buy/sell/hold instructions or position sizing.",
         "",
         "Candidate JSON:",
@@ -381,6 +478,7 @@ def _ranked_idea_out(idea: CandidateIdea, rank: int, *, verdict: str = "", ratio
         "context": idea.context,
         "evidence": idea.evidence,
         "tipranks": idea.tipranks,
+        "lunarcrush": idea.lunarcrush,
         "warnings": idea.warnings,
     }
 
@@ -541,6 +639,36 @@ def _compact_tipranks_payload(data: Any) -> dict[str, Any]:
     return compact or {"raw": data}
 
 
+def _compact_lunarcrush_payload(data: Any) -> dict[str, Any]:
+    row = _lunarcrush_row(data)
+    if not row:
+        return {}
+    allowed = {
+        "symbol", "ticker", "name", "title", "topic", "topic_rank", "market_cap_rank",
+        "price", "volume_24h", "market_cap", "percent_change_24h", "galaxy_score",
+        "alt_rank", "sentiment", "social_dominance", "num_posts", "num_contributors",
+        "interactions", "interactions_24h", "interactions_per_post", "categories",
+    }
+    compact = {key: value for key, value in row.items() if key in allowed and value is not None}
+    return compact or {"raw": row}
+
+
+def _lunarcrush_row(data: Any) -> dict[str, Any]:
+    if isinstance(data, list):
+        return next((item for item in data if isinstance(item, dict)), {})
+    if not isinstance(data, dict):
+        return {}
+    for key in ("data", "result", "stock", "topic"):
+        value = data.get(key)
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, list):
+            row = next((item for item in value if isinstance(item, dict)), None)
+            if row:
+                return row
+    return data
+
+
 def _tipranks_rows(data: Any) -> list[dict[str, Any]]:
     if isinstance(data, list):
         return [item for item in data if isinstance(item, dict)]
@@ -579,8 +707,9 @@ def _json_loads(value: str) -> Any:
         return []
 
 
-def _json_get(url: str) -> dict[str, Any]:
-    req = Request(url, method="GET", headers={"Accept": "application/json"})
+def _json_get(url: str, *, headers: dict[str, str] | None = None) -> dict[str, Any]:
+    req_headers = {"Accept": "application/json", **(headers or {})}
+    req = Request(url, method="GET", headers=req_headers)
     try:
         with urlopen(req, timeout=45) as response:
             return json.loads(response.read().decode("utf-8", errors="ignore") or "{}")

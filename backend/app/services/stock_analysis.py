@@ -24,10 +24,12 @@ from app.services.earnings_agent import (
 )
 from app.services.index_data import INDEX_DEFINITIONS
 from app.services.market_data import get_latest_security_snapshots, normalize_symbol
+from app.services.recommendation_model_router import RecommendationModelMode, RecommendationModelRouter
 
 
 MAX_PROMPT_CONTEXT_CHARS = 42_000
 MAX_EARNINGS_SOURCE_CHARS = 8_000
+OLLAMA_RESEARCH_TIMEOUT_SECONDS = 420
 SEC_COMPANYFACTS_BASE = "https://data.sec.gov/api/xbrl/companyfacts"
 
 SEC_FACT_CONCEPTS = {
@@ -45,6 +47,36 @@ SEC_FACT_CONCEPTS = {
     "equity": ("StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"),
     "cash": ("CashAndCashEquivalentsAtCarryingValue", "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"),
 }
+
+EQUITY_RESEARCH_JSON_SCHEMA_AND_RULES = """Return strict JSON with exactly these keys:
+{
+  "executive_summary": "3-5 sentence neutral summary",
+  "business_model": "Business model and revenue streams",
+  "moat_summary": "Competitive advantage assessment",
+  "moat_score": 1,
+  "competitor_comparison": ["comparison point"],
+  "industry_trends": ["trend 1", "trend 2"],
+  "financial_health": "5-year financial health read, including strengthening or weakening",
+  "valuation_summary": "P/E, DCF, peer comparison, and valuation conclusion using research language only",
+  "risks": [{"rank": 1, "title": "Risk", "detail": "why it matters", "severity": "high"}],
+  "growth_potential": "5-10 year growth potential with drivers and constraints",
+  "institutional_perspective": "Why institutions might research it further or avoid it",
+  "scenarios": [{"case": "bull", "summary": "scenario", "key_drivers": ["driver"]}, {"case": "base", "summary": "scenario", "key_drivers": ["driver"]}, {"case": "bear", "summary": "scenario", "key_drivers": ["driver"]}],
+  "bull_bear_debate": ["Bull analyst: data-backed argument", "Bear analyst: data-backed argument", "Balanced conclusion"],
+  "latest_earnings": "Latest earnings breakdown from supplied data/source text, including gaps",
+  "outlook_12_24_months": "12-24 month educational outlook",
+  "research_stance": "Attractive for research | Neutral / monitor | Avoid-for-now for research",
+  "deep_dive_questions": ["question 1", "question 2"],
+  "source_notes": ["data sources and caveats"]
+}
+
+Rules:
+- Educational research only.
+- Do not use buy, sell, hold, price target, rating, trade, or allocation instructions.
+- The final stance must be one of: Attractive for research, Neutral / monitor, Avoid-for-now for research.
+- Use the DCF as a model estimate, not as a price target.
+- Rank risks from most dangerous to least dangerous.
+- Prefer concrete metrics from FinanceOS data over generic commentary."""
 
 
 class StockAnalysisLookupError(RuntimeError):
@@ -81,9 +113,29 @@ class StockAnalysisSource:
         }
 
 
-def run_stock_analysis(db: Session, user_id: int, query: str, model: str, api_key: str | None, ollama_base_url: str | None = None) -> StockAnalysisRun:
+def run_stock_analysis(
+    db: Session,
+    user_id: int,
+    query: str,
+    model: str,
+    api_key: str | None,
+    ollama_base_url: str | None = None,
+    model_mode: RecommendationModelMode | None = None,
+) -> StockAnalysisRun:
     company = resolve_stock_company(query)
-    context = collect_stock_analysis_context(db, company)
+    model_routing: dict[str, Any] = {}
+    if model_mode:
+        decision = RecommendationModelRouter().route(_routing_prompt(company), model_mode, ollama_base_url, prefer_fast_local=True)
+        model = decision.model
+        model_routing = {
+            "mode": decision.mode,
+            "model": decision.model,
+            "display_name": decision.display_name,
+            "reason": decision.reason,
+            **decision.metadata,
+        }
+
+    context = collect_stock_analysis_context(db, company, model=model, api_key=api_key, ollama_base_url=ollama_base_url)
     prompt_text = build_stock_analysis_prompt(company, context)
     response_text, response_payload = generate_text(
         model,
@@ -94,6 +146,7 @@ def run_stock_analysis(db: Session, user_id: int, query: str, model: str, api_ke
             "You are an educational equity research assistant. Return strict JSON only. "
             "Do not provide personalized investment advice, buy/sell/hold recommendations, price targets, trade instructions, or allocation instructions."
         ),
+        ollama_timeout_seconds=OLLAMA_RESEARCH_TIMEOUT_SECONDS,
     )
     digest = parse_stock_analysis_response(response_text)
     digest["research_stance"] = normalize_research_stance(digest.get("research_stance"))
@@ -113,13 +166,21 @@ def run_stock_analysis(db: Session, user_id: int, query: str, model: str, api_ke
         warnings_json=json.dumps(_unique(context["warnings"]), separators=(",", ":"), sort_keys=True),
         prompt_text=build_stored_prompt_snapshot(company, context),
         response_text=response_text,
-        usage_json=json.dumps(response_usage(response_payload), separators=(",", ":"), sort_keys=True),
+        usage_json=json.dumps({"model_routing": model_routing, **response_usage(response_payload)}, separators=(",", ":"), sort_keys=True),
         created_at=utc_now(),
     )
     db.add(run)
     db.commit()
     db.refresh(run)
     return run
+
+
+def _routing_prompt(company: StockAnalysisCompany) -> str:
+    return (
+        f"Equity Research analysis for {company.company_name} ({company.ticker}) using valuation, "
+        "five-year financials, current market data, SEC filings, earnings materials, risks, moat, "
+        "industry trends, and 12-24 month educational outlook."
+    )
 
 
 def resolve_stock_company(query: str) -> StockAnalysisCompany:
@@ -134,7 +195,13 @@ def resolve_stock_company(query: str) -> StockAnalysisCompany:
         raise StockAnalysisLookupError(str(exc)) from exc
 
 
-def collect_stock_analysis_context(db: Session, company: StockAnalysisCompany) -> dict[str, Any]:
+def collect_stock_analysis_context(
+    db: Session,
+    company: StockAnalysisCompany,
+    model: str | None = None,
+    api_key: str | None = None,
+    ollama_base_url: str | None = None,
+) -> dict[str, Any]:
     warnings: list[str] = []
     info = _fetch_yfinance_info(company.ticker)
     if not info:
@@ -188,7 +255,7 @@ def collect_stock_analysis_context(db: Session, company: StockAnalysisCompany) -
         "data_source": "yfinance profile + FinanceOS market cache",
     }
     valuation = build_valuation_snapshot(profile, financials, peers, warnings)
-    sources = fetch_stock_earnings_sources(company, warnings)
+    sources = fetch_stock_earnings_sources(company, warnings, model=model, api_key=api_key, ollama_base_url=ollama_base_url)
     snapshot = {
         "profile": profile,
         "financials": financials,
@@ -470,7 +537,13 @@ def build_dcf_estimate(profile: dict[str, Any], financials: list[dict[str, Any]]
     }
 
 
-def fetch_stock_earnings_sources(company: StockAnalysisCompany, warnings: list[str] | None = None) -> list[StockAnalysisSource]:
+def fetch_stock_earnings_sources(
+    company: StockAnalysisCompany,
+    warnings: list[str] | None = None,
+    model: str | None = None,
+    api_key: str | None = None,
+    ollama_base_url: str | None = None,
+) -> list[StockAnalysisSource]:
     warnings = warnings if warnings is not None else []
     earnings_company = EarningsCompany(company.ticker, company.company_name, company.cik)
     sources: list[EarningsSource] = []
@@ -480,7 +553,7 @@ def fetch_stock_earnings_sources(company: StockAnalysisCompany, warnings: list[s
         warnings.append(f"SEC earnings context was unavailable: {exc}")
     existing_urls = {source.url for source in sources if source.url}
     try:
-        sources.extend(fetch_company_ir_sources(earnings_company, existing_urls=existing_urls))
+        sources.extend(fetch_company_ir_sources(earnings_company, existing_urls=existing_urls, model=model, api_key=api_key, ollama_base_url=ollama_base_url))
     except Exception as exc:
         warnings.append(f"Company investor-relations context was unavailable: {exc}")
     return [
@@ -518,37 +591,9 @@ def build_stock_analysis_prompt(company: StockAnalysisCompany, context: dict[str
     structured_context = json.dumps(context["snapshot"], indent=2, sort_keys=True)
     prompt = f"""Create an educational Wall Street-style equity research analysis for {company.company_name} ({company.ticker}).
 
-Use the structured FinanceOS data and source text below. If a metric or section is not supported by the supplied data, say it is unavailable instead of fabricating it.
+Use the structured FinanceOS data and source text below. FinanceOS has already run research tools before this model call, including live yfinance profile/financial retrieval, FinanceOS market-cache lookup, SEC Company Facts, recent SEC earnings filing retrieval, and company investor-relations page/document fetching. Prefer this tool-fetched context over stale model memory. If a metric or section is not supported by the supplied data, say it is unavailable instead of fabricating it.
 
-Return strict JSON with exactly these keys:
-{{
-  "executive_summary": "3-5 sentence neutral summary",
-  "business_model": "Business model and revenue streams",
-  "moat_summary": "Competitive advantage assessment",
-  "moat_score": 1,
-  "competitor_comparison": ["comparison point"],
-  "industry_trends": ["trend 1", "trend 2"],
-  "financial_health": "5-year financial health read, including strengthening or weakening",
-  "valuation_summary": "P/E, DCF, peer comparison, and valuation conclusion using research language only",
-  "risks": [{{"rank": 1, "title": "Risk", "detail": "why it matters", "severity": "high"}}],
-  "growth_potential": "5-10 year growth potential with drivers and constraints",
-  "institutional_perspective": "Why institutions might research it further or avoid it",
-  "scenarios": [{{"case": "bull", "summary": "scenario", "key_drivers": ["driver"]}}, {{"case": "base", "summary": "scenario", "key_drivers": ["driver"]}}, {{"case": "bear", "summary": "scenario", "key_drivers": ["driver"]}}],
-  "bull_bear_debate": ["Bull analyst: data-backed argument", "Bear analyst: data-backed argument", "Balanced conclusion"],
-  "latest_earnings": "Latest earnings breakdown from supplied data/source text, including gaps",
-  "outlook_12_24_months": "12-24 month educational outlook",
-  "research_stance": "Attractive for research | Neutral / monitor | Avoid-for-now for research",
-  "deep_dive_questions": ["question 1", "question 2"],
-  "source_notes": ["data sources and caveats"]
-}}
-
-Rules:
-- Educational research only.
-- Do not use buy, sell, hold, price target, rating, trade, or allocation instructions.
-- The final stance must be one of: Attractive for research, Neutral / monitor, Avoid-for-now for research.
-- Use the DCF as a model estimate, not as a price target.
-- Rank risks from most dangerous to least dangerous.
-- Prefer concrete metrics from FinanceOS data over generic commentary.
+{EQUITY_RESEARCH_JSON_SCHEMA_AND_RULES}
 
 FinanceOS structured data:
 {structured_context}

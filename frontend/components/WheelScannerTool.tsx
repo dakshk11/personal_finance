@@ -20,7 +20,7 @@ import {
   X
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AIAdvisorOpenAIKeyStatus, apiFetch } from "@/lib/api";
+import { AIAdvisorAlpacaKeyStatus, AIAdvisorOpenAIKeyStatus, AlpacaRecommendationQuoteSession, apiFetch, apiUrl } from "@/lib/api";
 import { OllamaConfigStrip, OllamaModelButton, effectiveModelId } from "@/components/OllamaModelPicker";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -78,10 +78,11 @@ interface WheelOptionRow {
 
 interface WheelStatus {
   ibkr_connected: boolean;
+  alpaca_connected?: boolean;
   watchlist_count: number;
   quotes_cached: number;
   cboe_prices_cached: number;
-  price_source: "ibkr" | "cboe_delayed" | "none";
+  price_source: "alpaca" | "ibkr" | "ibkr_delayed" | "cboe_delayed" | "none";
 }
 
 type SortDir = "asc" | "desc";
@@ -100,6 +101,12 @@ type WheelScannerChatResponse = {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const WHEEL_API = process.env.NEXT_PUBLIC_IBKR_API_URL ?? "http://localhost:8002";
+const ALPACA_WHEEL_SYMBOL_LIMIT = 30;
+const DEFAULT_ALPACA_WHEEL_SYMBOLS = [
+  "ADBE", "ADP", "ADSK", "AEP", "AMAT", "AMD", "AMGN", "AMZN", "ANSS", "APP",
+  "ASML", "AVGO", "AZN", "BIIB", "BKNG", "BKR", "CDNS", "CDW", "CEG", "CHTR",
+  "CMCSA", "COST", "CPRT", "CRWD", "CSCO", "CSGP", "CSX", "CTAS", "CTSH", "DDOG",
+];
 
 const DTE_PRESETS = [
   { label: "7–14d",  min: 7,  max: 14  },
@@ -175,6 +182,18 @@ async function wheelGet<T>(path: string): Promise<T> {
   const res = await fetch(`${WHEEL_API}${path}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Wheel API ${res.status}: ${path}`);
   return res.json() as Promise<T>;
+}
+
+function wheelSymbolList(quotes: WheelQuote[], customSymbols: Set<string>): string[] {
+  return [...new Set([...quotes.map((quote) => quote.symbol), ...customSymbols])].slice(0, ALPACA_WHEEL_SYMBOL_LIMIT);
+}
+
+function liveMid(bid?: number | null, ask?: number | null): number | null {
+  return bid != null && ask != null ? (bid + ask) / 2 : null;
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function fmtNum(v: number | null | undefined, d = 2): string {
@@ -537,7 +556,15 @@ function ChartModal({ symbol, quote, onClose }: { symbol: string; quote: WheelQu
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function WheelScannerTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyStatus | null }) {
+export function WheelScannerTool({
+  keyStatus,
+  alpacaKeyStatus,
+  isActive = true,
+}: {
+  keyStatus: AIAdvisorOpenAIKeyStatus | null;
+  alpacaKeyStatus: AIAdvisorAlpacaKeyStatus | null;
+  isActive?: boolean;
+}) {
   const [status, setStatus]         = useState<WheelStatus | null>(null);
   const [quotes, setQuotes]         = useState<WheelQuote[]>([]);
   const [subTab, setSubTab]         = useState<SubTab>("watchlist");
@@ -553,19 +580,25 @@ export function WheelScannerTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyS
   const [chartSymbol, setChartSymbol]     = useState<string | null>(null);
   const [chatModel, setChatModel] = useState<WheelChatModel>("gpt-5.4");
   const [ollamaModelName, setOllamaModelName] = useState("llama3");
-  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://127.0.0.1:11434");
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<WheelChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState("");
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState("");
+  const [alpacaStatus, setAlpacaStatus] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const wsRef         = useRef<WebSocket | null>(null);
+  const alpacaWsRef   = useRef<WebSocket | null>(null);
   const reconnectRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const alpacaReconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const alpacaStartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const alpacaConnectingRef = useRef(false);
   const quotesMapRef  = useRef<Record<string, WheelQuote>>({});
   const customSymbolsRef = useRef<Set<string>>(new Set());
+  const isActiveRef = useRef(isActive);
 
   // ── Custom symbols (localStorage) ──────────────────────────────────────────
 
@@ -605,31 +638,109 @@ export function WheelScannerTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyS
 
   // ── Data fetching ──────────────────────────────────────────────────────────
 
-  const loadWatchlist = useCallback(async () => {
+  const loadWatchlist = useCallback(async (forceLive = false) => {
+    if (!isActiveRef.current) return;
     try {
       const [statusData, watchlistData] = await Promise.all([
         wheelGet<WheelStatus>("/api/status"),
-        wheelGet<{ tickers: WheelQuote[] }>("/api/watchlist"),
+        wheelGet<{ tickers: WheelQuote[] }>(`/api/watchlist${forceLive ? "?force_live=true" : ""}`),
       ]);
-      setStatus(statusData);
+      setStatus((current) => {
+        const alpacaConnected = current?.alpaca_connected || alpacaWsRef.current?.readyState === WebSocket.OPEN;
+        return {
+          ...statusData,
+          alpaca_connected: alpacaConnected,
+          price_source: alpacaConnected ? "alpaca" : statusData.price_source,
+        };
+      });
       const map: Record<string, WheelQuote> = {};
       for (const q of watchlistData.tickers) map[q.symbol] = q;
       quotesMapRef.current = { ...quotesMapRef.current, ...map };
       setQuotes(Object.values(quotesMapRef.current));
-      if (customSymbolsRef.current.size) void fetchCustom([...customSymbolsRef.current]);
+      if (customSymbolsRef.current.size) void fetchCustom([...customSymbolsRef.current], forceLive);
       setLastUpdated(new Date());
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Cannot reach Wheel Scanner backend (http://localhost:8002)");
+      if (alpacaKeyStatus?.has_key) {
+        const seededSymbols = wheelSymbolList(
+          DEFAULT_ALPACA_WHEEL_SYMBOLS.map((symbol) => ({
+            symbol,
+            price: null,
+            bid: null,
+            ask: null,
+            last: null,
+            close: null,
+            change: null,
+            change_pct: null,
+            volume: null,
+            iv_rank: null,
+            hv30: null,
+            rsi: null,
+            bb_pct: null,
+            csp_30d: null,
+            cc_30d: null,
+            signals: [],
+            source: "alpaca",
+            stage: null,
+            sata_score: null,
+            mansfield_rs: null,
+            ma150: null,
+            ma200: null,
+            sata_attributes: {},
+          })),
+          customSymbolsRef.current
+        );
+        quotesMapRef.current = Object.fromEntries(seededSymbols.map((symbol) => [symbol, quotesMapRef.current[symbol] ?? {
+          symbol,
+          price: null,
+          bid: null,
+          ask: null,
+          last: null,
+          close: null,
+          change: null,
+          change_pct: null,
+          volume: null,
+          iv_rank: null,
+          hv30: null,
+          rsi: null,
+          bb_pct: null,
+          csp_30d: null,
+          cc_30d: null,
+          signals: [],
+          source: "alpaca",
+          stage: null,
+          sata_score: null,
+          mansfield_rs: null,
+          ma150: null,
+          ma200: null,
+          sata_attributes: {},
+        }]));
+        setQuotes(Object.values(quotesMapRef.current));
+        setStatus({
+          ibkr_connected: false,
+          alpaca_connected: alpacaWsRef.current?.readyState === WebSocket.OPEN,
+          watchlist_count: seededSymbols.length,
+          quotes_cached: Object.keys(quotesMapRef.current).length,
+          cboe_prices_cached: 0,
+          price_source: alpacaWsRef.current?.readyState === WebSocket.OPEN ? "alpaca" : "none",
+        });
+        setError("");
+        setAlpacaStatus("IBKR Wheel backend unavailable. Using Alpaca live quote fallback.");
+      } else {
+        setError(err instanceof Error ? err.message : "Cannot reach Wheel Scanner backend (http://localhost:8002)");
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [alpacaKeyStatus?.has_key]);
 
-  async function fetchCustom(symbols: string[]) {
+  async function fetchCustom(symbols: string[], forceLive = false) {
+    if (!isActiveRef.current) return;
     if (!symbols.length) return;
     try {
-      const data = await wheelGet<{ tickers: WheelQuote[] }>(`/api/quotes?symbols=${symbols.join(",")}`);
+      const params = new URLSearchParams({ symbols: symbols.join(",") });
+      if (forceLive) params.set("force_live", "true");
+      const data = await wheelGet<{ tickers: WheelQuote[] }>(`/api/quotes?${params.toString()}`);
       for (const q of data.tickers) quotesMapRef.current[q.symbol] = q;
       setQuotes(Object.values(quotesMapRef.current));
     } catch { /* silently ignore custom fetch errors */ }
@@ -638,6 +749,7 @@ export function WheelScannerTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyS
   // ── Options fetch ──────────────────────────────────────────────────────────
 
   async function openOptions(symbol: string) {
+    if (!isActiveRef.current) return;
     setOptionsSymbol(symbol);
     setOptionsData(null);
     setLoadingOptions(true);
@@ -652,6 +764,7 @@ export function WheelScannerTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyS
   // ── WebSocket for live quotes ──────────────────────────────────────────────
 
   const connectWs = useCallback(() => {
+    if (!isActiveRef.current) return;
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
     try {
       const wsBase = WHEEL_API.replace(/^http/, "ws");
@@ -674,24 +787,173 @@ export function WheelScannerTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyS
       ws.onerror = () => ws.close();
       ws.onclose = () => {
         wsRef.current = null;
-        reconnectRef.current = setTimeout(connectWs, 5000);
+        if (isActiveRef.current) {
+          reconnectRef.current = setTimeout(connectWs, 5000);
+        }
       };
     } catch { /* WS not available, HTTP polling covers it */ }
   }, []);
 
+  const closeAlpacaWs = useCallback(() => {
+    alpacaConnectingRef.current = false;
+    if (alpacaStartRef.current) {
+      clearTimeout(alpacaStartRef.current);
+      alpacaStartRef.current = null;
+    }
+    if (alpacaReconnectRef.current) {
+      clearTimeout(alpacaReconnectRef.current);
+      alpacaReconnectRef.current = null;
+    }
+    if (alpacaWsRef.current) {
+      alpacaWsRef.current.onclose = null;
+      alpacaWsRef.current.close();
+    }
+    alpacaWsRef.current = null;
+  }, []);
+
+  const connectAlpacaWs = useCallback(async () => {
+    if (
+      !isActiveRef.current ||
+      !alpacaKeyStatus?.has_key ||
+      alpacaConnectingRef.current ||
+      alpacaWsRef.current?.readyState === WebSocket.OPEN ||
+      alpacaWsRef.current?.readyState === WebSocket.CONNECTING
+    ) return;
+    const symbols = wheelSymbolList(Object.values(quotesMapRef.current), customSymbolsRef.current);
+    if (!symbols.length) return;
+    closeAlpacaWs();
+    alpacaConnectingRef.current = true;
+    setAlpacaStatus("Connecting Alpaca live quotes...");
+    try {
+      const created = await apiFetch<AlpacaRecommendationQuoteSession>("/alpaca/recommendation-quotes/session", {
+        method: "POST",
+        body: JSON.stringify({ symbols, include_options: true, stream_options: false }),
+      });
+      if (!isActiveRef.current) {
+        alpacaConnectingRef.current = false;
+        return;
+      }
+      for (const quote of created.quotes) {
+        const previous = quotesMapRef.current[quote.symbol];
+        if (!previous) continue;
+        quotesMapRef.current[quote.symbol] = {
+          ...previous,
+          price: quote.price ?? previous.price,
+          bid: quote.bid ?? previous.bid,
+          ask: quote.ask ?? previous.ask,
+          last: quote.last ?? previous.last,
+          close: quote.close ?? previous.close,
+          change: quote.change ?? previous.change,
+          change_pct: quote.change_pct ?? previous.change_pct,
+          volume: quote.volume ?? previous.volume,
+          iv_rank: quote.iv_rank ?? previous.iv_rank,
+          csp_30d: quote.csp_30d ?? previous.csp_30d,
+          cc_30d: quote.cc_30d ?? previous.cc_30d,
+          signals: quote.signals?.length ? quote.signals : previous.signals,
+          source: "alpaca",
+        };
+      }
+      setQuotes(Object.values(quotesMapRef.current));
+      setAlpacaStatus(`Alpaca snapshot ready: ${created.symbols.length}/${ALPACA_WHEEL_SYMBOL_LIMIT} symbols`);
+
+      const base = apiUrl().startsWith("http") ? apiUrl() : "http://127.0.0.1:8000";
+      const socket = new WebSocket(`${base.replace(/^http/, "ws")}/ws/alpaca/recommendation-quotes?session_id=${encodeURIComponent(created.session_id)}`);
+      alpacaWsRef.current = socket;
+      socket.onopen = () => {
+        alpacaConnectingRef.current = false;
+      };
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data as string) as Record<string, unknown>;
+          if (message.type === "stock_quote" && typeof message.symbol === "string") {
+            const symbol = message.symbol;
+            const previous = quotesMapRef.current[symbol];
+            if (!previous) return;
+            const bid = numberOrNull(message.bid);
+            const ask = numberOrNull(message.ask);
+            quotesMapRef.current[symbol] = {
+              ...previous,
+              bid,
+              ask,
+              price: liveMid(bid, ask) ?? previous.price,
+              source: "alpaca",
+            };
+            setQuotes(Object.values(quotesMapRef.current));
+            setLastUpdated(new Date());
+            setStatus((current) => current ? { ...current, alpaca_connected: true, price_source: "alpaca" } : current);
+            return;
+          }
+          if (message.type === "status") {
+            const text = typeof message.message === "string" ? message.message : typeof message.status === "string" ? message.status : "Alpaca stream status update.";
+            setAlpacaStatus(text);
+            if (message.status === "subscribed") {
+              setStatus((current) => current ? { ...current, alpaca_connected: true, price_source: "alpaca" } : current);
+              setAlpacaStatus(`Alpaca live: ${symbols.length}/${ALPACA_WHEEL_SYMBOL_LIMIT} symbols`);
+            }
+          }
+        } catch { /* ignore malformed frames */ }
+      };
+      socket.onerror = () => {
+        alpacaConnectingRef.current = false;
+        setAlpacaStatus("Alpaca websocket error. Falling back to IBKR/CBOE data.");
+        socket.close();
+      };
+      socket.onclose = () => {
+        alpacaConnectingRef.current = false;
+        alpacaWsRef.current = null;
+        setStatus((current) => current ? { ...current, alpaca_connected: false } : current);
+        if (isActiveRef.current && alpacaKeyStatus?.has_key) {
+          alpacaReconnectRef.current = setTimeout(() => { void connectAlpacaWs(); }, 15_000);
+        }
+      };
+    } catch (err) {
+      alpacaConnectingRef.current = false;
+      setAlpacaStatus(err instanceof Error ? err.message : "Could not connect Alpaca live quotes.");
+    }
+  }, [alpacaKeyStatus?.has_key, closeAlpacaWs]);
+
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    void loadWatchlist();
-    connectWs();
-    const pollId = setInterval(() => { void loadWatchlist(); }, 30_000);
+    isActiveRef.current = isActive;
+    if (!isActive) {
+      setLoading(false);
+      if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      reconnectRef.current = null;
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+      }
+      wsRef.current = null;
+      closeAlpacaWs();
+      return;
+    }
+
+    setLoading(true);
+    void loadWatchlist().then(() => {
+      connectWs();
+      if (alpacaStartRef.current) clearTimeout(alpacaStartRef.current);
+      alpacaStartRef.current = setTimeout(() => {
+        alpacaStartRef.current = null;
+        void connectAlpacaWs();
+      }, 500);
+    });
+    const pollId = setInterval(() => {
+      void loadWatchlist().then(() => { void connectAlpacaWs(); });
+    }, 30_000);
     return () => {
+      isActiveRef.current = false;
       clearInterval(pollId);
       if (reconnectRef.current) clearTimeout(reconnectRef.current);
-      wsRef.current?.close();
+      reconnectRef.current = null;
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+      }
+      wsRef.current = null;
+      closeAlpacaWs();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [closeAlpacaWs, connectAlpacaWs, connectWs, isActive, loadWatchlist]);
 
   // ── Sorted + filtered quotes ───────────────────────────────────────────────
 
@@ -804,7 +1066,7 @@ export function WheelScannerTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyS
         body: JSON.stringify({
           query,
           model: effectiveModelId(chatModel, ollamaModelName, false),
-          ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://localhost:11434" } : {}),
+          ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://127.0.0.1:11434" } : {}),
           context: {
             status,
             active_tab: subTab,
@@ -854,10 +1116,10 @@ export function WheelScannerTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyS
             <>
               <span className={`wheel-conn ${status.ibkr_connected ? "connected" : ""}`}>
                 {status.ibkr_connected ? <Wifi size={13} /> : <WifiOff size={13} />}
-                {status.ibkr_connected ? "IBKR Live" : "IBKR Offline"}
+                {status.alpaca_connected ? "Alpaca Live" : status.ibkr_connected ? "IBKR Delayed" : "IBKR Offline"}
               </span>
               <span className="fine-print">
-                Source: {status.price_source === "ibkr" ? "IBKR real-time" : status.price_source === "cboe_delayed" ? "CBOE 15-min delayed" : "—"}
+                Source: {status.price_source === "alpaca" ? "Alpaca real-time overlay" : status.price_source === "ibkr" ? "IBKR real-time" : status.price_source === "ibkr_delayed" ? "IBKR delayed" : status.price_source === "cboe_delayed" ? "CBOE 15-min delayed" : "—"}
               </span>
               <span className="fine-print">·</span>
               <span className="fine-print">{status.quotes_cached} quotes cached</span>
@@ -868,11 +1130,12 @@ export function WheelScannerTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyS
         </div>
         <div className="wheel-status-right">
           {lastUpdated && <span className="fine-print">Updated {lastUpdated.toLocaleTimeString()}</span>}
+          {alpacaKeyStatus?.has_key && alpacaStatus && <span className="fine-print">{alpacaStatus}</span>}
           <button
             type="button"
             className="ghost-button"
             style={{ padding: "4px 10px", fontSize: "0.82rem" }}
-            onClick={() => void loadWatchlist()}
+            onClick={() => void loadWatchlist(true)}
             disabled={loading}
           >
             <RefreshCw size={12} style={{ marginRight: "4px" }} />
@@ -975,6 +1238,11 @@ export function WheelScannerTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyS
 
       {error && !quotes.length && (
         <div className="error" style={{ margin: "0 0 12px" }}>{error}</div>
+      )}
+      {status && !status.ibkr_connected && quotes.length > 0 && (
+        <p className="fine-print" style={{ margin: "0 0 12px" }}>
+          Alpaca is filling live prices. Stage, SATA, RSI, BB%, and option-yield columns need the Wheel analytics backend.
+        </p>
       )}
 
       {/* ── Watchlist tab ── */}

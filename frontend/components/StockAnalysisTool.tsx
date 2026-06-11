@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   BarChart3,
+  Bot,
   Building2,
   ExternalLink,
   History,
@@ -29,35 +30,30 @@ import {
 import {
   AIAdvisorOpenAIKeyStatus,
   StockAnalysisFinancialRow,
-  StockAnalysisModel,
   StockAnalysisRun,
   StockAnalysisRunSummary,
   StockAnalysisSource,
   apiFetch,
   percent
 } from "@/lib/api";
-import { OllamaConfigStrip, OllamaModelButton, effectiveModelId } from "@/components/OllamaModelPicker";
 
-type ModelPicker = StockAnalysisModel | "ollama";
+type StockAnalysisModelMode = "foundation" | "ollama";
 
-const openAIModels: Array<{ id: StockAnalysisModel; label: string; helper: string }> = [
-  { id: "gpt-5.5", label: "Quality", helper: "gpt-5.5" },
-  { id: "gpt-5.4", label: "Balanced", helper: "gpt-5.4" },
-  { id: "gpt-5.4-mini", label: "Cost", helper: "gpt-5.4-mini" }
+const modelModes: Array<{ id: StockAnalysisModelMode; label: string; helper: string }> = [
+  { id: "ollama", label: "Ollama", helper: "Auto-selects a local model" },
+  { id: "foundation", label: "Foundation", helper: "Auto-selects an OpenAI model" }
 ];
 
 export function StockAnalysisTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKeyStatus | null }) {
   const [query, setQuery] = useState("");
-  const [model, setModel] = useState<ModelPicker>("gpt-5.4");
-  const [ollamaModelName, setOllamaModelName] = useState("llama3");
-  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
-  const [useGoose, setUseGoose] = useState(false);
+  const [modelMode, setModelMode] = useState<StockAnalysisModelMode>("ollama");
+  const [ollamaModelOverride, setOllamaModelOverride] = useState("");
   const [activeRun, setActiveRun] = useState<StockAnalysisRun | null>(null);
   const [history, setHistory] = useState<StockAnalysisRunSummary[]>([]);
   const [loading, setLoading] = useState("history");
   const [error, setError] = useState("");
   const [runMessage, setRunMessage] = useState("");
-  const isOllama = model === "ollama";
+  const isOllama = modelMode === "ollama";
   const hasKey = isOllama || Boolean(keyStatus?.has_key);
 
   useEffect(() => {
@@ -110,14 +106,11 @@ export function StockAnalysisTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
     setLoading("run");
     setError("");
     setRunMessage("");
+    setActiveRun(null);
     try {
       const result = await apiFetch<StockAnalysisRun>("/stock-analysis/run", {
         method: "POST",
-        body: JSON.stringify({
-          query: cleanQuery,
-          model: effectiveModelId(model, ollamaModelName, useGoose),
-          ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://localhost:11434" } : {})
-        })
+        body: JSON.stringify(stockAnalysisPayload(cleanQuery, modelMode, ollamaModelOverride))
       });
       setActiveRun(result);
       setHistory((current) => [result, ...current.filter((item) => item.id !== result.id)].slice(0, 30));
@@ -143,7 +136,7 @@ export function StockAnalysisTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
           </div>
         </div>
         <div className="stock-analysis-status">
-          <span className={hasKey ? "status-pill" : "risk-pill"}>{isOllama ? (useGoose ? "Goose + tools" : "Ollama (local)") : hasKey ? "OpenAI key ready" : "Key required"}</span>
+          <span className={hasKey ? "status-pill" : "risk-pill"}>{isOllama ? "Ollama router" : hasKey ? "Foundation key ready" : "Key required"}</span>
           <span className="status-pill">{sourceStatus}</span>
         </div>
       </section>
@@ -163,29 +156,39 @@ export function StockAnalysisTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
           </div>
         </div>
         <div className="stock-analysis-model-control" role="radiogroup" aria-label="AI model">
-          {openAIModels.map((item) => (
-            <button type="button" key={item.id} className={model === item.id ? "active" : ""} onClick={() => setModel(item.id)}>
+          {modelModes.map((item) => (
+            <button type="button" key={item.id} className={modelMode === item.id ? "active" : ""} onClick={() => setModelMode(item.id)}>
               <strong>{item.label}</strong>
               <span>{item.helper}</span>
             </button>
           ))}
-          <OllamaModelButton active={isOllama} onClick={() => setModel("ollama")} />
         </div>
         {isOllama && (
-          <OllamaConfigStrip
-            modelName={ollamaModelName}
-            baseUrl={ollamaBaseUrl}
-            useGoose={useGoose}
-            onModelNameChange={setOllamaModelName}
-            onBaseUrlChange={setOllamaBaseUrl}
-            onUseGooseChange={setUseGoose}
-          />
+          <label className="stock-analysis-model-override">
+            <span>Local model override</span>
+            <input
+              value={ollamaModelOverride}
+              onChange={(event) => setOllamaModelOverride(event.target.value)}
+              placeholder="Auto or llama3.1:8b"
+              autoComplete="off"
+            />
+          </label>
         )}
         <button className="primary-button stock-analysis-run-button" type="submit" disabled={loading === "run" || !hasKey}>
           {loading === "run" ? <Loader2 size={16} className="spin-icon" /> : <Sparkles size={16} />}
           {loading === "run" ? "Building analysis" : "Generate analysis"}
         </button>
       </form>
+
+      {(loading === "run" || activeRun?.model_routing?.model) && (
+        <section className="dashboard-panel stock-analysis-router-flow">
+          <Bot size={18} />
+          <div>
+            <span>Model Router</span>
+            <strong>{stockRouterDetail(activeRun, modelMode, loading === "run")}</strong>
+          </div>
+        </section>
+      )}
 
       <section className="dashboard-panel stock-analysis-notice">
         <ShieldCheck size={18} />
@@ -259,7 +262,7 @@ function RunHeader({ run }: { run: StockAnalysisRun }) {
   return (
     <div className="stock-analysis-run-head">
       <div>
-        <span>{run.model} | {formatDateTime(run.created_at)}</span>
+        <span>{stockModelLabel(run)} | {formatDateTime(run.created_at)}</span>
         <h2>{run.ticker} equity research</h2>
         <p>{run.company_name}{run.sector ? ` | ${run.sector}` : ""}{run.industry ? ` | ${run.industry}` : ""}</p>
       </div>
@@ -269,6 +272,46 @@ function RunHeader({ run }: { run: StockAnalysisRun }) {
       </div>
     </div>
   );
+}
+
+function stockAnalysisPayload(query: string, modelMode: StockAnalysisModelMode, ollamaModelOverride: string) {
+  const override = normalizeOllamaOverride(ollamaModelOverride);
+  if (modelMode === "ollama" && override) {
+    return {
+      query,
+      model: `ollama:${override}`
+    };
+  }
+  return {
+    query,
+    model: "auto",
+    model_mode: modelMode
+  };
+}
+
+function normalizeOllamaOverride(value: string) {
+  return value.trim().replace(/^ollama:/i, "");
+}
+
+function stockModelLabel(run: StockAnalysisRun) {
+  const displayName = run.model_routing?.display_name;
+  const mode = run.model_routing?.mode;
+  if (typeof displayName === "string" && typeof mode === "string") {
+    return `${displayName} · ${mode}`;
+  }
+  return run.model;
+}
+
+function stockRouterDetail(run: StockAnalysisRun | null, modelMode: StockAnalysisModelMode, loading: boolean) {
+  if (loading) {
+    return modelMode === "ollama" ? "Choosing local model" : "Choosing foundation model";
+  }
+  const displayName = run?.model_routing?.display_name;
+  const model = run?.model_routing?.model ?? run?.model;
+  if (typeof displayName === "string" && typeof model === "string") {
+    return `${displayName} (${model})`;
+  }
+  return typeof model === "string" ? model : "";
 }
 
 function MetricStrip({ run }: { run: StockAnalysisRun }) {

@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.session import Base
 from app.models.entities import PriceBar
+from app.api.market_history import yahoo_quotes
 from app.services.market_history import (
     MarketHistoryBar,
     calculate_high_yield_signal,
@@ -16,6 +17,7 @@ from app.services.market_history import (
     list_high_yield_fund_metadata,
     list_major_indexes,
 )
+from app.services.market_data import YahooQuoteSnapshot
 
 
 class MarketHistoryTests(unittest.TestCase):
@@ -37,6 +39,20 @@ class MarketHistoryTests(unittest.TestCase):
         symbols = {item.symbol for item in list_high_yield_fund_metadata()}
 
         self.assertEqual({"QQQI", "SPYI", "CHPY", "IAUI", "OVL", "GIAX"}, symbols)
+
+    def test_yahoo_quotes_endpoint_returns_ticker_rows(self) -> None:
+        snapshots = [
+            YahooQuoteSnapshot(symbol="QQQ", price=744.21, close=744.21, source="Yahoo Finance via yfinance"),
+            YahooQuoteSnapshot(symbol="VOO", price=693.36, close=693.36, source="Yahoo Finance via yfinance"),
+        ]
+
+        with patch("app.api.market_history.fetch_yahoo_quote_snapshots", return_value=snapshots) as fetch:
+            result = yahoo_quotes(" qqq, voo ")
+
+        self.assertEqual(fetch.call_args.args[0], ["qqq", "voo"])
+        self.assertEqual([row.symbol for row in result.tickers], ["QQQ", "VOO"])
+        self.assertEqual(result.tickers[0].price, 744.21)
+        self.assertEqual(result.tickers[0].source, "Yahoo Finance via yfinance")
 
     def test_provider_history_is_cached_and_reused(self) -> None:
         db = self.Session()

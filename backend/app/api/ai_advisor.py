@@ -7,13 +7,21 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.models.entities import AIAdvisorOpenAIKey, AIAdvisorReport, User
+from app.models.entities import AIAdvisorAlpacaKey, AIAdvisorLunarCrushKey, AIAdvisorNvidiaKey, AIAdvisorOpenAIKey, AIAdvisorReport, AIAdvisorTipRanksKey, User
 from app.schemas.common import (
+    AIAdvisorAlpacaKeyIn,
+    AIAdvisorAlpacaKeyOut,
+    AIAdvisorLunarCrushKeyIn,
+    AIAdvisorLunarCrushKeyOut,
+    AIAdvisorNvidiaKeyIn,
+    AIAdvisorNvidiaKeyOut,
     AIAdvisorOpenAIKeyIn,
     AIAdvisorOpenAIKeyOut,
     AIAdvisorReportOut,
     AIAdvisorReportSummaryOut,
     AIAdvisorRetirementRunRequest,
+    AIAdvisorTipRanksKeyIn,
+    AIAdvisorTipRanksKeyOut,
 )
 from app.services.ai_advisor import (
     AIAdvisorConfigurationError,
@@ -111,6 +119,282 @@ def delete_openai_key(
     return AIAdvisorOpenAIKeyOut(has_key=False)
 
 
+@router.get("/tipranks-key", response_model=AIAdvisorTipRanksKeyOut)
+def get_tipranks_key_status(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorTipRanksKeyOut:
+    row = _tipranks_key_row(db, user)
+    if not row:
+        return AIAdvisorTipRanksKeyOut(has_key=False)
+    return AIAdvisorTipRanksKeyOut(
+        has_key=True,
+        key_fingerprint=row.key_fingerprint,
+        validated_at=row.validated_at,
+        updated_at=row.updated_at,
+    )
+
+
+@router.put("/tipranks-key", response_model=AIAdvisorTipRanksKeyOut)
+def save_tipranks_key(
+    payload: AIAdvisorTipRanksKeyIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorTipRanksKeyOut:
+    api_key = payload.api_key.strip()
+    if len(api_key) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter a valid TipRanks API key.")
+    try:
+        encrypted = encrypt_api_key(api_key, get_settings().ai_advisor_key_encryption_secret)
+    except AIAdvisorConfigurationError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    timestamp = now_utc_naive()
+    row = _tipranks_key_row(db, user)
+    if row:
+        row.encrypted_api_key = encrypted
+        row.key_fingerprint = api_key_fingerprint(api_key)
+        row.validated_at = timestamp
+        row.updated_at = timestamp
+    else:
+        row = AIAdvisorTipRanksKey(
+            user_id=user.id,
+            encrypted_api_key=encrypted,
+            key_fingerprint=api_key_fingerprint(api_key),
+            validated_at=timestamp,
+            updated_at=timestamp,
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return AIAdvisorTipRanksKeyOut(
+        has_key=True,
+        key_fingerprint=row.key_fingerprint,
+        validated_at=row.validated_at,
+        updated_at=row.updated_at,
+    )
+
+
+@router.delete("/tipranks-key", response_model=AIAdvisorTipRanksKeyOut)
+def delete_tipranks_key(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorTipRanksKeyOut:
+    row = _tipranks_key_row(db, user)
+    if row:
+        db.delete(row)
+        db.commit()
+    return AIAdvisorTipRanksKeyOut(has_key=False)
+
+
+@router.get("/lunarcrush-key", response_model=AIAdvisorLunarCrushKeyOut)
+def get_lunarcrush_key_status(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorLunarCrushKeyOut:
+    row = _lunarcrush_key_row(db, user)
+    if not row:
+        return AIAdvisorLunarCrushKeyOut(has_key=False)
+    return AIAdvisorLunarCrushKeyOut(
+        has_key=True,
+        key_fingerprint=row.key_fingerprint,
+        validated_at=row.validated_at,
+        updated_at=row.updated_at,
+    )
+
+
+@router.put("/lunarcrush-key", response_model=AIAdvisorLunarCrushKeyOut)
+def save_lunarcrush_key(
+    payload: AIAdvisorLunarCrushKeyIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorLunarCrushKeyOut:
+    api_key = payload.api_key.strip()
+    if len(api_key) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter a valid LunarCrush API key.")
+    try:
+        encrypted = encrypt_api_key(api_key, get_settings().ai_advisor_key_encryption_secret)
+    except AIAdvisorConfigurationError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    timestamp = now_utc_naive()
+    row = _lunarcrush_key_row(db, user)
+    if row:
+        row.encrypted_api_key = encrypted
+        row.key_fingerprint = api_key_fingerprint(api_key)
+        row.validated_at = timestamp
+        row.updated_at = timestamp
+    else:
+        row = AIAdvisorLunarCrushKey(
+            user_id=user.id,
+            encrypted_api_key=encrypted,
+            key_fingerprint=api_key_fingerprint(api_key),
+            validated_at=timestamp,
+            updated_at=timestamp,
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return AIAdvisorLunarCrushKeyOut(
+        has_key=True,
+        key_fingerprint=row.key_fingerprint,
+        validated_at=row.validated_at,
+        updated_at=row.updated_at,
+    )
+
+
+@router.delete("/lunarcrush-key", response_model=AIAdvisorLunarCrushKeyOut)
+def delete_lunarcrush_key(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorLunarCrushKeyOut:
+    row = _lunarcrush_key_row(db, user)
+    if row:
+        db.delete(row)
+        db.commit()
+    return AIAdvisorLunarCrushKeyOut(has_key=False)
+
+
+@router.get("/nvidia-key", response_model=AIAdvisorNvidiaKeyOut)
+def get_nvidia_key_status(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorNvidiaKeyOut:
+    row = _nvidia_key_row(db, user)
+    if not row:
+        return AIAdvisorNvidiaKeyOut(has_key=False)
+    return AIAdvisorNvidiaKeyOut(
+        has_key=True,
+        key_fingerprint=row.key_fingerprint,
+        validated_at=row.validated_at,
+        updated_at=row.updated_at,
+    )
+
+
+@router.put("/nvidia-key", response_model=AIAdvisorNvidiaKeyOut)
+def save_nvidia_key(
+    payload: AIAdvisorNvidiaKeyIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorNvidiaKeyOut:
+    api_key = payload.api_key.strip()
+    if len(api_key) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter a valid NVIDIA API key.")
+    try:
+        encrypted = encrypt_api_key(api_key, get_settings().ai_advisor_key_encryption_secret)
+    except AIAdvisorConfigurationError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    timestamp = now_utc_naive()
+    row = _nvidia_key_row(db, user)
+    if row:
+        row.encrypted_api_key = encrypted
+        row.key_fingerprint = api_key_fingerprint(api_key)
+        row.validated_at = timestamp
+        row.updated_at = timestamp
+    else:
+        row = AIAdvisorNvidiaKey(
+            user_id=user.id,
+            encrypted_api_key=encrypted,
+            key_fingerprint=api_key_fingerprint(api_key),
+            validated_at=timestamp,
+            updated_at=timestamp,
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return AIAdvisorNvidiaKeyOut(
+        has_key=True,
+        key_fingerprint=row.key_fingerprint,
+        validated_at=row.validated_at,
+        updated_at=row.updated_at,
+    )
+
+
+@router.delete("/nvidia-key", response_model=AIAdvisorNvidiaKeyOut)
+def delete_nvidia_key(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorNvidiaKeyOut:
+    row = _nvidia_key_row(db, user)
+    if row:
+        db.delete(row)
+        db.commit()
+    return AIAdvisorNvidiaKeyOut(has_key=False)
+
+
+@router.get("/alpaca-key", response_model=AIAdvisorAlpacaKeyOut)
+def get_alpaca_key_status(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorAlpacaKeyOut:
+    row = _alpaca_key_row(db, user)
+    if not row:
+        return AIAdvisorAlpacaKeyOut(has_key=False)
+    return AIAdvisorAlpacaKeyOut(
+        has_key=True,
+        key_fingerprint=row.key_fingerprint,
+        validated_at=row.validated_at,
+        updated_at=row.updated_at,
+    )
+
+
+@router.put("/alpaca-key", response_model=AIAdvisorAlpacaKeyOut)
+def save_alpaca_key(
+    payload: AIAdvisorAlpacaKeyIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorAlpacaKeyOut:
+    api_key = payload.api_key.strip()
+    api_secret = payload.api_secret.strip()
+    if len(api_key) < 8 or len(api_secret) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter a valid Alpaca API key and secret.")
+    try:
+        encrypted_key = encrypt_api_key(api_key, get_settings().ai_advisor_key_encryption_secret)
+        encrypted_secret = encrypt_api_key(api_secret, get_settings().ai_advisor_key_encryption_secret)
+    except AIAdvisorConfigurationError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    timestamp = now_utc_naive()
+    row = _alpaca_key_row(db, user)
+    if row:
+        row.encrypted_api_key = encrypted_key
+        row.encrypted_api_secret = encrypted_secret
+        row.key_fingerprint = api_key_fingerprint(api_key)
+        row.validated_at = timestamp
+        row.updated_at = timestamp
+    else:
+        row = AIAdvisorAlpacaKey(
+            user_id=user.id,
+            encrypted_api_key=encrypted_key,
+            encrypted_api_secret=encrypted_secret,
+            key_fingerprint=api_key_fingerprint(api_key),
+            validated_at=timestamp,
+            updated_at=timestamp,
+        )
+        db.add(row)
+    db.commit()
+    db.refresh(row)
+    return AIAdvisorAlpacaKeyOut(
+        has_key=True,
+        key_fingerprint=row.key_fingerprint,
+        validated_at=row.validated_at,
+        updated_at=row.updated_at,
+    )
+
+
+@router.delete("/alpaca-key", response_model=AIAdvisorAlpacaKeyOut)
+def delete_alpaca_key(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AIAdvisorAlpacaKeyOut:
+    row = _alpaca_key_row(db, user)
+    if row:
+        db.delete(row)
+        db.commit()
+    return AIAdvisorAlpacaKeyOut(has_key=False)
+
+
 @router.post("/retirement-plan/run", response_model=AIAdvisorReportOut)
 def run_retirement_plan(
     payload: AIAdvisorRetirementRunRequest,
@@ -199,6 +483,22 @@ def get_report(
 
 def _openai_key_row(db: Session, user: User) -> AIAdvisorOpenAIKey | None:
     return db.scalar(select(AIAdvisorOpenAIKey).where(AIAdvisorOpenAIKey.user_id == user.id))
+
+
+def _tipranks_key_row(db: Session, user: User) -> AIAdvisorTipRanksKey | None:
+    return db.scalar(select(AIAdvisorTipRanksKey).where(AIAdvisorTipRanksKey.user_id == user.id))
+
+
+def _lunarcrush_key_row(db: Session, user: User) -> AIAdvisorLunarCrushKey | None:
+    return db.scalar(select(AIAdvisorLunarCrushKey).where(AIAdvisorLunarCrushKey.user_id == user.id))
+
+
+def _nvidia_key_row(db: Session, user: User) -> AIAdvisorNvidiaKey | None:
+    return db.scalar(select(AIAdvisorNvidiaKey).where(AIAdvisorNvidiaKey.user_id == user.id))
+
+
+def _alpaca_key_row(db: Session, user: User) -> AIAdvisorAlpacaKey | None:
+    return db.scalar(select(AIAdvisorAlpacaKey).where(AIAdvisorAlpacaKey.user_id == user.id))
 
 
 def _report_out(report: AIAdvisorReport) -> AIAdvisorReportOut:

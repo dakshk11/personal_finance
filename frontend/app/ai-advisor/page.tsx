@@ -16,8 +16,11 @@ import {
   LockKeyhole,
   MessageSquareText,
   Newspaper,
+  PieChart,
   Play,
+  Search,
   ShieldCheck,
+  Sparkles,
   TrendingUp,
   Trash2,
   WalletCards
@@ -33,22 +36,29 @@ import { OptionStrategyTool } from "@/components/OptionStrategyTool";
 import { OptiTradeLabTool } from "@/components/OptiTradeLabTool";
 import { PersonalCFOTool } from "@/components/PersonalCFOTool";
 import { PortfolioSyncTool } from "@/components/PortfolioSyncTool";
+import { RecommendationAgentTool } from "@/components/RecommendationAgentTool";
+import { ResearchPromptsTool } from "@/components/ResearchPromptsTool";
 import { RSIPlaybookTool } from "@/components/RSIPlaybookTool";
 import { SmartCandleTool } from "@/components/SmartCandleTool";
 import { StockAnalysisTool } from "@/components/StockAnalysisTool";
 import { WheelScannerTool } from "@/components/WheelScannerTool";
 import { SectorRotationTool } from "@/components/SectorRotationTool";
+import { SimulatedPortfolioTool } from "@/components/SimulatedPortfolioTool";
 import { OllamaConfigStrip } from "@/components/OllamaModelPicker";
 import {
+  AIAdvisorAlpacaKeyStatus,
+  AIAdvisorLunarCrushKeyStatus,
+  AIAdvisorNvidiaKeyStatus,
   AIAdvisorOpenAIKeyStatus,
   AIAdvisorReport,
   AIAdvisorReportSummary,
   AIAdvisorRetirementRunRequest,
+  AIAdvisorTipRanksKeyStatus,
   apiFetch
 } from "@/lib/api";
 
 type AIModel = "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "ollama";
-type AdvisorTab = "retirement-plan" | "personal-cfo" | "wheel-strategy" | "portfolio-sync" | "rsi-playbook" | "breakout-scanner" | "smart-candles" | "composite-signal" | "optitrade-lab" | "earnings-agent" | "equity-research" | "wheel-scanner" | "sector-rotation";
+type AdvisorTab = "retirement-plan" | "personal-cfo" | "recommendation-agent" | "research-prompts" | "wheel-strategy" | "portfolio-sync" | "simulated-portfolio" | "rsi-playbook" | "breakout-scanner" | "smart-candles" | "composite-signal" | "optitrade-lab" | "earnings-agent" | "equity-research" | "wheel-scanner" | "sector-rotation";
 
 type RetirementField = {
   id: string;
@@ -158,14 +168,28 @@ const modules: RetirementModule[] = [
 
 export default function AIAdvisorPage() {
   const [keyStatus, setKeyStatus] = useState<AIAdvisorOpenAIKeyStatus | null>(null);
+  const [tipRanksKeyStatus, setTipRanksKeyStatus] = useState<AIAdvisorTipRanksKeyStatus | null>(null);
+  const [alpacaKeyStatus, setAlpacaKeyStatus] = useState<AIAdvisorAlpacaKeyStatus | null>(null);
+  const [lunarCrushKeyStatus, setLunarCrushKeyStatus] = useState<AIAdvisorLunarCrushKeyStatus | null>(null);
+  const [nvidiaKeyStatus, setNvidiaKeyStatus] = useState<AIAdvisorNvidiaKeyStatus | null>(null);
   const [apiKey, setApiKey] = useState("");
+  const [tipRanksApiKey, setTipRanksApiKey] = useState("");
+  const [lunarCrushApiKey, setLunarCrushApiKey] = useState("");
+  const [nvidiaApiKey, setNvidiaApiKey] = useState("");
+  const [alpacaApiKey, setAlpacaApiKey] = useState("");
+  const [alpacaApiSecret, setAlpacaApiSecret] = useState("");
+  const [recommendationContext, setRecommendationContext] = useState("");
   const [keyMessage, setKeyMessage] = useState("");
+  const [tipRanksKeyMessage, setTipRanksKeyMessage] = useState("");
+  const [lunarCrushKeyMessage, setLunarCrushKeyMessage] = useState("");
+  const [nvidiaKeyMessage, setNvidiaKeyMessage] = useState("");
+  const [alpacaKeyMessage, setAlpacaKeyMessage] = useState("");
   const [activeModuleId, setActiveModuleId] = useState(modules[0].id);
   const [activeTab, setActiveTab] = useState<AdvisorTab>("retirement-plan");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [model, setModel] = useState<AIModel>("gpt-5.4");
   const [ollamaModelName, setOllamaModelName] = useState("llama3");
-  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://127.0.0.1:11434");
   const [useGoose, setUseGoose] = useState(false);
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [reports, setReports] = useState<AIAdvisorReportSummary[]>([]);
@@ -186,13 +210,25 @@ export default function AIAdvisorPage() {
 
   async function bootstrap() {
     try {
-      const [key, history] = await Promise.all([
+      const [key, tipRanksKey, lunarCrushKey, nvidiaKey, alpacaKey, history] = await Promise.all([
         apiFetch<AIAdvisorOpenAIKeyStatus>("/ai-advisor/openai-key"),
+        apiFetch<AIAdvisorTipRanksKeyStatus>("/ai-advisor/tipranks-key"),
+        apiFetch<AIAdvisorLunarCrushKeyStatus>("/ai-advisor/lunarcrush-key"),
+        apiFetch<AIAdvisorNvidiaKeyStatus>("/ai-advisor/nvidia-key"),
+        apiFetch<AIAdvisorAlpacaKeyStatus>("/ai-advisor/alpaca-key"),
         apiFetch<AIAdvisorReportSummary[]>("/ai-advisor/reports")
       ]);
       setKeyStatus(key);
+      setTipRanksKeyStatus(tipRanksKey);
+      setLunarCrushKeyStatus(lunarCrushKey);
+      setNvidiaKeyStatus(nvidiaKey);
+      setAlpacaKeyStatus(alpacaKey);
       setReports(history);
       setKeyMessage(key.has_key ? `Saved key ${key.key_fingerprint ?? ""}` : "No OpenAI key saved");
+      setTipRanksKeyMessage(tipRanksKey.has_key ? `Saved key ${tipRanksKey.key_fingerprint ?? ""}` : "No TipRanks key saved");
+      setLunarCrushKeyMessage(lunarCrushKey.has_key ? `Saved key ${lunarCrushKey.key_fingerprint ?? ""}` : "No LunarCrush key saved");
+      setNvidiaKeyMessage(nvidiaKey.has_key ? `Saved key ${nvidiaKey.key_fingerprint ?? ""}` : "No NVIDIA key saved");
+      setAlpacaKeyMessage(alpacaKey.has_key ? `Saved key ${alpacaKey.key_fingerprint ?? ""}` : "No Alpaca key saved");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load FinanceOS Studio");
     }
@@ -236,6 +272,159 @@ export default function AIAdvisorPage() {
     }
   }
 
+  async function saveTipRanksKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setTipRanksKeyMessage("");
+    if (!tipRanksApiKey.trim()) {
+      setTipRanksKeyMessage("Enter a TipRanks API key before saving.");
+      return;
+    }
+    setLoading("tipranks-key");
+    try {
+      const saved = await apiFetch<AIAdvisorTipRanksKeyStatus>("/ai-advisor/tipranks-key", {
+        method: "PUT",
+        body: JSON.stringify({ api_key: tipRanksApiKey.trim() })
+      });
+      setTipRanksApiKey("");
+      setTipRanksKeyStatus(saved);
+      setTipRanksKeyMessage(`Saved ${saved.key_fingerprint ?? "TipRanks key"}`);
+    } catch (err) {
+      setTipRanksKeyMessage(err instanceof Error ? err.message : "Could not save TipRanks key.");
+    } finally {
+      setLoading("");
+    }
+  }
+
+  async function deleteTipRanksKey() {
+    setLoading("delete-tipranks-key");
+    setError("");
+    try {
+      const deleted = await apiFetch<AIAdvisorTipRanksKeyStatus>("/ai-advisor/tipranks-key", { method: "DELETE" });
+      setTipRanksKeyStatus(deleted);
+      setTipRanksKeyMessage("TipRanks key removed.");
+    } catch (err) {
+      setTipRanksKeyMessage(err instanceof Error ? err.message : "Could not remove TipRanks key.");
+    } finally {
+      setLoading("");
+    }
+  }
+
+  async function saveLunarCrushKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setLunarCrushKeyMessage("");
+    if (!lunarCrushApiKey.trim()) {
+      setLunarCrushKeyMessage("Enter a LunarCrush API key before saving.");
+      return;
+    }
+    setLoading("lunarcrush-key");
+    try {
+      const saved = await apiFetch<AIAdvisorLunarCrushKeyStatus>("/ai-advisor/lunarcrush-key", {
+        method: "PUT",
+        body: JSON.stringify({ api_key: lunarCrushApiKey.trim() })
+      });
+      setLunarCrushApiKey("");
+      setLunarCrushKeyStatus(saved);
+      setLunarCrushKeyMessage(`Saved ${saved.key_fingerprint ?? "LunarCrush key"}`);
+    } catch (err) {
+      setLunarCrushKeyMessage(err instanceof Error ? err.message : "Could not save LunarCrush key.");
+    } finally {
+      setLoading("");
+    }
+  }
+
+  async function deleteLunarCrushKey() {
+    setLoading("delete-lunarcrush-key");
+    setError("");
+    try {
+      const deleted = await apiFetch<AIAdvisorLunarCrushKeyStatus>("/ai-advisor/lunarcrush-key", { method: "DELETE" });
+      setLunarCrushKeyStatus(deleted);
+      setLunarCrushKeyMessage("LunarCrush key removed.");
+    } catch (err) {
+      setLunarCrushKeyMessage(err instanceof Error ? err.message : "Could not remove LunarCrush key.");
+    } finally {
+      setLoading("");
+    }
+  }
+
+  async function saveNvidiaKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setNvidiaKeyMessage("");
+    if (!nvidiaApiKey.trim()) {
+      setNvidiaKeyMessage("Enter an NVIDIA API key before saving.");
+      return;
+    }
+    setLoading("nvidia-key");
+    try {
+      const saved = await apiFetch<AIAdvisorNvidiaKeyStatus>("/ai-advisor/nvidia-key", {
+        method: "PUT",
+        body: JSON.stringify({ api_key: nvidiaApiKey.trim() })
+      });
+      setNvidiaApiKey("");
+      setNvidiaKeyStatus(saved);
+      setNvidiaKeyMessage(`Saved ${saved.key_fingerprint ?? "NVIDIA key"}`);
+    } catch (err) {
+      setNvidiaKeyMessage(err instanceof Error ? err.message : "Could not save NVIDIA key.");
+    } finally {
+      setLoading("");
+    }
+  }
+
+  async function deleteNvidiaKey() {
+    setLoading("delete-nvidia-key");
+    setError("");
+    try {
+      const deleted = await apiFetch<AIAdvisorNvidiaKeyStatus>("/ai-advisor/nvidia-key", { method: "DELETE" });
+      setNvidiaKeyStatus(deleted);
+      setNvidiaKeyMessage("NVIDIA key removed.");
+    } catch (err) {
+      setNvidiaKeyMessage(err instanceof Error ? err.message : "Could not remove NVIDIA key.");
+    } finally {
+      setLoading("");
+    }
+  }
+
+  async function saveAlpacaKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setAlpacaKeyMessage("");
+    if (!alpacaApiKey.trim() || !alpacaApiSecret.trim()) {
+      setAlpacaKeyMessage("Enter both Alpaca API key and secret before saving.");
+      return;
+    }
+    setLoading("alpaca-key");
+    try {
+      const saved = await apiFetch<AIAdvisorAlpacaKeyStatus>("/ai-advisor/alpaca-key", {
+        method: "PUT",
+        body: JSON.stringify({ api_key: alpacaApiKey.trim(), api_secret: alpacaApiSecret.trim() })
+      });
+      setAlpacaApiKey("");
+      setAlpacaApiSecret("");
+      setAlpacaKeyStatus(saved);
+      setAlpacaKeyMessage(`Saved ${saved.key_fingerprint ?? "Alpaca key"}`);
+    } catch (err) {
+      setAlpacaKeyMessage(err instanceof Error ? err.message : "Could not save Alpaca key.");
+    } finally {
+      setLoading("");
+    }
+  }
+
+  async function deleteAlpacaKey() {
+    setLoading("delete-alpaca-key");
+    setError("");
+    try {
+      const deleted = await apiFetch<AIAdvisorAlpacaKeyStatus>("/ai-advisor/alpaca-key", { method: "DELETE" });
+      setAlpacaKeyStatus(deleted);
+      setAlpacaKeyMessage("Alpaca key removed.");
+    } catch (err) {
+      setAlpacaKeyMessage(err instanceof Error ? err.message : "Could not remove Alpaca key.");
+    } finally {
+      setLoading("");
+    }
+  }
+
   async function generateReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canGenerate) return;
@@ -246,7 +435,7 @@ export default function AIAdvisorPage() {
         module_id: activeModule.id,
         model: effectiveModelId,
         inputs: Object.fromEntries(activeModule.fields.map((field) => [field.id, inputs[field.id]?.trim() ?? ""])),
-        ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://localhost:11434" } : {})
+        ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://127.0.0.1:11434" } : {})
       };
       const report = await apiFetch<AIAdvisorReport>("/ai-advisor/retirement-plan/run", {
         method: "POST",
@@ -316,6 +505,24 @@ export default function AIAdvisorPage() {
           <FolderArchive size={16} /> Personal CFO
         </button>
         <button
+          className={`recommendation-agent-tab ${activeTab === "recommendation-agent" ? "active" : ""}`}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "recommendation-agent"}
+          onClick={() => setActiveTab("recommendation-agent")}
+        >
+          <Sparkles size={16} /> Recommendation Agent
+        </button>
+        <button
+          className={activeTab === "research-prompts" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "research-prompts"}
+          onClick={() => setActiveTab("research-prompts")}
+        >
+          <Search size={16} /> Research Prompts
+        </button>
+        <button
           className={activeTab === "wheel-strategy" ? "active" : ""}
           type="button"
           role="tab"
@@ -332,6 +539,15 @@ export default function AIAdvisorPage() {
           onClick={() => setActiveTab("portfolio-sync")}
         >
           <WalletCards size={16} /> Portfolio Sync
+        </button>
+        <button
+          className={activeTab === "simulated-portfolio" ? "active" : ""}
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "simulated-portfolio"}
+          onClick={() => setActiveTab("simulated-portfolio")}
+        >
+          <PieChart size={16} /> Simulated Portfolio
         </button>
         <button
           className={activeTab === "rsi-playbook" ? "active" : ""}
@@ -455,6 +671,159 @@ export default function AIAdvisorPage() {
             </form>
             <p className="fine-print">{keyMessage || "Keys are encrypted in the database and never shown again after save."}</p>
             {keyStatus?.validated_at && <p className="fine-print">Saved {formatDateTime(keyStatus.validated_at)}</p>}
+          </section>
+
+          <section className="dashboard-panel">
+            <div className="panel-header">
+              <h2>TipRanks key</h2>
+              <KeyRound size={18} />
+            </div>
+            <form className="form-stack" onSubmit={saveTipRanksKey}>
+              <div className="field">
+                <label htmlFor="tipranks-key">API key</label>
+                <input
+                  id="tipranks-key"
+                  type="password"
+                  autoComplete="off"
+                  value={tipRanksApiKey}
+                  onChange={(event) => setTipRanksApiKey(event.target.value)}
+                  placeholder="TipRanks API key"
+                />
+              </div>
+              <button className="primary-button" type="submit" disabled={loading === "tipranks-key"}>
+                {loading === "tipranks-key" ? <Loader2 size={16} className="spin-icon" /> : <LockKeyhole size={16} />}
+                {tipRanksKeyStatus?.has_key ? "Update key" : "Save key"}
+              </button>
+              {tipRanksKeyStatus?.has_key && (
+                <button className="ghost-button danger-button" type="button" onClick={deleteTipRanksKey} disabled={loading === "delete-tipranks-key"}>
+                  <Trash2 size={16} /> Remove key
+                </button>
+              )}
+            </form>
+            <p className="fine-print">{tipRanksKeyMessage || "Keys are encrypted in the database and never shown again after save."}</p>
+            {tipRanksKeyStatus?.validated_at && <p className="fine-print">Saved {formatDateTime(tipRanksKeyStatus.validated_at)}</p>}
+          </section>
+
+          <section className="dashboard-panel">
+            <div className="panel-header">
+              <h2>LunarCrush key</h2>
+              <KeyRound size={18} />
+            </div>
+            <form className="form-stack" onSubmit={saveLunarCrushKey}>
+              <div className="field">
+                <label htmlFor="lunarcrush-key">API key</label>
+                <input
+                  id="lunarcrush-key"
+                  type="password"
+                  autoComplete="off"
+                  value={lunarCrushApiKey}
+                  onChange={(event) => setLunarCrushApiKey(event.target.value)}
+                  placeholder="LunarCrush API key"
+                />
+              </div>
+              <button className="primary-button" type="submit" disabled={loading === "lunarcrush-key"}>
+                {loading === "lunarcrush-key" ? <Loader2 size={16} className="spin-icon" /> : <LockKeyhole size={16} />}
+                {lunarCrushKeyStatus?.has_key ? "Update key" : "Save key"}
+              </button>
+              {lunarCrushKeyStatus?.has_key && (
+                <button className="ghost-button danger-button" type="button" onClick={deleteLunarCrushKey} disabled={loading === "delete-lunarcrush-key"}>
+                  <Trash2 size={16} /> Remove key
+                </button>
+              )}
+            </form>
+            <p className="fine-print">{lunarCrushKeyMessage || "Used for LunarCrush market and social intelligence. Keys are encrypted in the database and never shown again after save."}</p>
+            {lunarCrushKeyStatus?.validated_at && <p className="fine-print">Saved {formatDateTime(lunarCrushKeyStatus.validated_at)}</p>}
+          </section>
+
+          <section className="dashboard-panel">
+            <div className="panel-header">
+              <h2>NVIDIA key</h2>
+              <KeyRound size={18} />
+            </div>
+            <form className="form-stack" onSubmit={saveNvidiaKey}>
+              <div className="field">
+                <label htmlFor="nvidia-key">API key</label>
+                <input
+                  id="nvidia-key"
+                  type="password"
+                  autoComplete="off"
+                  value={nvidiaApiKey}
+                  onChange={(event) => setNvidiaApiKey(event.target.value)}
+                  placeholder="NVIDIA API key"
+                />
+              </div>
+              <button className="primary-button" type="submit" disabled={loading === "nvidia-key"}>
+                {loading === "nvidia-key" ? <Loader2 size={16} className="spin-icon" /> : <LockKeyhole size={16} />}
+                {nvidiaKeyStatus?.has_key ? "Update key" : "Save key"}
+              </button>
+              {nvidiaKeyStatus?.has_key && (
+                <button className="ghost-button danger-button" type="button" onClick={deleteNvidiaKey} disabled={loading === "delete-nvidia-key"}>
+                  <Trash2 size={16} /> Remove key
+                </button>
+              )}
+            </form>
+            <p className="fine-print">{nvidiaKeyMessage || "Used for Recommendation Agent hosted open-source NVIDIA NIM models. Keys are encrypted in the database and never shown again after save."}</p>
+            {nvidiaKeyStatus?.validated_at && <p className="fine-print">Saved {formatDateTime(nvidiaKeyStatus.validated_at)}</p>}
+          </section>
+
+          <section className="dashboard-panel">
+            <div className="panel-header">
+              <h2>Alpaca key</h2>
+              <KeyRound size={18} />
+            </div>
+            <form className="form-stack" onSubmit={saveAlpacaKey}>
+              <div className="field">
+                <label htmlFor="alpaca-key">API key</label>
+                <input
+                  id="alpaca-key"
+                  type="password"
+                  autoComplete="off"
+                  value={alpacaApiKey}
+                  onChange={(event) => setAlpacaApiKey(event.target.value)}
+                  placeholder="Alpaca API key"
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="alpaca-secret">API secret</label>
+                <input
+                  id="alpaca-secret"
+                  type="password"
+                  autoComplete="off"
+                  value={alpacaApiSecret}
+                  onChange={(event) => setAlpacaApiSecret(event.target.value)}
+                  placeholder="Alpaca API secret"
+                />
+              </div>
+              <button className="primary-button" type="submit" disabled={loading === "alpaca-key"}>
+                {loading === "alpaca-key" ? <Loader2 size={16} className="spin-icon" /> : <LockKeyhole size={16} />}
+                {alpacaKeyStatus?.has_key ? "Update key" : "Save key"}
+              </button>
+              {alpacaKeyStatus?.has_key && (
+                <button className="ghost-button danger-button" type="button" onClick={deleteAlpacaKey} disabled={loading === "delete-alpaca-key"}>
+                  <Trash2 size={16} /> Remove key
+                </button>
+              )}
+            </form>
+            <p className="fine-print">{alpacaKeyMessage || "Used for Recommendation Agent real-time quotes. Secrets are encrypted and never shown again after save."}</p>
+            {alpacaKeyStatus?.validated_at && <p className="fine-print">Saved {formatDateTime(alpacaKeyStatus.validated_at)}</p>}
+          </section>
+
+          <section className="dashboard-panel">
+            <div className="panel-header">
+              <h2>Agent context</h2>
+              <MessageSquareText size={18} />
+            </div>
+            <div className="field">
+              <label htmlFor="recommendation-context">Optional LLM context</label>
+              <textarea
+                id="recommendation-context"
+                value={recommendationContext}
+                onChange={(event) => setRecommendationContext(event.target.value)}
+                placeholder="Add preferences, watchlist focus, risk constraints, time horizon, sectors to avoid, or what the agent should optimize for."
+                rows={5}
+              />
+            </div>
+            <p className="fine-print">Sent only with Recommendation Agent runs to help the LLM decide between scanner ideas.</p>
           </section>
 
           <section className="dashboard-panel">
@@ -591,10 +960,16 @@ export default function AIAdvisorPage() {
             </>
           ) : activeTab === "personal-cfo" ? (
             <PersonalCFOTool keyStatus={keyStatus} />
+          ) : activeTab === "recommendation-agent" ? (
+            <RecommendationAgentTool keyStatus={keyStatus} tipRanksKeyStatus={tipRanksKeyStatus} alpacaKeyStatus={alpacaKeyStatus} lunarCrushKeyStatus={lunarCrushKeyStatus} nvidiaKeyStatus={nvidiaKeyStatus} tipRanksApiKey={tipRanksApiKey} decisionContext={recommendationContext} />
+          ) : activeTab === "research-prompts" ? (
+            <ResearchPromptsTool keyStatus={keyStatus} />
           ) : activeTab === "wheel-strategy" ? (
             <OptionStrategyTool />
           ) : activeTab === "portfolio-sync" ? (
             <PortfolioSyncTool />
+          ) : activeTab === "simulated-portfolio" ? (
+            <SimulatedPortfolioTool />
           ) : activeTab === "rsi-playbook" ? (
             <RSIPlaybookTool />
           ) : activeTab === "breakout-scanner" ? (
@@ -604,11 +979,11 @@ export default function AIAdvisorPage() {
           ) : activeTab === "composite-signal" ? (
             <CompositeSignalTool />
           ) : activeTab === "optitrade-lab" ? (
-            <OptiTradeLabTool />
+            <OptiTradeLabTool alpacaKeyStatus={alpacaKeyStatus} />
           ) : activeTab === "equity-research" ? (
             <StockAnalysisTool keyStatus={keyStatus} />
           ) : activeTab === "wheel-scanner" ? (
-            <WheelScannerTool keyStatus={keyStatus} />
+            <WheelScannerTool keyStatus={keyStatus} alpacaKeyStatus={alpacaKeyStatus} isActive={activeTab === "wheel-scanner"} />
           ) : activeTab === "sector-rotation" ? (
             <SectorRotationTool />
           ) : (

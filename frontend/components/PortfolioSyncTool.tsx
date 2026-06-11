@@ -170,7 +170,7 @@ export function PortfolioSyncTool() {
         </div>
         <div className="portfolio-sync-actions">
           <span className={configured ? "status-pill" : "risk-pill"}>{configured ? "Provider configured" : "Setup required"}</span>
-          <button className="ghost-button" type="button" onClick={loadPortfolioSync} disabled={Boolean(loading)}>
+          <button className="ghost-button portfolio-sync-refresh-button" type="button" onClick={loadPortfolioSync} disabled={Boolean(loading)}>
             {loading === "initial" ? <Loader2 size={16} className="spin-icon" /> : <RefreshCw size={16} />}
             Refresh
           </button>

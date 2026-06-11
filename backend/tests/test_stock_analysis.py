@@ -294,6 +294,89 @@ class StockAnalysisTests(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 400)
         self.assertIn("OpenAI API key", str(raised.exception.detail))
 
+    def test_foundation_router_mode_requires_openai_key(self) -> None:
+        db, user = self._seed_user()
+
+        with patch("app.api.stock_analysis.resolve_stock_company", return_value=StockAnalysisCompany("AAPL", "Apple Inc.", "0000320193")), self.assertRaises(HTTPException) as raised:
+            run_analysis(StockAnalysisRunRequest(query="AAPL", model="auto", model_mode="foundation"), user, db)
+
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertIn("OpenAI API key", str(raised.exception.detail))
+
+    def test_auto_model_defaults_to_foundation_router_mode(self) -> None:
+        db, user = self._seed_user()
+
+        with patch("app.api.stock_analysis.resolve_stock_company", return_value=StockAnalysisCompany("AAPL", "Apple Inc.", "0000320193")), self.assertRaises(HTTPException) as raised:
+            run_analysis(StockAnalysisRunRequest(query="AAPL", model="auto"), user, db)
+
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertIn("OpenAI API key", str(raised.exception.detail))
+
+    def test_ollama_router_mode_does_not_require_openai_key(self) -> None:
+        db, user = self._seed_user()
+
+        with patch("app.api.stock_analysis.resolve_stock_company", return_value=StockAnalysisCompany("AAPL", "Apple Inc.", "0000320193")), patch(
+            "app.api.stock_analysis.run_stock_analysis"
+        ) as service:
+            service.side_effect = lambda db_arg, user_id, query, model, api_key, ollama_base_url=None, model_mode=None: StockAnalysisRun(
+                id=8,
+                user_id=user_id,
+                query=query,
+                ticker="AAPL",
+                company_name="Apple Inc.",
+                sector="Information Technology",
+                industry="Consumer Electronics",
+                model="ollama:llama3.1:8b",
+                source_status="partial",
+                source_json="[]",
+                financial_snapshot_json=json.dumps(_context()["snapshot"]),
+                digest_json='{"research_stance":"Neutral / monitor"}',
+                warnings_json="[]",
+                prompt_text="Prompt",
+                response_text="{}",
+                usage_json='{"model_routing":{"model":"ollama:llama3.1:8b","display_name":"Llama 3.1 8B","mode":"ollama"}}',
+                created_at=utc_now(),
+            )
+
+            result = run_analysis(StockAnalysisRunRequest(query="AAPL", model="auto", model_mode="ollama"), user, db)
+
+        self.assertEqual(result.model, "ollama:llama3.1:8b")
+        self.assertEqual(result.model_routing["display_name"], "Llama 3.1 8B")
+        self.assertIsNone(service.call_args.args[4])
+        self.assertEqual(service.call_args.kwargs["model_mode"], "ollama")
+
+    def test_ollama_model_override_does_not_require_openai_key(self) -> None:
+        db, user = self._seed_user()
+
+        with patch("app.api.stock_analysis.resolve_stock_company", return_value=StockAnalysisCompany("AAPL", "Apple Inc.", "0000320193")), patch(
+            "app.api.stock_analysis.run_stock_analysis"
+        ) as service:
+            service.side_effect = lambda db_arg, user_id, query, model, api_key, ollama_base_url=None, model_mode=None: StockAnalysisRun(
+                id=9,
+                user_id=user_id,
+                query=query,
+                ticker="AAPL",
+                company_name="Apple Inc.",
+                sector="Information Technology",
+                industry="Consumer Electronics",
+                model=model,
+                source_status="partial",
+                source_json="[]",
+                financial_snapshot_json=json.dumps(_context()["snapshot"]),
+                digest_json='{"research_stance":"Neutral / monitor"}',
+                warnings_json="[]",
+                prompt_text="Prompt",
+                response_text="{}",
+                usage_json="{}",
+                created_at=utc_now(),
+            )
+
+            result = run_analysis(StockAnalysisRunRequest(query="AAPL", model="ollama:qwen3:8b"), user, db)
+
+        self.assertEqual(result.model, "ollama:qwen3:8b")
+        self.assertIsNone(service.call_args.args[4])
+        self.assertIsNone(service.call_args.kwargs["model_mode"])
+
     def test_api_reuses_recent_saved_run_without_openai_key(self) -> None:
         db, user = self._seed_user()
         run = StockAnalysisRun(
@@ -419,7 +502,7 @@ class StockAnalysisTests(unittest.TestCase):
             patch("app.api.stock_analysis.get_settings", return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET)),
             patch("app.api.stock_analysis.run_stock_analysis") as service,
         ):
-            service.side_effect = lambda db_arg, user_id, query, model, api_key, ollama_base_url=None: StockAnalysisRun(
+            service.side_effect = lambda db_arg, user_id, query, model, api_key, ollama_base_url=None, model_mode=None: StockAnalysisRun(
                 id=7,
                 user_id=user_id,
                 query=query,

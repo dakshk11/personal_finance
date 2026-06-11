@@ -21,6 +21,7 @@ import {
   SmartCandleScan,
   SmartCandleScanRequest,
   SmartCandleSignal,
+  SmartCandleTradeAction,
   apiFetch,
   percent
 } from "@/lib/api";
@@ -49,6 +50,8 @@ export function SmartCandleTool() {
   const [watchlistInput, setWatchlistInput] = useState("");
   const [backtestColor, setBacktestColor] = useState<SmartCandleColor>("blue");
   const [backtestYears, setBacktestYears] = useState(5);
+  const [backtestMinScore, setBacktestMinScore] = useState(90);
+  const [backtestAction, setBacktestAction] = useState<SmartCandleTradeAction>("buy");
   const [backtest, setBacktest] = useState<SmartCandleBacktest | null>(null);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
@@ -111,7 +114,13 @@ export function SmartCandleTool() {
     try {
       setBacktest(await apiFetch<SmartCandleBacktest>("/smart-candles/backtest", {
         method: "POST",
-        body: JSON.stringify({ ...config, candle_color: backtestColor, years: backtestYears }),
+        body: JSON.stringify({
+          ...config,
+          candle_color: backtestColor,
+          years: backtestYears,
+          min_signal_score: backtestMinScore,
+          trade_action: backtestAction,
+        }),
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not run Smart Candle backtest.");
@@ -305,13 +314,24 @@ export function SmartCandleTool() {
         </div>
         <form className="smart-candle-backtest-form" onSubmit={runBacktest}>
           <label>
-            <span>Candle color</span>
+            <span>Entry candle</span>
             <select value={backtestColor} onChange={(event) => setBacktestColor(event.target.value as SmartCandleColor)}>
               <option value="blue">Blue</option>
               <option value="pink">Pink</option>
               <option value="red">Red</option>
               <option value="neutral">Neutral</option>
             </select>
+          </label>
+          <label>
+            <span>Plan side</span>
+            <select value={backtestAction} onChange={(event) => setBacktestAction(event.target.value as SmartCandleTradeAction)}>
+              <option value="buy">Buy / long</option>
+              <option value="sell">Sell / short</option>
+            </select>
+          </label>
+          <label>
+            <span>Min score</span>
+            <input type="number" min={0} max={100} step={5} value={backtestMinScore} onChange={(event) => setBacktestMinScore(Number(event.target.value))} />
           </label>
           <label>
             <span>Years</span>
@@ -322,12 +342,17 @@ export function SmartCandleTool() {
             Run backtest
           </button>
         </form>
+        <div className="smart-candle-plan-card">
+          <span>Research plan</span>
+          <strong>{planSummary(backtestColor, backtestAction, backtestMinScore)}</strong>
+          <p>Compare 5D, 10D, 20D, and 60D historical outcomes before manually reviewing any symbol, liquidity, trend, and risk context.</p>
+        </div>
         {backtest ? (
           <div className="smart-candle-backtest-grid">
             <article className={`smart-candle-backtest-summary ${backtest.candle_color}`}>
-              <span>{labelForColor(backtest.candle_color)}</span>
+              <span>{actionLabel(backtest.trade_action)} {labelForColor(backtest.candle_color)}</span>
               <strong>{backtest.signal_count}</strong>
-              <p>signals over {backtest.evaluated_years} year{backtest.evaluated_years === 1 ? "" : "s"}</p>
+              <p>signals over {backtest.evaluated_years} year{backtest.evaluated_years === 1 ? "" : "s"} at score {backtest.config.min_signal_score ?? 0}+</p>
             </article>
             {backtest.horizons.map((row) => (
               <article className="smart-candle-horizon-card" key={row.horizon_days}>
@@ -558,6 +583,15 @@ function labelForColor(color: SmartCandleColor) {
     red: "Red breakdown",
     neutral: "Neutral",
   }[color];
+}
+
+function actionLabel(action: SmartCandleTradeAction) {
+  return action === "sell" ? "Sell/short" : "Buy/long";
+}
+
+function planSummary(color: SmartCandleColor, action: SmartCandleTradeAction, minScore: number) {
+  const score = Math.max(0, Math.min(100, Number.isFinite(minScore) ? minScore : 0));
+  return `${actionLabel(action)} only when ${labelForColor(color).toLowerCase()} scores ${score}+`;
 }
 
 function colorHex(color: SmartCandleColor) {

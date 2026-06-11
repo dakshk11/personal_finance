@@ -74,7 +74,12 @@ def run_smart_candle_backtest(db: Session, payload: Any | None = None) -> dict[s
     if color not in COLORS:
         color = "blue"
     years = _clamp_int(_payload_value(payload, "years", 5), 1, 10)
+    trade_action = str(_payload_value(payload, "trade_action", "buy")).lower()
+    if trade_action not in {"buy", "sell"}:
+        trade_action = "buy"
+    min_signal_score = _clamp_float(_payload_value(payload, "min_signal_score", 0), 0, 100)
     config["include_neutral"] = True
+    config["min_signal_score"] = min_signal_score
 
     market_date = date.today()
     start_date = market_date - timedelta(days=(years * 365) + int(config["lookback_days"]) + 120)
@@ -96,6 +101,8 @@ def run_smart_candle_backtest(db: Session, payload: Any | None = None) -> dict[s
             signal = classify_latest_candle(item, bars[: index + 1], config, include_chart=False)
             if not signal or signal["candle_color"] != color:
                 continue
+            if float(signal["score"]) < min_signal_score:
+                continue
             last_signal_index = index
             signal_count += 1
             entry = _close(bars[index])
@@ -103,7 +110,10 @@ def run_smart_candle_backtest(db: Session, payload: Any | None = None) -> dict[s
                 continue
             for horizon in SCAN_HORIZONS:
                 exit_price = _close(bars[index + horizon])
-                returns_by_horizon[horizon].append(round((exit_price / entry) - 1, 6))
+                if trade_action == "sell":
+                    returns_by_horizon[horizon].append(round((entry / exit_price) - 1, 6))
+                else:
+                    returns_by_horizon[horizon].append(round((exit_price / entry) - 1, 6))
 
     warnings = _unique(
         [
@@ -116,6 +126,7 @@ def run_smart_candle_backtest(db: Session, payload: Any | None = None) -> dict[s
     )
     return {
         "candle_color": color,
+        "trade_action": trade_action,
         "evaluated_years": years,
         "signal_count": signal_count,
         "config": config,
@@ -181,6 +192,7 @@ def classify_latest_candle(
         "return_5d": _round_or_none(context["return_5d"]),
         "return_20d": _round_or_none(context["return_20d"]),
         "sma20": _round_or_none(context["sma20"]),
+        "sma40": _round_or_none(context["sma40"]),
         "sma50": _round_or_none(context["sma50"]),
         "sma200": _round_or_none(context["sma200"]),
         "trend_label": context["trend_label"],
@@ -203,9 +215,11 @@ def _candle_context(bars: list[BreakoutBar]) -> dict[str, Any] | None:
     avg_volume_50 = _average(volumes[-51:-1]) if len(volumes) > 50 else _average(volumes[-50:])
     relative_volume = (volumes[-1] / avg_volume_50) if avg_volume_50 > 0 else 0
     sma20_series = _sma(values, 20)
+    sma40_series = _sma(values, 40)
     sma50_series = _sma(values, 50)
     sma200_series = _sma(values, 200)
     sma20 = _last_number(sma20_series)
+    sma40 = _last_number(sma40_series)
     sma50 = _last_number(sma50_series)
     sma200 = _last_number(sma200_series)
     rsi14 = _rsi(values, 14)
@@ -227,9 +241,11 @@ def _candle_context(bars: list[BreakoutBar]) -> dict[str, Any] | None:
         "return_5d": return_5d,
         "return_20d": return_20d,
         "sma20": sma20,
+        "sma40": sma40,
         "sma50": sma50,
         "sma200": sma200,
         "sma20_series": sma20_series,
+        "sma40_series": sma40_series,
         "sma50_series": sma50_series,
         "sma200_series": sma200_series,
         "trend_label": _trend_label(price, sma20, sma50, sma200),
@@ -334,6 +350,7 @@ def _chart_points(bars: list[BreakoutBar], context: dict[str, Any], latest_color
                 "close": round(bars[index].close, 4),
                 "volume": round(max(0, bars[index].volume), 2),
                 "sma20": _round_or_none(context["sma20_series"][index]),
+                "sma40": _round_or_none(context["sma40_series"][index]),
                 "sma50": _round_or_none(context["sma50_series"][index]),
                 "sma200": _round_or_none(context["sma200_series"][index]),
                 "candle_color": latest_color if index == len(bars) - 1 else None,

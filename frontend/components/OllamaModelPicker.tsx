@@ -60,7 +60,7 @@ export function OllamaConfigStrip({
         <input
           value={baseUrl}
           onChange={(e) => onBaseUrlChange(e.target.value)}
-          placeholder="http://localhost:11434"
+          placeholder="http://127.0.0.1:11434"
           autoComplete="off"
         />
       </label>

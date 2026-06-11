@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.common import HighYieldBacktestOut, HighYieldFundOut, HighYieldSignalOut, MajorIndexOut, MarketHistoryOut, MarketPriceBarOut
+from app.schemas.common import HighYieldBacktestOut, HighYieldFundOut, HighYieldSignalOut, MajorIndexOut, MarketHistoryOut, MarketPriceBarOut, YahooQuoteOut, YahooQuotesOut
 from app.services.market_history import (
     HighYieldFundAnalysis,
     MarketHistory,
@@ -15,6 +15,7 @@ from app.services.market_history import (
     list_high_yield_fund_metadata,
     list_major_indexes,
 )
+from app.services.market_data import fetch_yahoo_quote_snapshots
 
 
 router = APIRouter(prefix="/market-data", tags=["market-data"])
@@ -59,6 +60,25 @@ def market_history(
     start_date = start_date or date.today() - timedelta(days=365 * 3)
     end_date = end_date or date.today()
     return _history_out(get_market_history(db, symbol, start_date, end_date, force_refresh=force_refresh))
+
+
+@router.get("/yahoo-quotes", response_model=YahooQuotesOut)
+def yahoo_quotes(symbols: str = Query(..., min_length=1, max_length=500)) -> YahooQuotesOut:
+    requested = [symbol.strip() for symbol in symbols.split(",") if symbol.strip()]
+    snapshots = fetch_yahoo_quote_snapshots(requested)
+    return YahooQuotesOut(
+        tickers=[
+            YahooQuoteOut(
+                symbol=row.symbol,
+                price=row.price,
+                last=row.price,
+                close=row.close,
+                source=row.source,
+                warning=row.warning,
+            )
+            for row in snapshots
+        ]
+    )
 
 
 @router.post("/major-indexes/cache", response_model=list[MarketHistoryOut])

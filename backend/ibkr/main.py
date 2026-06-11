@@ -22,7 +22,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from typing import Any
 
@@ -61,11 +61,137 @@ _cboe_price_cache: dict[str, float] = {}
 
 # Metrics cache: sym → {csp_30d, cc_30d, iv_rank, rsi, bb_pct, signals}
 _metrics_cache: dict[str, dict] = {}
+_earnings_cache: dict[str, tuple[float, date | None]] = {}
 
 IBKR_RETRY_INTERVAL = 30   # seconds between reconnect attempts
 
 # Track the analytics task to prevent duplicate concurrent refresh loops
 _analytics_task: asyncio.Task | None = None
+
+
+def _number(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number else None
+
+
+def _earnings_is_clear(earnings_date: Any | None, max_days: int) -> bool:
+    """True when no known earnings date falls inside the exclusion window."""
+    if earnings_date is None:
+        return True
+    if isinstance(earnings_date, datetime):
+        event_date = earnings_date.date()
+    elif hasattr(earnings_date, "date"):
+        event_date = earnings_date.date()
+    else:
+        event_date = earnings_date
+    try:
+        days_until = (event_date - datetime.now().date()).days
+    except TypeError:
+        return True
+    return days_until < 0 or days_until > max_days
+
+
+def _coerce_earnings_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if hasattr(value, "date"):
+        try:
+            parsed = value.date()
+            return parsed if isinstance(parsed, date) else None
+        except Exception:
+            return None
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            parsed = _coerce_earnings_date(item)
+            if parsed is not None:
+                return parsed
+    return None
+
+
+def _fetch_earnings_date(symbol: str) -> date | None:
+    cached = _earnings_cache.get(symbol)
+    if cached and time.time() - cached[0] < 6 * 3600:
+        return cached[1]
+    try:
+        import yfinance as yf
+
+        calendar = yf.Ticker(symbol.replace(".", "-")).get_calendar()
+    except Exception:
+        _earnings_cache[symbol] = (time.time(), None)
+        return None
+
+    earnings_date = None
+    if isinstance(calendar, dict):
+        for key in ("Earnings Date", "Earnings High", "Earnings Low"):
+            parsed = _coerce_earnings_date(calendar.get(key))
+            if parsed and parsed >= datetime.now().date():
+                earnings_date = parsed
+                break
+    _earnings_cache[symbol] = (time.time(), earnings_date)
+    return earnings_date
+
+
+def _derive_wheel_signals(
+    *,
+    csp_30d: Any | None,
+    cc_30d: Any | None,
+    iv_rank: Any | None,
+    rsi: Any | None,
+    bb_pct: Any | None,
+    earnings_date: Any | None = None,
+) -> list[str]:
+    """Apply the visible Wheel Scanner trigger rules."""
+    csp = _number(csp_30d)
+    cc = _number(cc_30d)
+    iv = _number(iv_rank)
+    rsi_value = _number(rsi)
+    bb_value = _number(bb_pct)
+    signals: list[str] = []
+
+    no_earnings_7d = _earnings_is_clear(earnings_date, 7)
+    no_earnings_30d = _earnings_is_clear(earnings_date, 30)
+
+    if (
+        csp is not None
+        and csp > 5
+        and rsi_value is not None
+        and rsi_value <= 65
+        and bb_value is not None
+        and bb_value <= 75
+        and iv is not None
+        and iv > 40
+        and no_earnings_7d
+    ):
+        signals.append("CSP")
+    if (
+        cc is not None
+        and cc > 5
+        and rsi_value is not None
+        and rsi_value >= 40
+        and bb_value is not None
+        and bb_value >= 30
+        and iv is not None
+        and iv > 40
+        and no_earnings_7d
+    ):
+        signals.append("CC")
+    if (
+        bb_value is not None
+        and bb_value <= 20
+        and rsi_value is not None
+        and rsi_value <= 40
+        and no_earnings_30d
+    ):
+        signals.append("LEAP")
+
+    return signals
 
 
 def _start_analytics_task() -> None:
@@ -87,19 +213,10 @@ def _start_analytics_task() -> None:
 
 @app.on_event("startup")
 async def startup():
-    connected = await ibkr.connect()
-    if connected:
-        log.info("IBKR streaming started")
-        _start_analytics_task()
-    else:
-        log.warning(
-            "IBKR TWS not reachable on port 7496 — is TWS running with API connections enabled? "
-            "Will retry every %ds. Stock prices will use CBOE fallback.",
-            IBKR_RETRY_INTERVAL,
-        )
-    asyncio.create_task(_ibkr_reconnect_loop())
-    asyncio.create_task(_cboe_metrics_loop())
-    asyncio.create_task(_broadcast_loop())
+    asyncio.create_task(_deferred_background_task(_connect_ibkr_once("startup")))
+    asyncio.create_task(_deferred_background_task(_ibkr_reconnect_loop()))
+    asyncio.create_task(_deferred_background_task(_cboe_metrics_loop()))
+    asyncio.create_task(_deferred_background_task(_broadcast_loop()))
 
 
 @app.on_event("shutdown")
@@ -111,17 +228,35 @@ async def shutdown():
 # Background tasks
 # ─────────────────────────────────────────────────────────────
 
+async def _deferred_background_task(coro):
+    await asyncio.sleep(0.1)
+    await coro
+
+
+async def _connect_ibkr_once(reason: str) -> bool:
+    connected = await ibkr.connect()
+    if connected:
+        log.info("IBKR streaming started (%s)", reason)
+        _start_analytics_task()
+        return True
+
+    log.warning(
+        "IBKR TWS not reachable on port 7496 during %s — will retry every %ds. "
+        "Stock prices will use CBOE fallback until IBKR connects.",
+        reason,
+        IBKR_RETRY_INTERVAL,
+    )
+    return False
+
+
 async def _ibkr_reconnect_loop():
     """Retry IBKR connection every IBKR_RETRY_INTERVAL s when disconnected."""
     while True:
         await asyncio.sleep(IBKR_RETRY_INTERVAL)
         if not ibkr.is_connected():
             log.info("IBKR reconnect attempt…")
-            connected = await ibkr.connect()
-            if connected:
-                log.info("IBKR reconnected successfully")
-                _start_analytics_task()   # guarded — won't duplicate if already running
-            else:
+            connected = await _connect_ibkr_once("reconnect")
+            if not connected:
                 log.debug("IBKR still unavailable, will retry in %ds", IBKR_RETRY_INTERVAL)
 
 
@@ -214,15 +349,16 @@ def _recompute_metrics() -> None:
 
         csp_30d = m30.get("csp_30d")
         cc_30d  = m30.get("cc_30d")
+        earnings_date = _fetch_earnings_date(sym)
 
-        signals: list[str] = []
-        if csp_30d is not None and csp_30d > 5:
-            signals.append("CSP")
-        if cc_30d is not None and cc_30d > 5:
-            signals.append("CC")
-        # LEAP: technically oversold, near lower Bollinger Band, no earnings (earnings TBD)
-        if rsi is not None and bb_pct is not None and rsi <= 40 and bb_pct <= 20:
-            signals.append("LEAP")
+        signals = _derive_wheel_signals(
+            csp_30d=csp_30d,
+            cc_30d=cc_30d,
+            iv_rank=iv,
+            rsi=rsi,
+            bb_pct=bb_pct,
+            earnings_date=earnings_date,
+        )
 
         _metrics_cache[sym] = {
             "csp_30d":  csp_30d,
@@ -230,6 +366,7 @@ def _recompute_metrics() -> None:
             "iv_rank":  iv,
             "rsi":      rsi,
             "bb_pct":   bb_pct,
+            "earnings_date": earnings_date.isoformat() if earnings_date else None,
             "signals":  signals,
         }
 
@@ -288,6 +425,7 @@ def _build_watchlist_rows() -> dict[str, dict]:
         row["iv_rank"]  = m.get("iv_rank")
         row["rsi"]      = m.get("rsi")
         row["bb_pct"]   = m.get("bb_pct")
+        row["earnings_date"] = m.get("earnings_date")
         row["signals"]  = m.get("signals", [])
 
         # Stage Analysis (Weinstein) — from analytics cache
@@ -353,7 +491,8 @@ async def _build_custom_quote_row(symbol: str) -> dict:
                         ask = _pf(ticker.ask)
                         last = _pf(ticker.last)
                         close = _pf(ticker.close)
-                        price = ((bid + ask) / 2) if bid and ask else last
+                        market_price = _pf(ticker.marketPrice()) if hasattr(ticker, "marketPrice") else None
+                        price = ((bid + ask) / 2) if bid and ask else last or market_price or close
                         row.update({
                             "price":  price,
                             "bid":    bid,
@@ -410,13 +549,15 @@ async def _build_custom_quote_row(symbol: str) -> dict:
     m30 = find_30delta_metrics(symbol)
     iv = get_atm_iv(symbol)
     csp, cc = m30.get("csp_30d"), m30.get("cc_30d")
-    signals: list[str] = []
-    if csp is not None and csp > 5:
-        signals.append("CSP")
-    if cc is not None and cc > 5:
-        signals.append("CC")
-    if row.get("rsi") is not None and row.get("bb_pct") is not None and row["rsi"] <= 40 and row["bb_pct"] <= 20:
-        signals.append("LEAP")
+    earnings_date = _fetch_earnings_date(symbol)
+    signals = _derive_wheel_signals(
+        csp_30d=csp,
+        cc_30d=cc,
+        iv_rank=iv,
+        rsi=row.get("rsi"),
+        bb_pct=row.get("bb_pct"),
+        earnings_date=earnings_date,
+    )
 
     row.setdefault("rsi", None)
     row.setdefault("bb_pct", None)
@@ -431,6 +572,7 @@ async def _build_custom_quote_row(symbol: str) -> dict:
         "hv30": None,
         "csp_30d": csp,
         "cc_30d": cc,
+        "earnings_date": earnings_date.isoformat() if earnings_date else None,
         "signals": signals,
     })
     return row
@@ -570,6 +712,14 @@ LEVERAGED_UNDERLYING_MAP = {
     "SOXL": "SOXX",
     "UPRO": "SPY",
 }
+SP500_TOP_20_MARKET_CAP_SYMBOLS = [
+    "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "AVGO", "GOOG", "META", "TSLA", "MU",
+    "LLY", "BRK.B", "AMD", "JPM", "XOM", "JNJ", "V", "INTC", "WMT", "CSCO",
+]
+OPTITRADE_DIRECT_SYMBOLS = {symbol: symbol for symbol in SP500_TOP_20_MARKET_CAP_SYMBOLS}
+OPTITRADE_UNDERLYING_MAP = {**LEVERAGED_UNDERLYING_MAP, **OPTITRADE_DIRECT_SYMBOLS}
+DEFAULT_OPTITRADE_SYMBOLS = ["TQQQ", "SOXL", "UPRO", *SP500_TOP_20_MARKET_CAP_SYMBOLS]
+MAX_OPTITRADE_SYMBOLS = len(DEFAULT_OPTITRADE_SYMBOLS)
 
 
 async def _fetch_optitrade_daily_bars(symbol: str, duration: str = "2 Y") -> list[dict[str, Any]]:
@@ -883,9 +1033,9 @@ def _optitrade_chart(leveraged_bars: list[dict[str, Any]], trend: dict[str, Any]
 
 
 async def _build_optitrade_signal(symbol: str) -> dict[str, Any]:
-    underlying = LEVERAGED_UNDERLYING_MAP.get(symbol)
+    underlying = OPTITRADE_UNDERLYING_MAP.get(symbol)
     if not underlying:
-        raise RuntimeError(f"{symbol} is not in the leveraged ETF universe")
+        raise RuntimeError(f"{symbol} is not in the OptiTrade monitored universe")
     leveraged_bars, underlying_bars = await asyncio.gather(
         _fetch_optitrade_daily_bars(symbol),
         _fetch_optitrade_daily_bars(underlying),
@@ -924,19 +1074,22 @@ async def _build_optitrade_signal(symbol: str) -> dict[str, Any]:
 @app.get("/api/status")
 def get_status():
     ibkr_on = ibkr.is_connected()
+    ibkr_quote_count = len(ibkr.get_all_quotes())
     cboe_prices = len(_cboe_price_cache)
     return {
         "ibkr_connected": ibkr_on,
         "watchlist_count": len(ALL_TICKERS),
-        "quotes_cached": len(ibkr.get_all_quotes()),
+        "quotes_cached": ibkr_quote_count,
         "cboe_prices_cached": cboe_prices,
-        "price_source": "ibkr" if ibkr_on else ("cboe_delayed" if cboe_prices else "none"),
+        "price_source": "ibkr_delayed" if ibkr_quote_count else ("cboe_delayed" if cboe_prices else "none"),
         "metrics_computed": len(_metrics_cache),
     }
 
 
 @app.get("/api/watchlist")
-def get_watchlist():
+async def get_watchlist(force_live: bool = Query(False, description="Force an immediate IBKR quote snapshot before returning rows.")):
+    if force_live and ibkr.is_connected():
+        await ibkr.refresh_quotes()
     rows = list(_build_watchlist_rows().values())
     return {"tickers": rows, "count": len(rows)}
 
@@ -994,7 +1147,7 @@ async def get_composite_signal():
 
 
 @app.get("/api/optitrade-lab/signals")
-async def get_optitrade_lab_signals(symbols: str = Query("TQQQ,SOXL,UPRO", description="Comma-separated leveraged ETF symbols")):
+async def get_optitrade_lab_signals(symbols: str = Query(",".join(DEFAULT_OPTITRADE_SYMBOLS), description="Comma-separated OptiTrade symbols")):
     """OptiTrade-inspired signal package for leveraged ETFs.
 
     This is an original educational approximation using IBKR bars; it does not
@@ -1004,7 +1157,7 @@ async def get_optitrade_lab_signals(symbols: str = Query("TQQQ,SOXL,UPRO", descr
         raise HTTPException(status_code=503, detail="IBKR is not connected.")
 
     requested = [item.strip().upper() for item in symbols.split(",") if item.strip()]
-    universe = list(dict.fromkeys(requested))[:10] or ["TQQQ", "SOXL", "UPRO"]
+    universe = [symbol for symbol in list(dict.fromkeys(requested))[:MAX_OPTITRADE_SYMBOLS] if symbol in OPTITRADE_UNDERLYING_MAP] or DEFAULT_OPTITRADE_SYMBOLS
     results = []
     warnings: list[str] = []
 
@@ -1037,9 +1190,9 @@ async def get_optitrade_lab_backtest(
         raise HTTPException(status_code=503, detail="IBKR is not connected.")
 
     symbol = symbol.strip().upper()
-    underlying = LEVERAGED_UNDERLYING_MAP.get(symbol)
+    underlying = OPTITRADE_UNDERLYING_MAP.get(symbol)
     if not underlying:
-        raise HTTPException(status_code=400, detail=f"{symbol} is not in the leveraged ETF universe.")
+        raise HTTPException(status_code=400, detail=f"{symbol} is not in the OptiTrade monitored universe.")
 
     if tp_mode not in {"single", "multi", "always_in"}:
         raise HTTPException(status_code=400, detail="tp_mode must be single, multi, or always_in.")
@@ -1066,7 +1219,10 @@ async def get_optitrade_lab_backtest(
 
 
 @app.get("/api/quotes")
-async def get_custom_quotes(symbols: str = Query(..., description="Comma-separated ticker symbols")):
+async def get_custom_quotes(
+    symbols: str = Query(..., description="Comma-separated ticker symbols"),
+    force_live: bool = Query(False, description="Force an immediate IBKR quote snapshot before returning rows."),
+):
     """Return quote + metrics data for arbitrary tickers (up to 20).
 
     Symbols already in the default watchlist return their full live data.
@@ -1075,11 +1231,14 @@ async def get_custom_quotes(symbols: str = Query(..., description="Comma-separat
     raw  = [s.strip().upper() for s in symbols.split(',') if s.strip()]
     syms = list(dict.fromkeys(raw))[:20]   # deduplicate, cap at 20
 
+    if force_live and ibkr.is_connected():
+        await ibkr.refresh_quotes(syms)
+
     existing = _build_watchlist_rows()
     results: list[dict] = []
 
     for sym in syms:
-        if sym in existing:
+        if sym in existing and not (force_live and existing[sym].get("source") != "ibkr"):
             results.append(existing[sym])
             continue
 

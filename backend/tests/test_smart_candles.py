@@ -110,6 +110,28 @@ class SmartCandleTests(unittest.TestCase):
         self.assertTrue(any(row["win_rate"] is not None for row in result["horizons"]))
         self.assertEqual(user.email, "smart-candle@example.com")
 
+    def test_backtest_filters_by_min_score_and_sell_action(self) -> None:
+        db, _user = self._seed_user()
+        universe = _universe_out()
+        histories = {"AAA": _repeating_blue_bars(date.today() - timedelta(days=1300), trading_days=920)}
+        payload = {"candle_color": "blue", "years": 3, "max_symbols": 1, "min_avg_dollar_volume": 0, "min_relative_volume": 1.1}
+
+        with (
+            patch("app.services.smart_candles.load_sp500_universe", return_value=universe),
+            patch("app.services.smart_candles.load_ohlcv_histories", return_value=(histories, [])),
+        ):
+            buy_result = smart_candles.run_smart_candle_backtest(db, {**payload, "trade_action": "buy"})
+            sell_result = smart_candles.run_smart_candle_backtest(db, {**payload, "trade_action": "sell"})
+            strict_result = smart_candles.run_smart_candle_backtest(db, {**payload, "min_signal_score": 100})
+
+        self.assertEqual(sell_result["trade_action"], "sell")
+        self.assertEqual(strict_result["config"]["min_signal_score"], 100)
+        self.assertLessEqual(strict_result["signal_count"], buy_result["signal_count"])
+        self.assertNotEqual(
+            sell_result["horizons"][0]["average_return"],
+            buy_result["horizons"][0]["average_return"],
+        )
+
 
 def _universe_out() -> dict[str, object]:
     return {

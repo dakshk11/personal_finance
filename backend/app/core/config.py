@@ -13,7 +13,7 @@ LOCAL_RUNTIME_TEST_ACCOUNT_PASSWORD = token_urlsafe(32)
 
 class Settings(BaseSettings):
     app_name: str = "FinanceOS"
-    database_url: str = "sqlite:///./directindex.db"
+    database_url: str = f"sqlite:///{BACKEND_ROOT / 'directindex.db'}"
     redis_url: str = "redis://localhost:6379/0"
     frontend_origin: str = "http://localhost:3000"
     session_cookie_name: str = "directindex_session"
@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     snaptrade_client_id: str = ""
     snaptrade_consumer_key: str = ""
     broker_sync_encryption_secret: str = LOCAL_BROKER_SYNC_ENCRYPTION_SECRET
+    ibkr_research_api_url: str = "http://localhost:8002"
+    tipranks_api_url: str = ""
 
     model_config = SettingsConfigDict(env_file=BACKEND_ROOT / ".env", extra="ignore")
 

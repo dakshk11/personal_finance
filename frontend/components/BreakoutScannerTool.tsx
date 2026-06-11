@@ -50,9 +50,12 @@ const defaultConfig: BreakoutScannerConfig = {
   max_symbols: 120
 };
 
+type BreakoutSource = "ibkr_daily" | "ibkr_30m" | "yfinance";
+
 export function BreakoutScannerTool() {
   const bootstrapped = useRef(false);
-  const [dataSource, setDataSource] = useState<"ibkr" | "yfinance">("ibkr");
+  const scanRequestId = useRef(0);
+  const [dataSource, setDataSource] = useState<BreakoutSource>("ibkr_daily");
   const [ibkrStatus, setIbkrStatus] = useState<IbkrBreakoutStatus | null>(null);
   const [config, setConfig] = useState<BreakoutScannerConfig>(defaultConfig);
   const [universe, setUniverse] = useState<BreakoutUniverse | null>(null);
@@ -107,15 +110,23 @@ export function BreakoutScannerTool() {
     await loadIbkrScan();
   }
 
-  async function loadIbkrScan(extraSymbols = config.custom_symbols) {
+  function cancelPendingScans() {
+    scanRequestId.current += 1;
+  }
+
+  async function loadIbkrScan(extraSymbols = config.custom_symbols, interval: "1d" | "30m" = dataSource === "ibkr_30m" ? "30m" : "1d", refresh = false) {
+    const requestId = scanRequestId.current + 1;
+    scanRequestId.current = requestId;
     setLoading("scan");
     setError("");
     try {
-      const params = new URLSearchParams({ source: "ibkr", index: "ndx100" });
+      const params = new URLSearchParams({ source: "ibkr", index: "ndx100", interval });
+      if (refresh) params.set("refresh", "true");
       if (extraSymbols.length) params.set("extra", extraSymbols.join(","));
       const res = await fetch(`${IBKR_API}/api/breakout/scan?${params.toString()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`IBKR breakout scan failed (${res.status})`);
       const result = await res.json() as BreakoutScan;
+      if (requestId !== scanRequestId.current) return;
       setScan(result);
       setBacktest(null);
       if (result.signals[0]) setSelectedKey(signalKey(result.signals[0]));
@@ -125,20 +136,23 @@ export function BreakoutScannerTool() {
         .then((s: IbkrBreakoutStatus | null) => { if (s) setIbkrStatus(s); })
         .catch(() => {});
     } catch (err) {
+      if (requestId !== scanRequestId.current) return;
       setError(err instanceof Error ? err.message : "Cannot reach IBKR backend (http://localhost:8002). Is it running?");
     } finally {
-      setLoading("");
+      if (requestId === scanRequestId.current) setLoading("");
     }
   }
 
   async function loadScan(force: boolean) {
-    if (dataSource === "ibkr") {
-      return loadIbkrScan();
+    if (dataSource !== "yfinance") {
+      return loadIbkrScan(config.custom_symbols, dataSource === "ibkr_30m" ? "30m" : "1d", force);
     }
     return loadYfinanceScan(force);
   }
 
   async function loadYfinanceScan(force: boolean, nextConfig = config) {
+    const requestId = scanRequestId.current + 1;
+    scanRequestId.current = requestId;
     setLoading(force ? "refresh" : "scan");
     setError("");
     try {
@@ -146,13 +160,15 @@ export function BreakoutScannerTool() {
         method: "POST",
         body: JSON.stringify(nextConfig)
       });
+      if (requestId !== scanRequestId.current) return;
       setScan(result);
       setBacktest(null);
       if (result.signals[0]) setSelectedKey(signalKey(result.signals[0]));
     } catch (err) {
+      if (requestId !== scanRequestId.current) return;
       setError(err instanceof Error ? err.message : "Could not run Breakout Scanner.");
     } finally {
-      setLoading("");
+      if (requestId === scanRequestId.current) setLoading("");
     }
   }
 
@@ -198,14 +214,32 @@ export function BreakoutScannerTool() {
     setConfig(nextConfig);
     setWatchlistInput("");
     setError("");
-    void (dataSource === "ibkr" ? loadIbkrScan(nextSymbols) : loadYfinanceScan(false, nextConfig));
+    if (dataSource === "ibkr_30m") {
+      cancelPendingScans();
+      setScan(null);
+      return;
+    }
+    void (dataSource === "ibkr_daily" ? loadIbkrScan(nextSymbols, "1d", true) : loadYfinanceScan(false, nextConfig));
   }
 
   function removeWatchlistSymbol(symbol: string) {
     const nextConfig = { ...config, custom_symbols: config.custom_symbols.filter((item) => item !== symbol) };
     setConfig(nextConfig);
-    void (dataSource === "ibkr" ? loadIbkrScan(nextConfig.custom_symbols) : loadYfinanceScan(false, nextConfig));
+    if (dataSource === "ibkr_30m") {
+      cancelPendingScans();
+      setScan(null);
+      return;
+    }
+    void (dataSource === "ibkr_daily" ? loadIbkrScan(nextConfig.custom_symbols, "1d", true) : loadYfinanceScan(false, nextConfig));
   }
+
+  const isIbkr = dataSource !== "yfinance";
+  const isIntraday = dataSource === "ibkr_30m";
+  const ibkrCachedHelper = ibkrStatus
+    ? isIntraday
+      ? `${ibkrStatus.intraday_fresh_today ?? 0} 30m cached today`
+      : `${ibkrStatus.fresh_today} cached today`
+    : "loading";
 
   return (
     <>
@@ -213,13 +247,15 @@ export function BreakoutScannerTool() {
         <div>
           <p className="eyebrow">Breakout Scanner</p>
           <h2>
-            {dataSource === "ibkr"
-              ? "Nasdaq-100 breakout research using IBKR live data — ceiling, momentum, and near-breakout setups."
+            {isIbkr
+              ? isIntraday
+                ? "Nasdaq-100 intraday breakout research using IBKR 30-minute detection and hourly chart candles."
+                : "Nasdaq-100 breakout research using IBKR live data — ceiling, momentum, and near-breakout setups."
               : "S&P 500 breakout research across ceiling, momentum, and near-breakout setups."}
           </h2>
           <div className="breakout-source-line">
-            {dataSource === "ibkr"
-              ? <><span><Activity size={14} /> IBKR live / cached bars</span><span><Gauge size={14} /> SMA 20 / 50 / 200</span></>
+            {isIbkr
+              ? <><span><Activity size={14} /> IBKR live / cached {isIntraday ? "30m detector bars" : "daily bars"}</span><span><Gauge size={14} /> {isIntraday ? "Hourly chart" : "SMA 20 / 50 / 200"}</span></>
               : <><span><Target size={14} /> S&P 500 only</span><span><Activity size={14} /> Relative volume</span><span><Gauge size={14} /> SMA 20 / 50 / 200</span></>
             }
           </div>
@@ -227,20 +263,34 @@ export function BreakoutScannerTool() {
           <div className="breakout-source-toggle">
             <button
               type="button"
-              className={dataSource === "ibkr" ? "active" : ""}
+              className={dataSource === "ibkr_daily" ? "active" : ""}
               onClick={() => {
-                setDataSource("ibkr");
+                cancelPendingScans();
+                setDataSource("ibkr_daily");
                 setScan(null);
                 setError("");
-                void loadIbkrScan();
+                void loadIbkrScan(config.custom_symbols, "1d", false);
               }}
             >
               IBKR Live · Nasdaq-100
             </button>
             <button
               type="button"
+              className={dataSource === "ibkr_30m" ? "active" : ""}
+              onClick={() => {
+                cancelPendingScans();
+                setDataSource("ibkr_30m");
+                setScan(null);
+                setError("");
+              }}
+            >
+              IBKR Intraday · Nasdaq-100 30m
+            </button>
+            <button
+              type="button"
               className={dataSource === "yfinance" ? "active" : ""}
               onClick={() => {
+                cancelPendingScans();
                 setDataSource("yfinance");
                 setScan(null);
                 setError("");
@@ -252,15 +302,15 @@ export function BreakoutScannerTool() {
           </div>
         </div>
         <div className="breakout-actions">
-          {dataSource === "ibkr" && ibkrStatus && (
+          {isIbkr && ibkrStatus && (
             <span className={ibkrStatus.ibkr_connected ? "status-pill" : "risk-pill"}>
-              {ibkrStatus.ibkr_connected ? "IBKR live" : "IBKR offline"} · {ibkrStatus.fresh_today}/{ibkrStatus.ndx100_count} cached
+              {ibkrStatus.ibkr_connected ? "IBKR live" : "IBKR offline"} · {isIntraday ? (ibkrStatus.intraday_fresh_today ?? 0) : ibkrStatus.fresh_today}/{ibkrStatus.ndx100_count} cached
             </span>
           )}
           <span className="status-pill">{scan ? `${visibleSignals.length}/${scan.signals.length} setups` : "No scan yet"}</span>
-          <button className="ghost-button" type="button" onClick={() => loadScan(false)} disabled={Boolean(loading)}>
+          <button className="ghost-button" type="button" onClick={() => loadScan(isIbkr)} disabled={Boolean(loading)}>
             {loading === "scan" || loading === "initial" ? <Loader2 size={16} className="spin-icon" /> : <RefreshCw size={16} />}
-            Run scan
+            {isIntraday ? "Run intraday scan" : isIbkr ? "Refresh scan" : "Run scan"}
           </button>
           {dataSource === "yfinance" && (
             <button className="primary-button" type="button" onClick={() => loadScan(true)} disabled={loading === "refresh"}>
@@ -315,9 +365,9 @@ export function BreakoutScannerTool() {
 
       <section className="breakout-stat-grid stat-grid">
         <Stat
-          label={dataSource === "ibkr" ? "Nasdaq-100 universe" : "S&P 500 universe"}
-          value={dataSource === "ibkr" ? (scan?.universe_count ?? ibkrStatus?.ndx100_count ?? 0) : (universe?.count ?? scan?.universe_count ?? 0)}
-          helper={dataSource === "ibkr" ? (ibkrStatus ? `${ibkrStatus.fresh_today} cached today` : "loading") : (universe?.cache_status ?? "loading")}
+          label={isIbkr ? "Nasdaq-100 universe" : "S&P 500 universe"}
+          value={isIbkr ? (scan?.universe_count ?? ibkrStatus?.ndx100_count ?? 0) : (universe?.count ?? scan?.universe_count ?? 0)}
+          helper={isIbkr ? ibkrCachedHelper : (universe?.cache_status ?? "loading")}
         />
         <Stat label="Scanned symbols" value={scan?.scanned_symbols ?? 0} helper={scan?.data_source ?? "waiting"} />
         <Stat label="Ceiling" value={counts.ceiling} helper="breakout setups" />
@@ -516,6 +566,7 @@ function BreakoutCandlestickChart({ signal }: { signal: BreakoutSignal }) {
   const maxPrice = rawMax + padding;
   const maxVolume = Math.max(...rows.map((row) => row.volume), 1);
   const latest = rows[rows.length - 1];
+  const intervalLabel = rows.some((row) => row.date.includes(":")) ? "hourly" : "daily";
   const priceTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => maxPrice - (maxPrice - minPrice) * ratio);
   const dateTickIndexes = [0, 0.25, 0.5, 0.75, 1].map((ratio) => Math.min(rows.length - 1, Math.round((rows.length - 1) * ratio)));
 
@@ -545,7 +596,7 @@ function BreakoutCandlestickChart({ signal }: { signal: BreakoutSignal }) {
       <div className="breakout-candle-chart-shell">
         <div className="breakout-candle-chart-topline">
           <div>
-            <strong>{signal.symbol} daily breakout chart</strong>
+            <strong>{signal.symbol} {intervalLabel} breakout chart</strong>
             <span>{formatMonthDay(rows[0].date)} to {formatMonthDay(latest.date)} · volume shown below candles</span>
           </div>
           <b>{detectorLabel(signal.detector_type)}</b>
@@ -726,16 +777,23 @@ function isNumber(value: unknown): value is number {
 }
 
 function formatMonthDay(value: string) {
-  const parsed = new Date(`${value}T00:00:00`);
+  const parsed = parseChartDate(value);
   if (Number.isNaN(parsed.getTime())) return value;
+  if (value.includes(":")) {
+    return parsed.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
   return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function formatShortDate(value?: string | null) {
   if (!value) return "N/A";
-  const parsed = new Date(`${value}T00:00:00`);
+  const parsed = parseChartDate(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function parseChartDate(value: string) {
+  return new Date(value.includes(" ") ? value.replace(" ", "T") : `${value}T00:00:00`);
 }
 
 function formatDateTime(value: string) {

@@ -79,6 +79,41 @@ def test_ibkr_scan_appends_extra_symbols_without_duplicates(tmp_path, monkeypatc
     assert {signal["symbol"] for signal in result["signals"]} == {"AAA", "ZZZ"}
 
 
+def test_ibkr_scan_supports_30m_intraday_cache(tmp_path, monkeypatch) -> None:
+    _write_cache(tmp_path, "AAA", rows=220, intraday=True)
+    monkeypatch.setattr(breakout_router, "INTRADAY_30M_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(breakout_router, "ALL_TICKERS", ["AAA"])
+    monkeypatch.setattr(breakout_router.ibkr_svc, "is_connected", lambda: False)
+    monkeypatch.setattr(breakout_router, "analyze", _fake_analyze)
+
+    result = asyncio.run(breakout_router.breakout_scan(source="ibkr", index="ndx100", interval="30m", extra=None))
+
+    assert result["data_source"] == "ibkr_30m_cache"
+    assert result["chart_interval"] == "1h"
+    assert result["universe_count"] == 1
+    assert result["scanned_symbols"] == 1
+    assert len(result["signals"]) == 1
+    assert " " in result["signals"][0]["as_of_date"]
+    assert " " in result["signals"][0]["chart"][-1]["date"]
+    assert result["signals"][0]["chart"][-1]["date"].endswith(":00")
+
+
+def test_ibkr_refresh_caps_live_historical_fetches(tmp_path, monkeypatch) -> None:
+    live_fetch = AsyncMock(return_value=None)
+    monkeypatch.setattr(breakout_router, "INTRADAY_30M_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(breakout_router, "ALL_TICKERS", ["AAA", "BBB", "CCC", "DDD", "EEE"])
+    monkeypatch.setattr(breakout_router, "MAX_IBKR_HISTORICAL_FETCHES_PER_SCAN", 3)
+    monkeypatch.setattr(breakout_router.ibkr_svc, "is_connected", lambda: True)
+    monkeypatch.setattr(breakout_router, "_fetch_from_ibkr", live_fetch)
+    monkeypatch.setattr(breakout_router, "analyze", _fake_analyze)
+
+    result = asyncio.run(breakout_router.breakout_scan(source="ibkr", index="ndx100", interval="30m", refresh=True, extra=None))
+
+    assert live_fetch.await_count == 3
+    assert result["scanned_symbols"] == 0
+    assert any("IBKR refresh limited to 3 historical requests" in warning for warning in result["warnings"])
+
+
 def test_ibkr_scan_missing_cache_disconnected_keeps_response_shape(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(breakout_router, "OHLCV_CACHE_DIR", tmp_path)
     monkeypatch.setattr(breakout_router, "ALL_TICKERS", ["MISS"])
@@ -95,12 +130,16 @@ def test_ibkr_scan_missing_cache_disconnected_keeps_response_shape(tmp_path, mon
     assert "IBKR not connected" in result["warnings"][0]
 
 
-def _write_cache(directory: Path, symbol: str) -> None:
+def _write_cache(directory: Path, symbol: str, rows: int = 220, intraday: bool = False) -> None:
     directory.mkdir(parents=True, exist_ok=True)
-    _ohlcv_frame().to_pickle(directory / f"{symbol}.pkl")
+    _ohlcv_frame(rows=rows, intraday=intraday).to_pickle(directory / f"{symbol}.pkl")
 
 
-def _ohlcv_frame(rows: int = 220) -> pd.DataFrame:
+def _ohlcv_frame(rows: int = 220, intraday: bool = False) -> pd.DataFrame:
+    if intraday:
+        dates = pd.date_range("2025-01-02 09:30", periods=rows, freq="30min")
+        return _frame_for_dates(dates)
+
     current = date(2025, 1, 2)
     dates = []
     while len(dates) < rows:
@@ -108,6 +147,10 @@ def _ohlcv_frame(rows: int = 220) -> pd.DataFrame:
             dates.append(current)
         current += timedelta(days=1)
 
+    return _frame_for_dates(pd.DatetimeIndex(dates, name="Date"))
+
+
+def _frame_for_dates(dates: pd.DatetimeIndex) -> pd.DataFrame:
     data = []
     for index, _day in enumerate(dates):
         base = 100 + index * 0.2
@@ -120,7 +163,9 @@ def _ohlcv_frame(rows: int = 220) -> pd.DataFrame:
                 "Volume": 1_000_000 + index * 1_000,
             }
         )
-    return pd.DataFrame(data, index=pd.DatetimeIndex(dates, name="Date"))
+    if dates.name != "Date":
+        dates = pd.DatetimeIndex(dates, name="Date")
+    return pd.DataFrame(data, index=dates)
 
 
 def _fake_analyze(symbol: str, df: pd.DataFrame) -> dict[str, object]:

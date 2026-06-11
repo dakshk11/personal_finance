@@ -27,12 +27,15 @@ The product is designed to help users understand tradeoffs before taking action:
 | Ideas Workspace | Review self-managed investor playbooks for sector ETF TLH, asset location, retirement buckets, TIPS ladders, charitable giving, Roth windows, and rebalancing bands. |
 | Research Center | Explain the methodology, tax-loss harvesting assumptions, wash-sale safeguards, model design, and source references in plain language. |
 | 13F Research | Search investment managers, watch filings, download holdings, and simulate copycat performance from SEC 13F data. |
-| FinanceOS Studio | Save an encrypted OpenAI API key, generate saved AI Planner reports, run Personal CFO projects, review Wheel Strategy, RSI Playbook, Breakout Scanner, Smart Candles, Composite Signal Algorithm, OptiTrade Lab, Portfolio Sync, Equity Research, Earnings Agent digests, and the live IBKR Wheel Scanner. |
+| FinanceOS Studio | Save an encrypted OpenAI API key, choose OpenAI or Ollama for eligible workflows, generate AI Planner reports, run Personal CFO projects, review Recommendation Agent ideas, Simulated Portfolio plans, Wheel Strategy, RSI Playbook, Breakout Scanner, Smart Candles, Sector Rotation, Composite Signal Algorithm, OptiTrade Lab, Portfolio Sync, Equity Research, Earnings Agent digests, and the live IBKR Wheel Scanner. |
+| Recommendation Agent | Combine Wheel Scanner, Breakout Scanner, Smart Candles, and OptiTrade Lab candidates, optionally enrich finalists with TipRanks, and rank educational research ideas with user context and OpenAI or Ollama. |
+| Simulated Portfolio | Scale a `$150K` income plus growth ETF recipe to a user-entered cash amount, fetch Yahoo Finance quotes, save hypothetical trades, and refresh saved price snapshots. |
 | Wheel Strategy | Run a daily educational wheel-strategy scan for S&P 500 top holdings, Nasdaq top holdings, core ETFs, and leveraged ETFs using live yfinance option chains when available. |
 | Wheel Scanner / IBKR Labs | Standalone IBKR backend on port 8002 powers the live Nasdaq-100 + leveraged ETF Wheel Scanner, Composite Signal Algorithm, OptiTrade Lab, and IBKR-backed Breakout Scanner. Wheel data falls back to CBOE delayed prices when TWS is offline; historical-bar tools require a clean TWS connection. |
 | RSI Playbook | Combine Wheel Strategy and Portfolio Sync symbols, compute RSI/EMA history, and map every stock to the requested RSI action zone with chart details. |
-| Breakout Scanner | Scan IBKR Nasdaq-100 live/cache data by default, or Yahoo Finance S&P 500 data, for ceiling breakouts, momentum breakouts, and near-breakout watch setups with relative-volume, trend, candlestick charts, and backtest context. |
+| Breakout Scanner | Scan IBKR Nasdaq-100 live/cache data by default, or Yahoo Finance S&P 500 data, for ceiling breakouts, momentum breakouts, near-breakout watch setups, intraday refreshes, relative-volume context, candlestick charts, and backtest context. |
 | Smart Candles | Educational FinanceOS Smart Candle Signals tab that classifies latest daily candles as blue, pink, red, or neutral using transparent OHLCV, RSI, trend, volume, and reversal/distribution rules. |
+| Sector Rotation | Compare sector-rotation scenarios, live allocation ideas, accepted allocations, rebalance status, and historical selection context. |
 | Composite Signal Algorithm | IBKR historical-bar lab for SOXL, TQQQ, and UPRO using underlying ETF proxies and monthly trend/momentum/RSI components. |
 | OptiTrade Lab | IBKR historical-bar leveraged ETF signal cockpit with trend regime, anti-chop filtering, ATR/swing stops, take-profit modeling, charts, and settings-aware backtests. |
 | Equity Research | Enter a ticker or company, pull free market and five-year financial data, run peer/DCF context, and generate an educational Wall Street-style research stance. |
@@ -78,9 +81,33 @@ The ideas workspace organizes self-managed investor concepts into reviewable tab
 
 ### FinanceOS Studio
 
-FinanceOS Studio brings together encrypted OpenAI-key workflows, AI Planner reports, Personal CFO, Portfolio Sync, Wheel Strategy, RSI Playbook, Breakout Scanner, Smart Candles, Composite Signal Algorithm, OptiTrade Lab, Equity Research, Earnings Agent, and the IBKR Wheel Scanner in one research workspace.
+FinanceOS Studio brings together encrypted OpenAI-key workflows, optional Ollama model selection, AI Planner reports, Personal CFO, Recommendation Agent, Simulated Portfolio, Portfolio Sync, Wheel Strategy, RSI Playbook, Breakout Scanner, Smart Candles, Sector Rotation, Composite Signal Algorithm, OptiTrade Lab, Equity Research, Earnings Agent, and the IBKR Wheel Scanner in one research workspace.
 
 <img src="docs/screenshots/studio.jpg" alt="FinanceOS Studio workspace" width="900">
+
+### Recommendation Agent
+
+Recommendation Agent pulls candidates from Wheel Scanner, Breakout Scanner, Smart Candles, and OptiTrade Lab, then ranks finalists as educational research ideas using OpenAI or Ollama. Users can add decision context, current-portfolio context, and an in-memory TipRanks key for optional enrichment.
+
+<img src="docs/screenshots/recommendation-agent-tab.jpg" alt="Recommendation Agent tab" width="900">
+
+<img src="docs/screenshots/recommendation-agent-full-context.jpg" alt="Recommendation Agent with context" width="900">
+
+### Simulated Portfolio
+
+The Simulated Portfolio tab scales a `$150K` income plus growth ETF recipe to the user's cash amount, refreshes Yahoo Finance quote snapshots, saves hypothetical trades, and can refresh saved portfolio prices later.
+
+<img src="docs/screenshots/simulated-portfolio-tab.jpg" alt="Simulated Portfolio tab" width="900">
+
+<img src="docs/screenshots/simulated-portfolio-mobile.jpg" alt="Simulated Portfolio mobile view" width="390">
+
+### IBKR Breakout Intraday
+
+The IBKR-backed Breakout Scanner can inspect intraday context and refresh hourly bars when the IBKR backend and TWS/Gateway historical-bar access are available.
+
+<img src="docs/screenshots/breakout-intraday-option.jpg" alt="IBKR Breakout Scanner intraday option" width="900">
+
+<img src="docs/screenshots/breakout-intraday-hourly-refresh.jpg" alt="IBKR Breakout Scanner hourly refresh" width="900">
 
 For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_GUIDE.md).
 
@@ -105,10 +132,14 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
 - SEC 13F workflow for manager search, watch creation, filing refresh, holdings download, and copycat performance simulation.
 - FinanceOS Studio workspace with:
   - Encrypted user-owned OpenAI API key storage
+  - OpenAI model choices for API-backed workflows and Ollama local-model selection for supported AI Planner and Recommendation Agent flows
   - Saved retirement-planning report history
   - Personal CFO project workspace with a seven-phase interview, editable markdown files, optional financial CSV upload, dashboard summaries, generated one-pager, and one refinement round
+  - Recommendation Agent tab that merges Wheel Scanner, Breakout Scanner, Smart Candles, and OptiTrade Lab candidates, applies optional current-portfolio and decision context, optionally enriches finalists with TipRanks, and returns ranked educational research ideas
+  - Simulated Portfolio tab that scales a `$150K` income plus growth ETF recipe to user-entered cash, fetches Yahoo Finance quote snapshots, saves hypothetical trades, and refreshes saved prices later
   - Smart Candles tab with explainable blue/pink/red/neutral daily-candle classifications, candlestick charts, rule components, custom watchlists, and forward-return backtest distributions
-  - Breakout Scanner tab that defaults to IBKR Nasdaq-100 live/cache data, supports Yahoo Finance S&P 500 scans, and renders candlestick charts with SMA/resistance/volume context
+  - Breakout Scanner tab that defaults to IBKR Nasdaq-100 live/cache data, supports Yahoo Finance S&P 500 scans, and renders candlestick/intraday charts with SMA/resistance/volume context
+  - Sector Rotation tab for scenario comparison, live allocation review, accepted allocation tracking, rebalance status, and selection history
   - Composite Signal Algorithm and OptiTrade Lab tabs powered by the IBKR backend historical-bar endpoints
   - Equity Research tab that combines yfinance profile/valuation data, five-year financial statement rows, same-sector peer context, a simple DCF model, recent earnings source metadata, and a saved educational research stance
   - Earnings Agent tab that resolves tickers/company names, fetches recent SEC 8-K Exhibit 99.1/99.2 earnings materials, company investor-relations slides/prepared remarks, and Motley Fool transcript coverage when available, and saves educational digest history
@@ -128,8 +159,8 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
 - Breakout Scanner workspace with:
   - IBKR Nasdaq-100 + leveraged ETF scan path by default, with Yahoo Finance S&P 500 scan/backtest path available
   - Breakout-specific OHLCV cache for high/low/volume data without changing the close-only price cache
-  - Ceiling breakout, momentum breakout, and near-breakout watch detectors using resistance touches, relative volume, SMA trend context, and liquidity filters
-  - Ranked setup table, click-through candlestick/SMA/resistance/volume chart, and Backtest Lab distributions for 5/10/20/60 trading-day forward returns
+  - Ceiling breakout, momentum breakout, and near-breakout watch detectors using resistance touches, relative volume, SMA trend context, intraday bar context, and liquidity filters
+  - Ranked setup table, click-through candlestick/SMA/resistance/volume chart, hourly refresh controls where available, and Backtest Lab distributions for 5/10/20/60 trading-day forward returns
 - Smart Candles workspace with:
   - S&P 500 plus custom-watchlist scan using the shared OHLCV cache
   - Transparent candle-color approximation rules for blue accumulation/reversal, pink caution/distribution, red breakdown, and neutral candles
@@ -137,6 +168,7 @@ For a longer feature walkthrough, see [docs/USABILITY_GUIDE.md](docs/USABILITY_G
 - IBKR research labs with:
   - Composite Signal Algorithm endpoint for monthly SOXL/TQQQ/UPRO trend research using SOXX/QQQ/SPY proxies
   - OptiTrade Lab endpoints for leveraged ETF signal packages and settings-aware backtests
+  - IBKR Breakout Scanner status and scan endpoints for Nasdaq-100 plus leveraged ETF intraday/historical-bar research
   - Local process guardrails to avoid duplicate TWS client-id connections
 - Wheel Strategy workspace with:
   - Daily scan universe built from S&P 500 top holdings, Nasdaq top holdings, plus `QQQ`, `SPY`, `SMH`, `XLE`, `XLI`, `UPRO`, `TQQQ`, and `SOXL`
@@ -280,6 +312,18 @@ To stop the stack and remove local database/cache volumes:
 docker compose down -v
 ```
 
+## Using FinanceOS Studio
+
+Open http://localhost:3000/ai-advisor after the stack starts. Local development uses the shared demo workspace unless strict authentication is re-enabled.
+
+Common workflows:
+
+- **AI Planner:** Save an OpenAI key in the left sidebar, or choose Ollama and enter a local model/base URL. Complete every required field in one planner module, then generate a saved retirement-planning report.
+- **Recommendation Agent:** Optionally enter a TipRanks key and decision context in the sidebar, open the Recommendation Agent tab, add current-portfolio context if useful, choose OpenAI or Ollama, and run the agent. Results are ranked educational research ideas built from scanner evidence; they are not trading instructions.
+- **Simulated Portfolio:** Open Simulated Portfolio, enter the cash amount to model, refresh Yahoo Finance prices, review the scaled ETF recipe, and use Accept Portfolio to save hypothetical trades. Saved portfolios can refresh live price snapshots later.
+- **Portfolio Sync:** Configure SnapTrade provider credentials through environment variables or the local browser setup form, connect read-only brokerage accounts, sync holdings, and review exposure, cost-basis, P/L, sector, and concentration summaries.
+- **IBKR Labs:** Start the IBKR backend on port 8002. Wheel Scanner can use CBOE delayed fallback data without TWS; Composite Signal Algorithm, OptiTrade Lab, and IBKR historical/intraday Breakout Scanner paths require TWS/Gateway API access.
+
 ## Environment Variables
 
 Copy `.env.example` to `.env` before running Docker Compose.
@@ -293,7 +337,7 @@ Copy `.env.example` to `.env` before running Docker Compose.
 | `REDIS_URL` | Redis URL for Celery jobs |
 | `SESSION_COOKIE_SECURE` | Set `true` for HTTPS-only cookies in deployed environments |
 | `FRONTEND_ORIGIN` | Allowed frontend origin for CORS |
-| `NEXT_PUBLIC_API_URL` | API URL used by the Next.js frontend |
+| `NEXT_PUBLIC_API_URL` | Browser-visible main API URL used by the Next.js frontend |
 | `SEED_TEST_ACCOUNT` | Seeds the local test user when `true` |
 | `TEST_ACCOUNT_EMAIL` | Local seeded test email |
 | `TEST_ACCOUNT_PASSWORD` | Optional local seeded test password; leave blank to use an in-memory random startup value |
@@ -304,14 +348,18 @@ Copy `.env.example` to `.env` before running Docker Compose.
 | `TWS_HOST` | Hostname or IP for TWS/Gateway socket API used by the IBKR research backend |
 | `TWS_PORT` | TWS/Gateway socket port, usually `7496` for live or `7497` for paper |
 | `TWS_CLIENT_ID` | TWS API client id; keep one running IBKR backend per id to avoid duplicate-client disconnects |
-| `NEXT_PUBLIC_IBKR_API_URL` | Browser-visible URL for the IBKR research backend, default `http://localhost:8002` |
+| `IBKR_RESEARCH_API_URL` | Backend-visible URL used by main API services such as Recommendation Agent to call the IBKR research backend, default `http://localhost:8002` |
+| `TIPRANKS_API_URL` | Optional backend TipRanks-compatible provider URL for Recommendation Agent enrichment; the sidebar TipRanks key is separate and used only in memory for a single browser-triggered run |
+| `NEXT_PUBLIC_IBKR_API_URL` | Browser-visible URL for Studio tabs that call the IBKR research backend directly, default `http://localhost:8002` |
 
 ## API Highlights
 
 The backend exposes the main planning workflows through FastAPI routes:
 
-- `/portfolios`, `/backtests`, `/indices`, `/filings`, `/market-data`, and `/portfolio-analysis` support the direct-indexing, portfolio analyzer, 13F, and market-data workflows.
+- `/portfolios`, `/backtests`, `/indices`, `/filings`, `/market-data`, `/market-data/yahoo-quotes`, and `/portfolio-analysis` support the direct-indexing, portfolio analyzer, 13F, quote, and market-data workflows.
 - `/ai-advisor/openai-key`, `/ai-advisor/reports`, and `/ai-advisor/personal-cfo/...` support encrypted OpenAI key storage, saved retirement reports, and Personal CFO projects.
+- `/ai-advisor/recommendation-agent/run` supports scanner-backed Recommendation Agent ranking with optional user context, current portfolio context, Ollama, and TipRanks enrichment.
+- `/simulated-portfolios` and `/simulated-portfolios/{id}/prices` support saved hypothetical Simulated Portfolio trades and quote refresh snapshots.
 - `/earnings-agent/run`, `/earnings-agent/runs`, and `/earnings-agent/runs/{id}` support source-backed earnings digests and saved per-user history.
 - `/stock-analysis/run`, `/stock-analysis/runs`, and `/stock-analysis/runs/{id}` support Equity Research runs, saved per-user history, financial snapshots, peer/DCF context, and educational research stances.
 - `/option-strategy/universe`, `/option-strategy/config`, `/option-strategy/scan?force=false`, `/option-strategy/signals`, `/option-strategy/positions`, and `/option-strategy/alerts` support the Wheel Strategy workspace.
@@ -363,6 +411,37 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 
 If the backend is run without `DATABASE_URL`, it falls back to a local SQLite database. Background workflows still require Redis and Celery.
 For backend-only local runs, place API-specific overrides such as `AI_ADVISOR_KEY_ENCRYPTION_SECRET` in `backend/.env` or export them in the shell; the repo-root `.env` is intended for Docker Compose.
+
+Optional manual three-terminal startup:
+
+**Terminal 1 — Main backend (port 8000):**
+
+```bash
+cd ~/github/personal_finance/backend
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+**Terminal 2 — IBKR research backend (port 8002):**
+
+```bash
+cd ~/github/personal_finance/backend/ibkr
+python3.12 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+cp .env.example .env
+./start.sh
+```
+
+Always use `./start.sh` for the IBKR backend. It cleans existing and orphaned port-8002 workers before starting, which helps avoid TWS client-id conflicts.
+
+**Terminal 3 — Frontend (port 3000):**
+
+```bash
+cd ~/github/personal_finance/frontend
+npm install
+NEXT_PUBLIC_API_URL=http://localhost:8000 NEXT_PUBLIC_IBKR_API_URL=http://localhost:8002 npm run dev -- --hostname 0.0.0.0 --port 3000
+```
 
 ### IBKR Research Backend (port 8002)
 
@@ -470,6 +549,10 @@ The Breakout Scanner defaults to the IBKR Nasdaq-100 live/cache path and can swi
 
 Smart Candles uses the same educational OHLCV cache family to classify latest daily candles with transparent FinanceOS rules. This implementation is an explainable approximation and not a trading signal.
 
+Recommendation Agent collects candidate ideas from Wheel Scanner, Breakout Scanner, Smart Candles, and OptiTrade Lab, then asks the selected model to rank finalists using only supplied scanner evidence, optional current-portfolio text, and optional user decision context. TipRanks enrichment is optional; a browser-entered TipRanks key is used only in memory for that run, while `TIPRANKS_API_URL` can configure a backend enrichment provider. Outputs are educational research ideas, not personalized advice, order instructions, or allocation guidance.
+
+Simulated Portfolio scales a fixed income plus growth ETF recipe to the user-entered cash amount, requests Yahoo Finance quote snapshots through `/market-data/yahoo-quotes`, and stores hypothetical saved trades plus refreshed price snapshots. It does not connect to brokerage accounts or place trades.
+
 Earnings Agent uses SEC company metadata, SEC submissions JSON, EDGAR filing archives, known company investor-relations pages, bounded Motley Fool transcript searches, and manual-review YouTube/Quartr discovery status when transcript text is unavailable. It stores source metadata, short excerpts, prompt/response metadata, and the parsed digest, but does not store full third-party transcript text.
 
 Equity Research uses SEC company metadata for ticker resolution, yfinance profile/valuation data, yfinance annual financial statements, same-sector index peers, a simple DCF estimate, and recent SEC/company IR earnings source metadata. It stores financial snapshots, source metadata, prompts, responses, and parsed digest sections, while using research stance language instead of buy/sell/hold ratings.
@@ -484,13 +567,15 @@ Backtest and trade outputs are hypothetical. They depend on cached data, simplif
 - Local development defaults are intentionally simple and should be changed before any hosted deployment.
 - Browser-entered SnapTrade consumer keys and SnapTrade `userSecret` values are encrypted before database storage; Portfolio Sync is read-only and does not expose order placement, rebalancing, money movement, or direct broker credential handling inside FinanceOS.
 - User-owned OpenAI API keys are encrypted before database storage and reused by FinanceOS Studio features, including Equity Research and Earnings Agent.
+- Browser-entered TipRanks keys are used in memory for Recommendation Agent enrichment and should not be committed or pasted into source files.
+- Simulated Portfolio records are hypothetical planning artifacts and do not authorize or submit brokerage orders.
 - Do not commit `.env`, database files, cache volumes, or private account data.
 
 ## Legal and Advice Disclaimer
 
 FinanceOS is educational planning software only. It is not a registered investment adviser, broker-dealer, law firm, CPA firm, tax preparer, fiduciary, custodian, or trading system.
 
-Nothing in the app, README, backtests, tax-loss-harvesting output, transition plans, retirement analyzer, FinanceOS Studio reports, Personal CFO output, Wheel Strategy scans, RSI Playbook outputs, Breakout Scanner outputs, Smart Candles outputs, Composite Signal Algorithm outputs, OptiTrade Lab outputs, Equity Research analyses, Earnings Agent digests, Portfolio Sync snapshots, exports, or data displays is tax, legal, accounting, investment, fiduciary, brokerage, or trading advice. Consult qualified professionals before making financial decisions.
+Nothing in the app, README, backtests, tax-loss-harvesting output, transition plans, retirement analyzer, FinanceOS Studio reports, Personal CFO output, Recommendation Agent rankings, Simulated Portfolio plans, Wheel Strategy scans, RSI Playbook outputs, Breakout Scanner outputs, Smart Candles outputs, Sector Rotation outputs, Composite Signal Algorithm outputs, OptiTrade Lab outputs, Equity Research analyses, Earnings Agent digests, Portfolio Sync snapshots, exports, or data displays is tax, legal, accounting, investment, fiduciary, brokerage, or trading advice. Consult qualified professionals before making financial decisions.
 
 ## Contributing
 
@@ -509,44 +594,3 @@ If you find FinanceOS useful, consider giving it a star on GitHub — it helps o
 ## License
 
 MIT. See [LICENSE](LICENSE).
-
-## Exact Start Commands
-
-Start all three services in separate terminals.
-
-**Terminal 1 — Main backend (port 8000):**
-
-```bash
-cd ~/github/personal_finance/backend
-.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-**Terminal 2 — IBKR research backend (port 8002):**
-
-```bash
-cd ~/github/personal_finance/backend/ibkr
-./start.sh
-```
-
-> **First-time only:** `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt && cp .env.example .env`
->
-> Always use `./start.sh` — **never** `uvicorn ... --reload`. The `--reload` flag can create orphaned worker processes that hold open IBKR market-data subscriptions or TWS client ids and trigger TWS errors such as "client id is already in use" or "Max number of tickers has been reached". The start script kills existing and orphaned port-8002 workers before starting, ensuring a single clean connection to TWS.
-
-**Terminal 3 — Frontend (port 3000):**
-
-```bash
-cd ~/github/personal_finance/frontend
-NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev -- --hostname 0.0.0.0 --port 3000
-```
-
-**Service URLs:**
-
-| Service | URL | Notes |
-|---|---|---|
-| Frontend | http://localhost:3000 | FinanceOS Studio UI |
-| Main API | http://localhost:8000/health | Portfolios, AI Advisor, etc. |
-| IBKR research API | http://localhost:8002/api/status | Wheel, Breakout, Composite, OptiTrade backend |
-| API docs | http://localhost:8000/docs | Main backend OpenAPI |
-| IBKR docs | http://localhost:8002/docs | IBKR backend OpenAPI |
-
-The AI Advisor tabs at http://localhost:3000/ai-advisor connect to the IBKR backend at port 8002 for Wheel Scanner, IBKR Breakout Scanner, Composite Signal Algorithm, and OptiTrade Lab. Wheel Scanner can load CBOE delayed fallback data without TWS; historical-bar labs require TWS/Gateway.

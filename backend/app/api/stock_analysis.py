@@ -33,14 +33,16 @@ def run_analysis(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> StockAnalysisRunOut:
-    if not valid_ai_advisor_model(payload.model):
+    if payload.model_mode is None and payload.model == "auto":
+        payload = payload.model_copy(update={"model_mode": "foundation"})
+    if payload.model_mode is None and not valid_ai_advisor_model(payload.model):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported model. Use a gpt-* model or ollama:<model_name>.")
     try:
         company = resolve_stock_company(payload.query)
     except StockAnalysisLookupError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
-    cached_run = _recent_cached_run(db, user, company.ticker, payload.model)
+    cached_run = None if payload.model_mode else _recent_cached_run(db, user, company.ticker, payload.model)
     if cached_run:
         return _run_out(
             cached_run,
@@ -49,13 +51,13 @@ def run_analysis(
         )
 
     api_key: str | None = None
-    if not is_ollama_model(payload.model) and not is_goose_model(payload.model):
+    if payload.model_mode == "foundation" or (payload.model_mode is None and not is_ollama_model(payload.model) and not is_goose_model(payload.model)):
         key_row = db.scalar(select(AIAdvisorOpenAIKey).where(AIAdvisorOpenAIKey.user_id == user.id))
         if not key_row:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save an OpenAI API key before generating an equity research analysis.")
         api_key = decrypt_api_key(key_row.encrypted_api_key, get_settings().ai_advisor_key_encryption_secret)
     try:
-        run = run_stock_analysis(db, user.id, payload.query, payload.model, api_key, ollama_base_url=payload.ollama_base_url)
+        run = run_stock_analysis(db, user.id, payload.query, payload.model, api_key, ollama_base_url=payload.ollama_base_url, model_mode=payload.model_mode)
     except AIAdvisorConfigurationError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
     except AIAdvisorProviderError as exc:
@@ -124,6 +126,9 @@ def _run_out(run: StockAnalysisRun, *, reused_from_cache: bool = False, cache_me
     digest = _json_load(run.digest_json, {})
     digest = digest if isinstance(digest, dict) else {}
     digest["research_stance"] = normalize_research_stance(digest.get("research_stance"))
+    usage = _json_load(run.usage_json, {})
+    usage = usage if isinstance(usage, dict) else {}
+    model_routing = usage.get("model_routing")
     return StockAnalysisRunOut(
         id=run.id,
         query=run.query,
@@ -132,6 +137,7 @@ def _run_out(run: StockAnalysisRun, *, reused_from_cache: bool = False, cache_me
         sector=run.sector,
         industry=run.industry,
         model=run.model,
+        model_routing=model_routing if isinstance(model_routing, dict) else {},
         reused_from_cache=reused_from_cache,
         cache_message=cache_message,
         created_at=run.created_at,
@@ -157,7 +163,7 @@ def _run_out(run: StockAnalysisRun, *, reused_from_cache: bool = False, cache_me
         ),
         digest=StockAnalysisDigestOut(**digest),
         warnings=_json_load(run.warnings_json, []),
-        usage=_json_load(run.usage_json, {}),
+        usage=usage,
     )
 
 

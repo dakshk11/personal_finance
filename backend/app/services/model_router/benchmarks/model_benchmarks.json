@@ -1,0 +1,743 @@
+{
+  "metadata": {
+    "description": "Model benchmark scores from public sources: LMSYS Chatbot Arena, HuggingFace Open LLM Leaderboard, official evals",
+    "sources": [
+      "LMSYS Chatbot Arena (ELO ratings)",
+      "HuggingFace Open LLM Leaderboard",
+      "Official model cards",
+      "ArtificialAnalysis.ai",
+      "Scale AI HELM"
+    ],
+    "last_updated": "2025-06"
+  },
+  "frontier_models": {
+    "claude-opus-4-8": {
+      "provider": "anthropic",
+      "api_name": "claude-opus-4-8",
+      "display_name": "Claude Opus 4.8",
+      "tier": "ultra",
+      "context_window": 200000,
+      "benchmarks": {
+        "mmlu": 90.4,
+        "humaneval": 92.0,
+        "math": 88.5,
+        "gpqa": 74.9,
+        "arc_challenge": 96.4,
+        "hellaswag": 95.4,
+        "lmsys_elo": 1360,
+        "swe_bench": 72.5,
+        "reasoning_index": 95
+      },
+      "strengths": ["deep_reasoning", "complex_analysis", "code", "math", "long_context", "research", "multi_step"],
+      "weaknesses": ["cost", "latency"],
+      "cost_per_1m_input": 15.0,
+      "cost_per_1m_output": 75.0,
+      "avg_latency_ms": 4000,
+      "thinking_modes": ["standard", "extended"]
+    },
+    "claude-sonnet-4-6": {
+      "provider": "anthropic",
+      "api_name": "claude-sonnet-4-6",
+      "display_name": "Claude Sonnet 4.6",
+      "tier": "balanced",
+      "context_window": 200000,
+      "benchmarks": {
+        "mmlu": 88.7,
+        "humaneval": 89.0,
+        "math": 82.4,
+        "gpqa": 68.5,
+        "arc_challenge": 95.2,
+        "hellaswag": 94.8,
+        "lmsys_elo": 1310,
+        "swe_bench": 62.3,
+        "reasoning_index": 87
+      },
+      "strengths": ["code", "analysis", "writing", "reasoning", "balanced_cost"],
+      "weaknesses": ["complex_math_proofs"],
+      "cost_per_1m_input": 3.0,
+      "cost_per_1m_output": 15.0,
+      "avg_latency_ms": 1800,
+      "thinking_modes": ["standard", "extended"]
+    },
+    "claude-haiku-4-5-20251001": {
+      "provider": "anthropic",
+      "api_name": "claude-haiku-4-5-20251001",
+      "display_name": "Claude Haiku 4.5",
+      "tier": "fast",
+      "context_window": 200000,
+      "benchmarks": {
+        "mmlu": 82.4,
+        "humaneval": 78.0,
+        "math": 68.2,
+        "gpqa": 55.0,
+        "arc_challenge": 91.0,
+        "hellaswag": 91.5,
+        "lmsys_elo": 1250,
+        "swe_bench": 40.5,
+        "reasoning_index": 70
+      },
+      "strengths": ["fast_response", "simple_tasks", "summarization", "low_cost", "high_volume"],
+      "weaknesses": ["complex_reasoning", "hard_math"],
+      "cost_per_1m_input": 0.8,
+      "cost_per_1m_output": 4.0,
+      "avg_latency_ms": 600,
+      "thinking_modes": ["standard"]
+    },
+    "gpt-4.1": {
+      "provider": "openai",
+      "api_name": "gpt-4.1",
+      "display_name": "GPT-4.1",
+      "tier": "balanced",
+      "context_window": 1000000,
+      "benchmarks": {
+        "mmlu": 90.2,
+        "humaneval": 92.0,
+        "math": 82.7,
+        "gpqa": 69.3,
+        "arc_challenge": 96.3,
+        "hellaswag": 95.8,
+        "lmsys_elo": 1320,
+        "swe_bench": 54.6,
+        "reasoning_index": 88
+      },
+      "strengths": ["code", "instruction_following", "long_context", "tool_use", "analysis"],
+      "weaknesses": ["creative_writing_nuance"],
+      "cost_per_1m_input": 2.0,
+      "cost_per_1m_output": 8.0,
+      "avg_latency_ms": 1500,
+      "thinking_modes": ["standard"]
+    },
+    "gpt-4.1-mini": {
+      "provider": "openai",
+      "api_name": "gpt-4.1-mini",
+      "display_name": "GPT-4.1 Mini",
+      "tier": "fast",
+      "context_window": 1000000,
+      "benchmarks": {
+        "mmlu": 85.1,
+        "humaneval": 83.0,
+        "math": 73.5,
+        "gpqa": 58.2,
+        "arc_challenge": 93.2,
+        "hellaswag": 93.0,
+        "lmsys_elo": 1270,
+        "swe_bench": 38.0,
+        "reasoning_index": 74
+      },
+      "strengths": ["fast_response", "cost_efficient", "code_snippets", "simple_reasoning"],
+      "weaknesses": ["complex_reasoning", "deep_analysis"],
+      "cost_per_1m_input": 0.4,
+      "cost_per_1m_output": 1.6,
+      "avg_latency_ms": 700,
+      "thinking_modes": ["standard"]
+    },
+    "gpt-4.1-nano": {
+      "provider": "openai",
+      "api_name": "gpt-4.1-nano",
+      "display_name": "GPT-4.1 Nano",
+      "tier": "economy",
+      "context_window": 1000000,
+      "benchmarks": {
+        "mmlu": 80.1,
+        "humaneval": 72.0,
+        "math": 62.0,
+        "gpqa": 48.0,
+        "arc_challenge": 89.0,
+        "hellaswag": 89.5,
+        "lmsys_elo": 1220,
+        "swe_bench": 28.0,
+        "reasoning_index": 62
+      },
+      "strengths": ["ultra_fast", "ultra_cheap", "simple_lookups", "classification", "extraction"],
+      "weaknesses": ["reasoning", "coding", "math", "complex_tasks"],
+      "cost_per_1m_input": 0.1,
+      "cost_per_1m_output": 0.4,
+      "avg_latency_ms": 300,
+      "thinking_modes": ["standard"]
+    },
+    "o4-mini": {
+      "provider": "openai",
+      "api_name": "o4-mini",
+      "display_name": "o4-mini (OpenAI)",
+      "tier": "reasoning",
+      "context_window": 200000,
+      "benchmarks": {
+        "mmlu": 89.5,
+        "humaneval": 92.1,
+        "math": 95.4,
+        "gpqa": 79.5,
+        "arc_challenge": 97.0,
+        "hellaswag": 96.0,
+        "lmsys_elo": 1340,
+        "swe_bench": 68.1,
+        "reasoning_index": 96
+      },
+      "strengths": ["math", "hard_reasoning", "science", "competition_problems", "code_hard"],
+      "weaknesses": ["latency", "cost", "conversational"],
+      "cost_per_1m_input": 3.0,
+      "cost_per_1m_output": 12.0,
+      "avg_latency_ms": 8000,
+      "thinking_modes": ["standard", "high", "medium", "low"]
+    },
+    "o3": {
+      "provider": "openai",
+      "api_name": "o3",
+      "display_name": "o3 (OpenAI)",
+      "tier": "ultra_reasoning",
+      "context_window": 200000,
+      "benchmarks": {
+        "mmlu": 91.5,
+        "humaneval": 96.7,
+        "math": 97.9,
+        "gpqa": 87.7,
+        "arc_challenge": 98.5,
+        "hellaswag": 97.5,
+        "lmsys_elo": 1380,
+        "swe_bench": 71.7,
+        "reasoning_index": 99
+      },
+      "strengths": ["hardest_math", "scientific_reasoning", "competition_code", "research_grade_analysis"],
+      "weaknesses": ["very_high_cost", "very_high_latency", "overkill_for_simple_tasks"],
+      "cost_per_1m_input": 10.0,
+      "cost_per_1m_output": 40.0,
+      "avg_latency_ms": 20000,
+      "thinking_modes": ["standard", "high", "medium", "low"]
+    }
+  },
+  "ollama_models": {
+    "llama3.3:70b": {
+      "display_name": "Llama 3.3 70B",
+      "family": "llama",
+      "param_size": "70b",
+      "benchmarks": {
+        "mmlu": 86.0,
+        "humaneval": 72.0,
+        "math": 77.0,
+        "gpqa": 50.5,
+        "arc_challenge": 93.0,
+        "hellaswag": 93.7,
+        "lmsys_elo": 1275,
+        "swe_bench": 33.0,
+        "reasoning_index": 79
+      },
+      "strengths": ["general_tasks", "reasoning", "writing", "analysis"],
+      "weaknesses": ["specialized_code", "very_hard_math"],
+      "min_vram_gb": 40,
+      "quantization": "q4"
+    },
+    "llama3.1:70b": {
+      "display_name": "Llama 3.1 70B",
+      "family": "llama",
+      "param_size": "70b",
+      "benchmarks": {
+        "mmlu": 83.6,
+        "humaneval": 66.0,
+        "math": 70.3,
+        "gpqa": 46.7,
+        "arc_challenge": 92.5,
+        "hellaswag": 92.6,
+        "lmsys_elo": 1255,
+        "swe_bench": 29.0,
+        "reasoning_index": 75
+      },
+      "strengths": ["general_tasks", "multilingual", "long_context"],
+      "weaknesses": ["specialized_code"],
+      "min_vram_gb": 40,
+      "quantization": "q4"
+    },
+    "llama3.1:8b": {
+      "display_name": "Llama 3.1 8B",
+      "family": "llama",
+      "param_size": "8b",
+      "benchmarks": {
+        "mmlu": 73.0,
+        "humaneval": 62.0,
+        "math": 51.9,
+        "gpqa": 32.8,
+        "arc_challenge": 82.0,
+        "hellaswag": 82.1,
+        "lmsys_elo": 1180,
+        "swe_bench": 13.0,
+        "reasoning_index": 58
+      },
+      "strengths": ["fast_local", "low_vram", "simple_tasks", "chat"],
+      "weaknesses": ["complex_reasoning", "hard_code", "math"],
+      "min_vram_gb": 6,
+      "quantization": "q4"
+    },
+    "llama3.2:3b": {
+      "display_name": "Llama 3.2 3B",
+      "family": "llama",
+      "param_size": "3b",
+      "benchmarks": {
+        "mmlu": 63.4,
+        "humaneval": 48.0,
+        "math": 38.0,
+        "gpqa": 25.0,
+        "arc_challenge": 75.0,
+        "hellaswag": 75.5,
+        "lmsys_elo": 1130,
+        "swe_bench": 7.0,
+        "reasoning_index": 44
+      },
+      "strengths": ["ultra_fast_local", "minimal_vram", "simple_chat", "extraction"],
+      "weaknesses": ["reasoning", "coding", "math", "long_form"],
+      "min_vram_gb": 2,
+      "quantization": "q4"
+    },
+    "llama3.2:1b": {
+      "display_name": "Llama 3.2 1B",
+      "family": "llama",
+      "param_size": "1b",
+      "benchmarks": {
+        "mmlu": 49.3,
+        "humaneval": 32.0,
+        "math": 22.0,
+        "gpqa": 18.0,
+        "arc_challenge": 61.0,
+        "hellaswag": 65.0,
+        "lmsys_elo": 1070,
+        "swe_bench": 4.0,
+        "reasoning_index": 30
+      },
+      "strengths": ["minimal_hardware", "edge_deployment", "simple_classification"],
+      "weaknesses": ["most_tasks"],
+      "min_vram_gb": 1,
+      "quantization": "q4"
+    },
+    "qwen2.5:72b": {
+      "display_name": "Qwen 2.5 72B",
+      "family": "qwen",
+      "param_size": "72b",
+      "benchmarks": {
+        "mmlu": 86.6,
+        "humaneval": 85.0,
+        "math": 83.1,
+        "gpqa": 49.0,
+        "arc_challenge": 94.0,
+        "hellaswag": 93.0,
+        "lmsys_elo": 1290,
+        "swe_bench": 31.5,
+        "reasoning_index": 82
+      },
+      "strengths": ["code", "math", "multilingual", "chinese", "analysis"],
+      "weaknesses": ["very_hard_reasoning"],
+      "min_vram_gb": 40,
+      "quantization": "q4"
+    },
+    "qwen2.5:32b": {
+      "display_name": "Qwen 2.5 32B",
+      "family": "qwen",
+      "param_size": "32b",
+      "benchmarks": {
+        "mmlu": 83.0,
+        "humaneval": 79.0,
+        "math": 79.5,
+        "gpqa": 43.0,
+        "arc_challenge": 92.0,
+        "hellaswag": 91.0,
+        "lmsys_elo": 1260,
+        "swe_bench": 26.0,
+        "reasoning_index": 76
+      },
+      "strengths": ["code", "math", "multilingual", "moderate_hardware"],
+      "weaknesses": ["complex_reasoning"],
+      "min_vram_gb": 20,
+      "quantization": "q4"
+    },
+    "qwen2.5:14b": {
+      "display_name": "Qwen 2.5 14B",
+      "family": "qwen",
+      "param_size": "14b",
+      "benchmarks": {
+        "mmlu": 79.7,
+        "humaneval": 73.0,
+        "math": 72.5,
+        "gpqa": 38.0,
+        "arc_challenge": 89.0,
+        "hellaswag": 88.5,
+        "lmsys_elo": 1228,
+        "swe_bench": 18.5,
+        "reasoning_index": 68
+      },
+      "strengths": ["code", "math", "chinese", "balanced"],
+      "weaknesses": ["complex_reasoning", "nuanced_writing"],
+      "min_vram_gb": 10,
+      "quantization": "q4"
+    },
+    "qwen2.5:7b": {
+      "display_name": "Qwen 2.5 7B",
+      "family": "qwen",
+      "param_size": "7b",
+      "benchmarks": {
+        "mmlu": 74.2,
+        "humaneval": 66.0,
+        "math": 63.2,
+        "gpqa": 31.0,
+        "arc_challenge": 83.0,
+        "hellaswag": 83.5,
+        "lmsys_elo": 1192,
+        "swe_bench": 13.0,
+        "reasoning_index": 60
+      },
+      "strengths": ["code", "math", "efficient", "chinese"],
+      "weaknesses": ["hard_reasoning"],
+      "min_vram_gb": 5,
+      "quantization": "q4"
+    },
+    "qwen2.5-coder:32b": {
+      "display_name": "Qwen 2.5 Coder 32B",
+      "family": "qwen_coder",
+      "param_size": "32b",
+      "benchmarks": {
+        "mmlu": 78.0,
+        "humaneval": 92.7,
+        "math": 76.3,
+        "gpqa": 41.0,
+        "arc_challenge": 90.0,
+        "hellaswag": 88.0,
+        "lmsys_elo": 1275,
+        "swe_bench": 48.5,
+        "reasoning_index": 78
+      },
+      "strengths": ["code_specialized", "debugging", "code_completion", "refactoring", "code_review"],
+      "weaknesses": ["general_knowledge", "creative_writing"],
+      "min_vram_gb": 20,
+      "quantization": "q4"
+    },
+    "qwen2.5-coder:7b": {
+      "display_name": "Qwen 2.5 Coder 7B",
+      "family": "qwen_coder",
+      "param_size": "7b",
+      "benchmarks": {
+        "mmlu": 72.0,
+        "humaneval": 84.5,
+        "math": 65.0,
+        "gpqa": 32.0,
+        "arc_challenge": 82.0,
+        "hellaswag": 81.0,
+        "lmsys_elo": 1218,
+        "swe_bench": 32.0,
+        "reasoning_index": 65
+      },
+      "strengths": ["code_fast", "code_completion", "small_code_tasks"],
+      "weaknesses": ["complex_code_architecture", "reasoning"],
+      "min_vram_gb": 5,
+      "quantization": "q4"
+    },
+    "deepseek-r1:70b": {
+      "display_name": "DeepSeek-R1 70B",
+      "family": "deepseek",
+      "param_size": "70b",
+      "benchmarks": {
+        "mmlu": 86.2,
+        "humaneval": 85.0,
+        "math": 92.5,
+        "gpqa": 65.2,
+        "arc_challenge": 93.5,
+        "hellaswag": 93.0,
+        "lmsys_elo": 1305,
+        "swe_bench": 43.0,
+        "reasoning_index": 91
+      },
+      "strengths": ["math", "hard_reasoning", "science", "step_by_step", "chain_of_thought"],
+      "weaknesses": ["conversational", "creative_writing", "latency"],
+      "min_vram_gb": 40,
+      "quantization": "q4"
+    },
+    "deepseek-r1:32b": {
+      "display_name": "DeepSeek-R1 32B",
+      "family": "deepseek",
+      "param_size": "32b",
+      "benchmarks": {
+        "mmlu": 82.7,
+        "humaneval": 80.0,
+        "math": 88.0,
+        "gpqa": 59.0,
+        "arc_challenge": 91.0,
+        "hellaswag": 90.5,
+        "lmsys_elo": 1278,
+        "swe_bench": 36.0,
+        "reasoning_index": 86
+      },
+      "strengths": ["math", "reasoning", "science"],
+      "weaknesses": ["conversational", "latency"],
+      "min_vram_gb": 20,
+      "quantization": "q4"
+    },
+    "deepseek-r1:14b": {
+      "display_name": "DeepSeek-R1 14B",
+      "family": "deepseek",
+      "param_size": "14b",
+      "benchmarks": {
+        "mmlu": 79.5,
+        "humaneval": 73.0,
+        "math": 82.0,
+        "gpqa": 52.0,
+        "arc_challenge": 88.5,
+        "hellaswag": 88.0,
+        "lmsys_elo": 1250,
+        "swe_bench": 26.0,
+        "reasoning_index": 80
+      },
+      "strengths": ["math", "reasoning", "moderate_hardware"],
+      "weaknesses": ["conversational", "latency"],
+      "min_vram_gb": 10,
+      "quantization": "q4"
+    },
+    "deepseek-r1:7b": {
+      "display_name": "DeepSeek-R1 7B",
+      "family": "deepseek",
+      "param_size": "7b",
+      "benchmarks": {
+        "mmlu": 73.0,
+        "humaneval": 65.0,
+        "math": 71.0,
+        "gpqa": 42.0,
+        "arc_challenge": 83.0,
+        "hellaswag": 82.5,
+        "lmsys_elo": 1210,
+        "swe_bench": 17.0,
+        "reasoning_index": 71
+      },
+      "strengths": ["math_local", "reasoning_local", "efficient"],
+      "weaknesses": ["hard_reasoning", "conversational"],
+      "min_vram_gb": 5,
+      "quantization": "q4"
+    },
+    "mistral:7b": {
+      "display_name": "Mistral 7B",
+      "family": "mistral",
+      "param_size": "7b",
+      "benchmarks": {
+        "mmlu": 64.2,
+        "humaneval": 60.0,
+        "math": 46.0,
+        "gpqa": 28.0,
+        "arc_challenge": 80.0,
+        "hellaswag": 81.3,
+        "lmsys_elo": 1168,
+        "swe_bench": 11.0,
+        "reasoning_index": 54
+      },
+      "strengths": ["fast", "efficient", "general_chat"],
+      "weaknesses": ["math", "reasoning", "hard_code"],
+      "min_vram_gb": 5,
+      "quantization": "q4"
+    },
+    "mixtral:8x7b": {
+      "display_name": "Mixtral 8x7B",
+      "family": "mistral",
+      "param_size": "47b",
+      "benchmarks": {
+        "mmlu": 70.6,
+        "humaneval": 65.0,
+        "math": 56.0,
+        "gpqa": 33.0,
+        "arc_challenge": 86.0,
+        "hellaswag": 86.7,
+        "lmsys_elo": 1196,
+        "swe_bench": 17.0,
+        "reasoning_index": 64
+      },
+      "strengths": ["multilingual", "general_tasks", "efficient_moe"],
+      "weaknesses": ["hard_reasoning", "complex_code"],
+      "min_vram_gb": 26,
+      "quantization": "q4"
+    },
+    "phi4:14b": {
+      "display_name": "Phi-4 14B",
+      "family": "phi",
+      "param_size": "14b",
+      "benchmarks": {
+        "mmlu": 84.8,
+        "humaneval": 82.0,
+        "math": 84.2,
+        "gpqa": 56.0,
+        "arc_challenge": 91.0,
+        "hellaswag": 90.0,
+        "lmsys_elo": 1265,
+        "swe_bench": 30.5,
+        "reasoning_index": 80
+      },
+      "strengths": ["math", "reasoning", "science", "efficient_for_size"],
+      "weaknesses": ["creative_tasks", "multilingual"],
+      "min_vram_gb": 9,
+      "quantization": "q4"
+    },
+    "phi3.5:3.8b": {
+      "display_name": "Phi-3.5 3.8B",
+      "family": "phi",
+      "param_size": "3.8b",
+      "benchmarks": {
+        "mmlu": 69.0,
+        "humaneval": 62.0,
+        "math": 60.8,
+        "gpqa": 30.0,
+        "arc_challenge": 84.0,
+        "hellaswag": 84.5,
+        "lmsys_elo": 1170,
+        "swe_bench": 14.0,
+        "reasoning_index": 57
+      },
+      "strengths": ["small_but_capable", "math_for_size", "edge_devices"],
+      "weaknesses": ["complex_tasks", "long_context"],
+      "min_vram_gb": 3,
+      "quantization": "q4"
+    },
+    "gemma2:27b": {
+      "display_name": "Gemma 2 27B",
+      "family": "gemma",
+      "param_size": "27b",
+      "benchmarks": {
+        "mmlu": 75.2,
+        "humaneval": 68.0,
+        "math": 65.0,
+        "gpqa": 38.2,
+        "arc_challenge": 89.0,
+        "hellaswag": 90.0,
+        "lmsys_elo": 1225,
+        "swe_bench": 24.0,
+        "reasoning_index": 69
+      },
+      "strengths": ["reasoning", "general_tasks", "efficient"],
+      "weaknesses": ["specialized_code", "hard_math"],
+      "min_vram_gb": 16,
+      "quantization": "q4"
+    },
+    "gemma2:9b": {
+      "display_name": "Gemma 2 9B",
+      "family": "gemma",
+      "param_size": "9b",
+      "benchmarks": {
+        "mmlu": 70.9,
+        "humaneval": 60.0,
+        "math": 57.0,
+        "gpqa": 32.0,
+        "arc_challenge": 85.0,
+        "hellaswag": 87.0,
+        "lmsys_elo": 1200,
+        "swe_bench": 16.0,
+        "reasoning_index": 61
+      },
+      "strengths": ["balanced", "fast_for_size", "efficient"],
+      "weaknesses": ["hard_reasoning", "code"],
+      "min_vram_gb": 6,
+      "quantization": "q4"
+    },
+    "codellama:34b": {
+      "display_name": "CodeLlama 34B",
+      "family": "codellama",
+      "param_size": "34b",
+      "benchmarks": {
+        "mmlu": 65.0,
+        "humaneval": 76.0,
+        "math": 52.0,
+        "gpqa": 30.0,
+        "arc_challenge": 79.0,
+        "hellaswag": 79.0,
+        "lmsys_elo": 1180,
+        "swe_bench": 28.0,
+        "reasoning_index": 58
+      },
+      "strengths": ["code_completion", "code_chat", "fill_in_middle"],
+      "weaknesses": ["general_reasoning", "math"],
+      "min_vram_gb": 20,
+      "quantization": "q4"
+    },
+    "codellama:13b": {
+      "display_name": "CodeLlama 13B",
+      "family": "codellama",
+      "param_size": "13b",
+      "benchmarks": {
+        "mmlu": 58.0,
+        "humaneval": 70.0,
+        "math": 44.0,
+        "gpqa": 25.0,
+        "arc_challenge": 74.0,
+        "hellaswag": 74.0,
+        "lmsys_elo": 1155,
+        "swe_bench": 20.0,
+        "reasoning_index": 50
+      },
+      "strengths": ["code_completion", "code_chat", "fill_in_middle", "moderate_hardware"],
+      "weaknesses": ["general_reasoning", "math"],
+      "min_vram_gb": 8,
+      "quantization": "q4"
+    },
+    "starcoder2:15b": {
+      "display_name": "StarCoder2 15B",
+      "family": "starcoder",
+      "param_size": "15b",
+      "benchmarks": {
+        "mmlu": 60.0,
+        "humaneval": 73.0,
+        "math": 50.0,
+        "gpqa": 27.0,
+        "arc_challenge": 74.0,
+        "hellaswag": 73.0,
+        "lmsys_elo": 1170,
+        "swe_bench": 29.5,
+        "reasoning_index": 52
+      },
+      "strengths": ["code_completion", "fill_in_middle", "multi_language_code"],
+      "weaknesses": ["general_reasoning", "chat", "math"],
+      "min_vram_gb": 10,
+      "quantization": "q4"
+    },
+    "nomic-embed-text": {
+      "display_name": "Nomic Embed Text",
+      "family": "embed",
+      "param_size": "137m",
+      "benchmarks": {
+        "mteb_avg": 62.4
+      },
+      "strengths": ["embeddings", "semantic_search", "rag"],
+      "weaknesses": ["not_a_chat_model"],
+      "min_vram_gb": 1,
+      "quantization": "f32"
+    }
+  },
+  "task_benchmark_mapping": {
+    "coding": {
+      "primary": "humaneval",
+      "secondary": ["swe_bench", "mmlu"],
+      "description": "Writing, debugging, reviewing code"
+    },
+    "math": {
+      "primary": "math",
+      "secondary": ["gpqa", "mmlu"],
+      "description": "Mathematical reasoning and computation"
+    },
+    "reasoning": {
+      "primary": "reasoning_index",
+      "secondary": ["gpqa", "arc_challenge"],
+      "description": "Logical deduction, planning, multi-step reasoning"
+    },
+    "general_knowledge": {
+      "primary": "mmlu",
+      "secondary": ["arc_challenge", "hellaswag"],
+      "description": "Factual questions, trivia, broad knowledge"
+    },
+    "writing": {
+      "primary": "lmsys_elo",
+      "secondary": ["mmlu"],
+      "description": "Creative and professional writing"
+    },
+    "analysis": {
+      "primary": "lmsys_elo",
+      "secondary": ["mmlu", "reasoning_index"],
+      "description": "Analyzing documents, summarization, extraction"
+    },
+    "conversation": {
+      "primary": "lmsys_elo",
+      "secondary": ["hellaswag"],
+      "description": "General conversational tasks"
+    },
+    "science": {
+      "primary": "gpqa",
+      "secondary": ["mmlu", "math"],
+      "description": "Physics, chemistry, biology, graduate-level science"
+    }
+  }
+}

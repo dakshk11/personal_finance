@@ -499,6 +499,7 @@ export type StockAnalysisRun = StockAnalysisRunSummary & {
   sector?: string | null;
   industry?: string | null;
   model: StockAnalysisModel | string;
+  model_routing: Record<string, unknown>;
   reused_from_cache: boolean;
   cache_message?: string | null;
   sources: StockAnalysisSource[];
@@ -588,6 +589,7 @@ export type BreakoutScan = {
   scanned_at: string;
   market_date: string;
   data_source: string;
+  chart_interval?: "1d" | "1h" | "30m" | string;
   universe_count: number;
   scanned_symbols: number;
   config: BreakoutScannerConfig | null;
@@ -620,6 +622,7 @@ export type BreakoutBacktest = {
 };
 
 export type SmartCandleColor = "blue" | "pink" | "red" | "neutral";
+export type SmartCandleTradeAction = "buy" | "sell";
 
 export type SmartCandleScanRequest = {
   custom_symbols: string[];
@@ -710,9 +713,10 @@ export type SmartCandleBacktestHorizon = {
 
 export type SmartCandleBacktest = {
   candle_color: SmartCandleColor;
+  trade_action: SmartCandleTradeAction;
   evaluated_years: number;
   signal_count: number;
-  config: SmartCandleScanRequest;
+  config: SmartCandleScanRequest & { min_signal_score?: number };
   horizons: SmartCandleBacktestHorizon[];
   warnings: string[];
 };
@@ -966,6 +970,34 @@ export type AIAdvisorOpenAIKeyStatus = {
   updated_at?: string | null;
 };
 
+export type AIAdvisorTipRanksKeyStatus = {
+  has_key: boolean;
+  key_fingerprint?: string | null;
+  validated_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type AIAdvisorLunarCrushKeyStatus = {
+  has_key: boolean;
+  key_fingerprint?: string | null;
+  validated_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type AIAdvisorNvidiaKeyStatus = {
+  has_key: boolean;
+  key_fingerprint?: string | null;
+  validated_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type AIAdvisorAlpacaKeyStatus = {
+  has_key: boolean;
+  key_fingerprint?: string | null;
+  validated_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type AIAdvisorReportSummary = {
   id: number;
   module_id: string;
@@ -980,6 +1012,144 @@ export type AIAdvisorReport = AIAdvisorReportSummary & {
   response_text: string;
   usage: Record<string, unknown>;
   error?: Record<string, unknown> | null;
+};
+
+export type AIAdvisorResearchPromptProvider = "openai_web" | "goose";
+
+export type AIAdvisorResearchPromptSource = {
+  title?: string | null;
+  url: string;
+  source_type?: string | null;
+};
+
+export type AIAdvisorResearchPromptRunSummary = {
+  id: number;
+  template_id: string;
+  template_title: string;
+  provider: string;
+  model: string;
+  created_at: string;
+};
+
+export type AIAdvisorResearchPromptRun = AIAdvisorResearchPromptRunSummary & {
+  inputs: Record<string, unknown>;
+  prompt_text: string;
+  response_text: string;
+  sources: AIAdvisorResearchPromptSource[];
+  usage: Record<string, unknown>;
+  warnings: string[];
+};
+
+export type AIAdvisorResearchPromptRunRequest = {
+  template_id: string;
+  provider: AIAdvisorResearchPromptProvider;
+  model: string;
+  inputs: Record<string, unknown>;
+  ollama_base_url?: string | null;
+};
+
+export type RecommendationAgentIdea = {
+  rank: number;
+  symbol: string;
+  verdict: string;
+  rationale: string;
+  source_agents: string[];
+  strategy_tags: string[];
+  scanner_scores: Record<string, number>;
+  context: Record<string, unknown>;
+  evidence: string[];
+  tipranks?: Record<string, unknown> | null;
+  lunarcrush?: Record<string, unknown> | null;
+  warnings: string[];
+};
+
+export type RecommendationAgentRunRequest = {
+  model: string;
+  model_mode?: "ollama" | "foundation" | "nvidia" | null;
+  ollama_base_url?: string | null;
+  max_candidates?: number;
+  finalist_count?: number;
+  include_tipranks?: boolean;
+  tipranks_api_key?: string | null;
+  include_lunarcrush?: boolean;
+  lunarcrush_api_key?: string | null;
+  user_context?: string | null;
+  current_portfolio?: string | null;
+};
+
+export type RecommendationAgentRun = {
+  generated_at: string;
+  model: string;
+  model_routing: Record<string, unknown>;
+  ranked_ideas: RecommendationAgentIdea[];
+  scanner_summary: Record<string, Record<string, unknown>>;
+  tipranks_status: Record<string, unknown>;
+  lunarcrush_status: Record<string, unknown>;
+  warnings: string[];
+  raw_llm_markdown: string;
+  usage: Record<string, unknown>;
+};
+
+export type RecommendationOptionRow = {
+  symbol: string;
+  occ_symbol: string;
+  option_type: "P" | "C";
+  expiry: string;
+  dte: number;
+  strike: number;
+  bid: number | null;
+  ask: number | null;
+  mid: number | null;
+  last?: number | null;
+  iv?: number | null;
+  delta?: number | null;
+  open_interest?: number | null;
+  volume?: number | null;
+  raw_yield?: number | null;
+  annualized_yield?: number | null;
+  pct_away?: number | null;
+  pop?: number | null;
+  stock_price?: number | null;
+  capital_required?: number | null;
+  upside_pct?: number | null;
+};
+
+export type RecommendationQuoteRow = {
+  symbol: string;
+  price?: number | null;
+  bid?: number | null;
+  ask?: number | null;
+  bid_size?: number | null;
+  ask_size?: number | null;
+  last?: number | null;
+  close?: number | null;
+  change?: number | null;
+  change_pct?: number | null;
+  volume?: number | null;
+  timestamp?: string | null;
+  update_age_ms?: number | null;
+  iv_rank?: number | null;
+  hv30?: number | null;
+  rsi?: number | null;
+  bb_pct?: number | null;
+  csp_30d?: number | null;
+  cc_30d?: number | null;
+  signals: string[];
+  source?: string | null;
+  stage?: string | null;
+  best_put?: RecommendationOptionRow | null;
+  best_call?: RecommendationOptionRow | null;
+};
+
+export type AlpacaRecommendationQuoteSession = {
+  session_id: string;
+  symbols: string[];
+  rejected_symbols: string[];
+  max_symbols: number;
+  max_option_quotes: number;
+  option_contracts: string[];
+  quotes: RecommendationQuoteRow[];
+  option_chains: Record<string, { puts: RecommendationOptionRow[]; calls: RecommendationOptionRow[] }>;
 };
 
 export type AIAdvisorRetirementRunRequest = {
@@ -1229,6 +1399,8 @@ export type IbkrBreakoutStatus = {
   ibkr_connected: boolean;
   cached_symbols: number;
   fresh_today: number;
+  intraday_cached_symbols?: number;
+  intraday_fresh_today?: number;
   ndx100_count: number;
 };
 

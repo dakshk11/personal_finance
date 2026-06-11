@@ -25,7 +25,12 @@ class User(Base):
     advisor_profile: Mapped["Advisor | None"] = relationship(back_populates="user")
     retirement_analyzer_state: Mapped["RetirementAnalyzerState | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     ai_advisor_openai_key: Mapped["AIAdvisorOpenAIKey | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
+    ai_advisor_tipranks_key: Mapped["AIAdvisorTipRanksKey | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
+    ai_advisor_alpaca_key: Mapped["AIAdvisorAlpacaKey | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
+    ai_advisor_lunarcrush_key: Mapped["AIAdvisorLunarCrushKey | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
+    ai_advisor_nvidia_key: Mapped["AIAdvisorNvidiaKey | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     ai_advisor_reports: Mapped[list["AIAdvisorReport"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    ai_advisor_research_prompt_runs: Mapped[list["AIAdvisorResearchPromptRun"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     earnings_agent_runs: Mapped[list["EarningsAgentRun"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     stock_analysis_runs: Mapped[list["StockAnalysisRun"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     breakout_scanner_scan_runs: Mapped[list["BreakoutScannerScanRun"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -38,6 +43,7 @@ class User(Base):
     portfolio_sync_credential: Mapped["PortfolioSyncCredential | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     portfolio_sync_snapshot: Mapped["PortfolioSyncSnapshot | None"] = relationship(back_populates="user", cascade="all, delete-orphan")
     sector_rotation_accepted_allocations: Mapped[list["SectorRotationAcceptedAllocation"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    simulated_portfolios: Mapped[list["SimulatedPortfolio"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class RetirementAnalyzerState(Base):
@@ -65,6 +71,63 @@ class AIAdvisorOpenAIKey(Base):
     user: Mapped["User"] = relationship(back_populates="ai_advisor_openai_key")
 
 
+class AIAdvisorTipRanksKey(Base):
+    __tablename__ = "ai_advisor_tipranks_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    encrypted_api_key: Mapped[str] = mapped_column(Text)
+    key_fingerprint: Mapped[str] = mapped_column(String(80), index=True)
+    validated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="ai_advisor_tipranks_key")
+
+
+class AIAdvisorAlpacaKey(Base):
+    __tablename__ = "ai_advisor_alpaca_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    encrypted_api_key: Mapped[str] = mapped_column(Text)
+    encrypted_api_secret: Mapped[str] = mapped_column(Text)
+    key_fingerprint: Mapped[str] = mapped_column(String(80), index=True)
+    validated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="ai_advisor_alpaca_key")
+
+
+class AIAdvisorLunarCrushKey(Base):
+    __tablename__ = "ai_advisor_lunarcrush_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    encrypted_api_key: Mapped[str] = mapped_column(Text)
+    key_fingerprint: Mapped[str] = mapped_column(String(80), index=True)
+    validated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="ai_advisor_lunarcrush_key")
+
+
+class AIAdvisorNvidiaKey(Base):
+    __tablename__ = "ai_advisor_nvidia_keys"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    encrypted_api_key: Mapped[str] = mapped_column(Text)
+    key_fingerprint: Mapped[str] = mapped_column(String(80), index=True)
+    validated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="ai_advisor_nvidia_key")
+
+
 class AIAdvisorReport(Base):
     __tablename__ = "ai_advisor_reports"
 
@@ -81,6 +144,30 @@ class AIAdvisorReport(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     user: Mapped["User"] = relationship(back_populates="ai_advisor_reports")
+
+
+class AIAdvisorResearchPromptRun(Base):
+    __tablename__ = "ai_advisor_research_prompt_runs"
+    __table_args__ = (
+        Index("ix_ai_advisor_research_prompt_user_created", "user_id", "created_at"),
+        Index("ix_ai_advisor_research_prompt_user_template", "user_id", "template_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    template_id: Mapped[str] = mapped_column(String(80), index=True)
+    template_title: Mapped[str] = mapped_column(String(180))
+    provider: Mapped[str] = mapped_column(String(40), index=True)
+    model: Mapped[str] = mapped_column(String(160))
+    input_json: Mapped[str] = mapped_column(Text, default="{}")
+    prompt_text: Mapped[str] = mapped_column(Text)
+    response_text: Mapped[str] = mapped_column(Text)
+    sources_json: Mapped[str] = mapped_column(Text, default="[]")
+    usage_json: Mapped[str] = mapped_column(Text, default="{}")
+    warnings_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="ai_advisor_research_prompt_runs")
 
 
 class EarningsAgentRun(Base):
@@ -869,6 +956,58 @@ class SectorRotationAcceptedTrade(Base):
     gain_loss: Mapped[float] = mapped_column(Float, default=0)
 
     allocation: Mapped["SectorRotationAcceptedAllocation"] = relationship(back_populates="trades")
+
+
+class SimulatedPortfolio(Base):
+    __tablename__ = "simulated_portfolios"
+    __table_args__ = (Index("ix_simulated_portfolio_user_created", "user_id", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(160), default="$420K Master Portfolio Plan")
+    cash_amount: Mapped[float] = mapped_column(Float, default=0)
+    target_value: Mapped[float] = mapped_column(Float, default=420_000)
+    cost_basis: Mapped[float] = mapped_column(Float, default=0)
+    market_value: Mapped[float] = mapped_column(Float, default=0)
+    gain_loss: Mapped[float] = mapped_column(Float, default=0)
+    return_pct: Mapped[float] = mapped_column(Float, default=0)
+    annual_income: Mapped[float] = mapped_column(Float, default=0)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user: Mapped["User"] = relationship(back_populates="simulated_portfolios")
+    trades: Mapped[list["SimulatedPortfolioTrade"]] = relationship(
+        back_populates="portfolio",
+        cascade="all, delete-orphan",
+        order_by="SimulatedPortfolioTrade.id",
+    )
+
+
+class SimulatedPortfolioTrade(Base):
+    __tablename__ = "simulated_portfolio_trades"
+    __table_args__ = (Index("ix_simulated_portfolio_trade_portfolio_symbol", "portfolio_id", "ticker"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("simulated_portfolios.id", ondelete="CASCADE"), index=True)
+    ticker: Mapped[str] = mapped_column(String(16), index=True)
+    name: Mapped[str] = mapped_column(String(160), default="")
+    sleeve: Mapped[str] = mapped_column(String(32), default="")
+    category: Mapped[str] = mapped_column(String(80), default="")
+    yield_pct: Mapped[float] = mapped_column(Float, default=0)
+    target_weight: Mapped[float] = mapped_column(Float, default=0)
+    target_amount: Mapped[float] = mapped_column(Float, default=0)
+    shares: Mapped[float] = mapped_column(Float, default=0)
+    cost_basis_per_share: Mapped[float] = mapped_column(Float, default=0)
+    current_price: Mapped[float] = mapped_column(Float, default=0)
+    purchase_date: Mapped[date] = mapped_column(Date, index=True)
+    market_value: Mapped[float] = mapped_column(Float, default=0)
+    cost_basis: Mapped[float] = mapped_column(Float, default=0)
+    gain_loss: Mapped[float] = mapped_column(Float, default=0)
+    return_pct: Mapped[float] = mapped_column(Float, default=0)
+    annual_income: Mapped[float] = mapped_column(Float, default=0)
+
+    portfolio: Mapped["SimulatedPortfolio"] = relationship(back_populates="trades")
 
 
 class BacktestRun(Base):

@@ -18,24 +18,23 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from "recharts";
+  AIAdvisorAlpacaKeyStatus,
+  apiFetch
+} from "@/lib/api";
 
 const IBKR_API = process.env.NEXT_PUBLIC_IBKR_API_URL ?? "http://localhost:8002";
 const SETTINGS_KEY = "financeos_optitrade_lab_settings";
-const DEFAULT_SYMBOLS = ["TQQQ", "SOXL", "UPRO"];
+const DEFAULT_SYMBOLS = [
+  "TQQQ", "SOXL", "UPRO",
+  "NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "AVGO", "GOOG", "META", "TSLA", "MU",
+  "LLY", "BRK.B", "AMD", "JPM", "XOM", "JNJ", "V", "INTC", "WMT", "CSCO"
+];
 
 type OptiTradeView = "signals" | "backtest" | "risk" | "automation";
 type TpMode = "single" | "multi" | "always_in";
 type StopModel = "atr" | "swing";
 type StrategyFocus = "flip" | "dynamic" | "multi" | "chop";
+type DataSource = "ibkr" | "alpaca";
 
 type OptiTradeSettings = {
   accountSize: string;
@@ -69,7 +68,11 @@ type OptiTradeBacktestTrade = {
 
 type OptiTradeChartPoint = {
   date: string;
+  open?: number | null;
+  high?: number | null;
+  low?: number | null;
   close: number;
+  volume?: number | null;
   ema21: number | null;
   ema55: number | null;
   entry: number;
@@ -107,6 +110,11 @@ type OptiTradeResponse = {
   data_source: string;
   signals: OptiTradeSignal[];
   warnings: string[];
+  rate_limit?: {
+    limit_per_minute: number;
+    remaining: number;
+    pagination_note: string;
+  };
 };
 
 type OptiTradeBacktestResponse = {
@@ -115,11 +123,17 @@ type OptiTradeBacktestResponse = {
   symbol: string;
   underlying: string;
   backtest: OptiTradeBacktest;
+  rate_limit?: {
+    limit_per_minute: number;
+    remaining: number;
+    pagination_note: string;
+  };
 };
 
-export function OptiTradeLabTool() {
+export function OptiTradeLabTool({ alpacaKeyStatus }: { alpacaKeyStatus: AIAdvisorAlpacaKeyStatus | null }) {
   const [result, setResult] = useState<OptiTradeResponse | null>(null);
   const [selectedSymbol, setSelectedSymbol] = useState(DEFAULT_SYMBOLS[0]);
+  const [dataSource, setDataSource] = useState<DataSource>("alpaca");
   const [view, setView] = useState<OptiTradeView>("signals");
   const [strategyFocus, setStrategyFocus] = useState<StrategyFocus>("flip");
   const [settings, setSettings] = useState<OptiTradeSettings>(loadSettings);
@@ -138,10 +152,11 @@ export function OptiTradeLabTool() {
     sell: result?.signals.filter((row) => row.signal === "SELL").length ?? 0,
     hold: result?.signals.filter((row) => row.signal === "HOLD").length ?? 0,
   }), [result]);
+  const canRefresh = !loading && (dataSource === "ibkr" || Boolean(alpacaKeyStatus?.has_key));
 
   useEffect(() => {
     void loadSignals();
-  }, []);
+  }, [dataSource]);
 
   useEffect(() => {
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
@@ -153,19 +168,18 @@ export function OptiTradeLabTool() {
   }, [selectedSymbol, settings.atrMultiplier, settings.tpMode, settings.stopModel]);
 
   async function loadSignals() {
+    if (dataSource === "alpaca" && !alpacaKeyStatus?.has_key) {
+      setError("Save an Alpaca API key and secret in the left rail before using Alpaca OptiTrade Lab data.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`${IBKR_API}/api/optitrade-lab/signals?symbols=${DEFAULT_SYMBOLS.join(",")}`, { cache: "no-store" });
-      if (!response.ok) {
-        const detail = await response.json().catch(() => null);
-        throw new Error(detail?.detail ?? `OptiTrade Lab request failed (${response.status})`);
-      }
-      const data = await response.json() as OptiTradeResponse;
+      const data = await fetchOptiTradeSignals(dataSource);
       setResult(data);
       setSelectedSymbol((current) => data.signals.some((row) => row.symbol === current) ? current : data.signals[0]?.symbol ?? DEFAULT_SYMBOLS[0]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load OptiTrade Lab signals from IBKR.");
+      setError(err instanceof Error ? err.message : `Could not load OptiTrade Lab signals from ${dataSourceLabel(dataSource)}.`);
     } finally {
       setLoading(false);
     }
@@ -186,14 +200,9 @@ export function OptiTradeLabTool() {
         tp_mode: settings.tpMode,
         stop_model: settings.stopModel,
       });
-      const response = await fetch(`${IBKR_API}/api/optitrade-lab/backtest?${params.toString()}`, { cache: "no-store" });
-      if (!response.ok) {
-        const detail = await response.json().catch(() => null);
-        throw new Error(detail?.detail ?? `Backtest request failed (${response.status})`);
-      }
-      setSettingsBacktest(await response.json() as OptiTradeBacktestResponse);
+      setSettingsBacktest(await fetchOptiTradeBacktest(dataSource, params));
     } catch (err) {
-      setBacktestError(err instanceof Error ? err.message : "Could not run settings-aware backtest.");
+      setBacktestError(err instanceof Error ? err.message : `Could not run settings-aware ${dataSourceLabel(dataSource)} backtest.`);
     } finally {
       setBacktestLoading(false);
     }
@@ -215,10 +224,14 @@ export function OptiTradeLabTool() {
           </p>
         </div>
         <div className="opti-hero-status">
+          <div className="opti-source-toggle" role="radiogroup" aria-label="OptiTrade data source">
+            <button type="button" className={dataSource === "ibkr" ? "active" : ""} onClick={() => setDataSource("ibkr")}>IBKR live</button>
+            <button type="button" className={dataSource === "alpaca" ? "active" : ""} onClick={() => setDataSource("alpaca")}>Alpaca</button>
+          </div>
           <span><TrendingUp size={15} /> {counts.buy} buy</span>
           <span><TrendingDown size={15} /> {counts.sell} sell</span>
           <span><Gauge size={15} /> {counts.hold} hold</span>
-          <button className="primary-button" type="button" onClick={loadSignals} disabled={loading}>
+          <button className="primary-button" type="button" onClick={loadSignals} disabled={!canRefresh}>
             {loading ? <Loader2 size={16} className="spin-icon" /> : <RefreshCw size={16} />}
             Refresh
           </button>
@@ -236,6 +249,13 @@ export function OptiTradeLabTool() {
         <section className="dashboard-panel opti-warning">
           <AlertTriangle size={18} />
           <p>{error}</p>
+        </section>
+      )}
+
+      {dataSource === "alpaca" && !alpacaKeyStatus?.has_key && (
+        <section className="dashboard-panel opti-warning">
+          <AlertTriangle size={18} />
+          <p>Save an Alpaca API key and secret in the left rail before using Alpaca OptiTrade Lab data.</p>
         </section>
       )}
 
@@ -278,7 +298,7 @@ export function OptiTradeLabTool() {
           <div className="panel-header">
             <div>
               <h2>{selected ? `${selected.symbol} Backtest` : "Backtest Snapshot"}</h2>
-              <p className="fine-print">{settingsBacktest ? `${formatDateTime(settingsBacktest.generated_at)} | current settings` : result ? `${formatDateTime(result.generated_at)} | default scan settings` : "Run refresh to load IBKR history"}</p>
+              <p className="fine-print">{settingsBacktest ? `${formatDateTime(settingsBacktest.generated_at)} | current settings` : result ? `${formatDateTime(result.generated_at)} | default scan settings` : `Run refresh to load ${dataSourceLabel(dataSource)} history`}</p>
             </div>
             <button className="primary-button" type="button" onClick={runSettingsBacktest} disabled={!selected || backtestLoading}>
               {backtestLoading ? <Loader2 size={16} className="spin-icon" /> : <RefreshCw size={16} />}
@@ -335,9 +355,16 @@ export function OptiTradeLabTool() {
       <section className="dashboard-panel opti-note">
         <ShieldCheck size={18} />
         <p>
-          Educational research only. OptiTrade Lab is an original FinanceOS approximation of public indicator concepts and does not place trades or copy proprietary TradingView scripts.
+          Educational research only. OptiTrade Lab is an original FinanceOS approximation of public indicator concepts and does not place trades. Alpaca Market Data requests are held under 200 requests per minute per saved account key; each cursor/page fetch counts as one request.
         </p>
       </section>
+
+      {result?.rate_limit && (
+        <section className="dashboard-panel opti-note">
+          <Gauge size={18} />
+          <p>Alpaca rate budget: {result.rate_limit.remaining} / {result.rate_limit.limit_per_minute} requests remaining in the current minute. {result.rate_limit.pagination_note}</p>
+        </section>
+      )}
 
       {result?.warnings.length ? (
         <section className="dashboard-panel opti-warning">
@@ -347,6 +374,34 @@ export function OptiTradeLabTool() {
       ) : null}
     </div>
   );
+}
+
+async function fetchOptiTradeSignals(source: DataSource) {
+  if (source === "alpaca") {
+    return apiFetch<OptiTradeResponse>(`/alpaca/optitrade-lab/signals?symbols=${DEFAULT_SYMBOLS.join(",")}`);
+  }
+  const response = await fetch(`${IBKR_API}/api/optitrade-lab/signals?symbols=${DEFAULT_SYMBOLS.join(",")}`, { cache: "no-store" });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    throw new Error(detail?.detail ?? `OptiTrade Lab request failed (${response.status})`);
+  }
+  return response.json() as Promise<OptiTradeResponse>;
+}
+
+async function fetchOptiTradeBacktest(source: DataSource, params: URLSearchParams) {
+  if (source === "alpaca") {
+    return apiFetch<OptiTradeBacktestResponse>(`/alpaca/optitrade-lab/backtest?${params.toString()}`);
+  }
+  const response = await fetch(`${IBKR_API}/api/optitrade-lab/backtest?${params.toString()}`, { cache: "no-store" });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    throw new Error(detail?.detail ?? `Backtest request failed (${response.status})`);
+  }
+  return response.json() as Promise<OptiTradeBacktestResponse>;
+}
+
+function dataSourceLabel(source: DataSource) {
+  return source === "alpaca" ? "Alpaca" : "IBKR live";
 }
 
 function StrategyCard({ title, detail, icon, active, onClick }: { title: string; detail: string; icon: ReactNode; active: boolean; onClick: () => void }) {
@@ -372,21 +427,7 @@ function SignalWorkbench({ signal, settings, generatedAt, focus }: { signal: Opt
           </div>
           <span className={`opti-signal-pill ${signal.signal.toLowerCase()}`}>{signal.signal}</span>
         </div>
-        <ResponsiveContainer width="100%" height={330}>
-          <LineChart data={signal.chart.map((point) => ({ ...point, label: formatShortDate(point.date) }))} margin={{ top: 12, right: 18, bottom: 4, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-            <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={18} />
-            <YAxis tick={{ fontSize: 11 }} width={58} domain={["auto", "auto"]} />
-            <Tooltip formatter={(value: number, name: string) => [currency(value), labelForChart(name)]} />
-            <ReferenceLine y={signal.stop_loss} stroke="#e11d48" strokeDasharray="5 5" label={{ value: "SL", fill: "#e11d48", fontSize: 11 }} />
-            {signal.take_profits.map((value, index) => (
-              <ReferenceLine key={value} y={value} stroke="#16a34a" strokeDasharray="4 4" label={{ value: `TP${index + 1}`, fill: "#16a34a", fontSize: 11 }} />
-            ))}
-            <Line type="monotone" dataKey="ema55" name="ema55" stroke="#94a3b8" dot={false} strokeWidth={1.4} />
-            <Line type="monotone" dataKey="ema21" name="ema21" stroke="#2563eb" dot={false} strokeWidth={1.5} />
-            <Line type="monotone" dataKey="close" name="close" stroke="#0f766e" dot={false} strokeWidth={2.4} />
-          </LineChart>
-        </ResponsiveContainer>
+        <OptiTradeCandlestickChart signal={signal} />
       </div>
 
       <aside className={`dashboard-panel opti-level-panel ${focus === "dynamic" || focus === "multi" ? "focus" : ""}`}>
@@ -403,6 +444,136 @@ function SignalWorkbench({ signal, settings, generatedAt, focus }: { signal: Opt
         </div>
       </aside>
     </section>
+  );
+}
+
+type OptiTradeCandlePoint = OptiTradeChartPoint & {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+function OptiTradeCandlestickChart({ signal }: { signal: OptiTradeSignal }) {
+  const rows = normalizeOptiTradeCandles(signal.chart).slice(-96);
+  if (!rows.length) {
+    return <div className="opti-empty-chart">No chart bars available for this signal.</div>;
+  }
+
+  const width = 920;
+  const height = 390;
+  const left = 58;
+  const right = 66;
+  const top = 18;
+  const priceBottom = 262;
+  const volumeTop = 298;
+  const volumeBottom = 360;
+  const plotWidth = width - left - right;
+  const step = rows.length > 1 ? plotWidth / (rows.length - 1) : plotWidth;
+  const candleWidth = Math.max(3, Math.min(9, step * 0.58));
+  const levelValues = [signal.entry, signal.stop_loss, ...signal.take_profits];
+  const priceValues = rows.flatMap((row) => [row.high, row.low, row.ema21, row.ema55, ...levelValues].filter(isFiniteNumber));
+  const rawMin = Math.min(...priceValues);
+  const rawMax = Math.max(...priceValues);
+  const padding = Math.max((rawMax - rawMin) * 0.08, rawMax * 0.005);
+  const minPrice = rawMin - padding;
+  const maxPrice = rawMax + padding;
+  const maxVolume = Math.max(...rows.map((row) => row.volume), 1);
+  const latest = rows[rows.length - 1];
+  const first = rows[0];
+  const priceTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => maxPrice - (maxPrice - minPrice) * ratio);
+  const dateTickIndexes = [0, 0.25, 0.5, 0.75, 1].map((ratio) => Math.min(rows.length - 1, Math.round((rows.length - 1) * ratio)));
+
+  function x(index: number) {
+    return left + index * step;
+  }
+
+  function y(value: number) {
+    const ratio = (maxPrice - value) / Math.max(maxPrice - minPrice, 0.0001);
+    return top + ratio * (priceBottom - top);
+  }
+
+  function volumeY(value: number) {
+    return volumeBottom - (value / maxVolume) * (volumeBottom - volumeTop);
+  }
+
+  return (
+    <div className="opti-candle-chart-shell">
+      <div className="opti-candle-chart-topline">
+        <div>
+          <strong>{signal.symbol} candlestick signal map</strong>
+          <span>{formatShortDate(first.date)} to {formatShortDate(latest.date)} | Volume bars shown below price</span>
+        </div>
+        <b className={signal.signal.toLowerCase()}>{signal.signal}</b>
+      </div>
+      <div className="opti-chart-legend">
+        <span style={{ color: "#2dd4bf" }}>Up candle</span>
+        <span style={{ color: "#fb7185" }}>Down candle</span>
+        <span style={{ color: "#38bdf8" }}>EMA 21</span>
+        <span style={{ color: "#94a3b8" }}>EMA 55</span>
+        <span style={{ color: "#facc15" }}>Entry</span>
+        <span style={{ color: "#fb7185" }}>Stop</span>
+        <span style={{ color: "#22c55e" }}>Targets</span>
+      </div>
+      <svg className="opti-candle-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${signal.symbol} candlestick chart with volume and OptiTrade levels`}>
+        <rect x={left} y={top} width={plotWidth} height={priceBottom - top} rx="8" fill="rgba(9, 24, 21, 0.72)" stroke="#17352d" />
+        <rect x={left} y={volumeTop} width={plotWidth} height={volumeBottom - volumeTop} rx="8" fill="rgba(9, 24, 21, 0.72)" stroke="#17352d" />
+
+        {priceTicks.map((tick) => (
+          <g key={tick}>
+            <line x1={left} x2={left + plotWidth} y1={y(tick)} y2={y(tick)} stroke="#17352d" strokeDasharray="3 4" />
+            <text x={width - 8} y={y(tick) + 4} textAnchor="end" className="opti-candle-axis-text">{compactCurrency(tick)}</text>
+          </g>
+        ))}
+
+        {dateTickIndexes.map((index) => (
+          <text key={`${rows[index].date}-${index}`} x={x(index)} y={height - 10} textAnchor={index === 0 ? "start" : index === rows.length - 1 ? "end" : "middle"} className="opti-candle-axis-text">
+            {formatShortDate(rows[index].date)}
+          </text>
+        ))}
+
+        <text x={left - 12} y={volumeTop + 14} textAnchor="end" className="opti-candle-axis-text">Vol</text>
+        <text x={width - 8} y={volumeTop + 14} textAnchor="end" className="opti-candle-axis-text">{compactNumber(maxVolume)}</text>
+
+        {rows.map((row, index) => {
+          const up = row.close >= row.open;
+          const fill = up ? "#2dd4bf" : "#fb7185";
+          const center = x(index);
+          const openY = y(row.open);
+          const closeY = y(row.close);
+          const bodyTop = Math.min(openY, closeY);
+          const bodyHeight = Math.max(2, Math.abs(openY - closeY));
+          const volumeTopY = volumeY(row.volume);
+          return (
+            <g key={`${row.date}-${index}`}>
+              <title>{`${row.date} O ${currency(row.open)} H ${currency(row.high)} L ${currency(row.low)} C ${currency(row.close)} Vol ${compactNumber(row.volume)}`}</title>
+              <rect x={center - candleWidth / 2} y={volumeTopY} width={Math.max(2, candleWidth)} height={Math.max(1, volumeBottom - volumeTopY)} fill={fill} opacity="0.34" rx="1.5" />
+              <line x1={center} x2={center} y1={y(row.high)} y2={y(row.low)} stroke={fill} strokeWidth="1.2" />
+              <rect x={center - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} fill={fill} stroke={fill} strokeWidth="0.8" rx="1.5" />
+            </g>
+          );
+        })}
+
+        <path d={optiLinePath(rows, "ema55", x, y)} fill="none" stroke="#94a3b8" strokeWidth="1.4" />
+        <path d={optiLinePath(rows, "ema21", x, y)} fill="none" stroke="#38bdf8" strokeWidth="1.5" />
+
+        <g>
+          <line x1={left} x2={left + plotWidth} y1={y(signal.entry)} y2={y(signal.entry)} stroke="#facc15" strokeDasharray="5 4" strokeWidth="1.4" />
+          <text x={width - 8} y={y(signal.entry) - 6} textAnchor="end" fill="#facc15" fontSize="11" fontWeight="760">Entry {currency(signal.entry)}</text>
+        </g>
+        <g>
+          <line x1={left} x2={left + plotWidth} y1={y(signal.stop_loss)} y2={y(signal.stop_loss)} stroke="#fb7185" strokeDasharray="5 4" strokeWidth="1.5" />
+          <text x={width - 8} y={y(signal.stop_loss) + 14} textAnchor="end" fill="#fb7185" fontSize="11" fontWeight="760">SL {currency(signal.stop_loss)}</text>
+        </g>
+        {signal.take_profits.map((value, index) => (
+          <g key={value}>
+            <line x1={left} x2={left + plotWidth} y1={y(value)} y2={y(value)} stroke="#22c55e" strokeDasharray="4 5" strokeWidth="1.2" opacity="0.82" />
+            <text x={left + 8} y={y(value) - 5} fill="#22c55e" fontSize="10" fontWeight="740">TP{index + 1}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
   );
 }
 
@@ -565,6 +736,39 @@ function numericInput(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+function normalizeOptiTradeCandles(points: OptiTradeChartPoint[]): OptiTradeCandlePoint[] {
+  return points.map((point) => {
+    const close = numberOr(point.close, 0);
+    const open = numberOr(point.open, close);
+    const high = Math.max(numberOr(point.high, Math.max(open, close)), open, close);
+    const low = Math.min(numberOr(point.low, Math.min(open, close)), open, close);
+    return { ...point, open, high, low, close, volume: Math.max(0, numberOr(point.volume, 0)) };
+  }).filter((point) => point.close > 0);
+}
+
+function optiLinePath(rows: OptiTradeCandlePoint[], key: "ema21" | "ema55", x: (index: number) => number, y: (value: number) => number) {
+  let output = "";
+  let drawing = false;
+  rows.forEach((row, index) => {
+    const value = row[key];
+    if (!isFiniteNumber(value)) {
+      drawing = false;
+      return;
+    }
+    output += `${drawing ? "L" : "M"}${x(index).toFixed(2)} ${y(value).toFixed(2)} `;
+    drawing = true;
+  });
+  return output.trim();
+}
+
+function numberOr(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 function currency(value: number) {
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}`;
 }
@@ -592,11 +796,17 @@ function formatDateTime(value: string) {
   return parsed.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-function labelForChart(name: string) {
-  if (name === "close") return "Close";
-  if (name === "ema21") return "EMA 21";
-  if (name === "ema55") return "EMA 55";
-  return name;
+function compactCurrency(value: number) {
+  if (Math.abs(value) >= 1000) return `$${Math.round(value / 1000)}k`;
+  return `$${Math.round(value)}`;
+}
+
+function compactNumber(value: number) {
+  if (!Number.isFinite(value)) return "N/A";
+  if (Math.abs(value) >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(value) >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return `${Math.round(value)}`;
 }
 
 function labelForTpMode(mode: TpMode) {

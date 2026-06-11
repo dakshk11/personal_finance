@@ -7,12 +7,13 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.ai_advisor import get_openai_key_status, get_report, run_retirement_plan, save_openai_key
+from app.api.ai_advisor import delete_alpaca_key, delete_lunarcrush_key, delete_nvidia_key, delete_tipranks_key, get_alpaca_key_status, get_lunarcrush_key_status, get_nvidia_key_status, get_openai_key_status, get_report, get_tipranks_key_status, run_retirement_plan, save_alpaca_key, save_lunarcrush_key, save_nvidia_key, save_openai_key, save_tipranks_key
 from app.db.session import Base
-from app.models.entities import AIAdvisorOpenAIKey, AIAdvisorReport, User
-from app.schemas.common import AIAdvisorOpenAIKeyIn, AIAdvisorRetirementRunRequest
+from app.models.entities import AIAdvisorAlpacaKey, AIAdvisorLunarCrushKey, AIAdvisorNvidiaKey, AIAdvisorOpenAIKey, AIAdvisorReport, AIAdvisorTipRanksKey, User
+from app.schemas.common import AIAdvisorAlpacaKeyIn, AIAdvisorLunarCrushKeyIn, AIAdvisorNvidiaKeyIn, AIAdvisorOpenAIKeyIn, AIAdvisorRetirementRunRequest, AIAdvisorTipRanksKeyIn
 from app.services.ai_advisor import (
     RETIREMENT_PROMPT_MODULE_BY_ID,
+    create_nvidia_response,
     decrypt_api_key,
     encrypt_api_key,
     required_field_ids,
@@ -22,6 +23,11 @@ from app.services.ai_advisor import (
 
 SECRET = "test-secret-for-ai-advisor-key-encryption"
 PLAINTEXT_KEY = "sess-test-valid-openai-key-value"
+TIPRANKS_KEY = "test-tipranks-key-value"
+LUNARCRUSH_KEY = "test-lunarcrush-key-value"
+NVIDIA_KEY = "test-nvidia-key-value"
+ALPACA_KEY = "alpaca-test-key"
+ALPACA_SECRET = "alpaca-test-secret"
 
 
 class AIAdvisorTests(unittest.TestCase):
@@ -71,6 +77,80 @@ class AIAdvisorTests(unittest.TestCase):
         self.assertNotIn(PLAINTEXT_KEY, ciphertext)
         self.assertEqual(decrypt_api_key(ciphertext, SECRET), PLAINTEXT_KEY)
 
+    def test_tipranks_key_save_status_and_delete(self) -> None:
+        db, user = self._seed_user()
+
+        with patch("app.api.ai_advisor.get_settings", return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET)):
+            saved = save_tipranks_key(AIAdvisorTipRanksKeyIn(api_key=TIPRANKS_KEY), user, db)
+
+        self.assertTrue(saved.has_key)
+        self.assertTrue(saved.key_fingerprint.startswith("sha256:"))
+        row = db.scalar(select(AIAdvisorTipRanksKey).where(AIAdvisorTipRanksKey.user_id == user.id))
+        self.assertIsNotNone(row)
+        self.assertNotIn(TIPRANKS_KEY, row.encrypted_api_key)
+        self.assertEqual(decrypt_api_key(row.encrypted_api_key, SECRET), TIPRANKS_KEY)
+        self.assertTrue(get_tipranks_key_status(user, db).has_key)
+
+        deleted = delete_tipranks_key(user, db)
+        self.assertFalse(deleted.has_key)
+        self.assertFalse(get_tipranks_key_status(user, db).has_key)
+
+    def test_alpaca_key_save_status_and_delete(self) -> None:
+        db, user = self._seed_user()
+
+        with patch("app.api.ai_advisor.get_settings", return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET)):
+            saved = save_alpaca_key(AIAdvisorAlpacaKeyIn(api_key=ALPACA_KEY, api_secret=ALPACA_SECRET), user, db)
+
+        self.assertTrue(saved.has_key)
+        self.assertTrue(saved.key_fingerprint.startswith("sha256:"))
+        row = db.scalar(select(AIAdvisorAlpacaKey).where(AIAdvisorAlpacaKey.user_id == user.id))
+        self.assertIsNotNone(row)
+        self.assertNotIn(ALPACA_KEY, row.encrypted_api_key)
+        self.assertNotIn(ALPACA_SECRET, row.encrypted_api_secret)
+        self.assertEqual(decrypt_api_key(row.encrypted_api_key, SECRET), ALPACA_KEY)
+        self.assertEqual(decrypt_api_key(row.encrypted_api_secret, SECRET), ALPACA_SECRET)
+        self.assertTrue(get_alpaca_key_status(user, db).has_key)
+
+        deleted = delete_alpaca_key(user, db)
+        self.assertFalse(deleted.has_key)
+        self.assertFalse(get_alpaca_key_status(user, db).has_key)
+
+    def test_lunarcrush_key_save_status_and_delete(self) -> None:
+        db, user = self._seed_user()
+
+        with patch("app.api.ai_advisor.get_settings", return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET)):
+            saved = save_lunarcrush_key(AIAdvisorLunarCrushKeyIn(api_key=LUNARCRUSH_KEY), user, db)
+
+        self.assertTrue(saved.has_key)
+        self.assertTrue(saved.key_fingerprint.startswith("sha256:"))
+        row = db.scalar(select(AIAdvisorLunarCrushKey).where(AIAdvisorLunarCrushKey.user_id == user.id))
+        self.assertIsNotNone(row)
+        self.assertNotIn(LUNARCRUSH_KEY, row.encrypted_api_key)
+        self.assertEqual(decrypt_api_key(row.encrypted_api_key, SECRET), LUNARCRUSH_KEY)
+        self.assertTrue(get_lunarcrush_key_status(user, db).has_key)
+
+        deleted = delete_lunarcrush_key(user, db)
+        self.assertFalse(deleted.has_key)
+        self.assertFalse(get_lunarcrush_key_status(user, db).has_key)
+
+    def test_nvidia_key_save_status_and_delete(self) -> None:
+        db, user = self._seed_user()
+
+        with patch("app.api.ai_advisor.get_settings", return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET)):
+            saved = save_nvidia_key(AIAdvisorNvidiaKeyIn(api_key=NVIDIA_KEY), user, db)
+
+        self.assertTrue(saved.has_key)
+        self.assertTrue(saved.key_fingerprint.startswith("sha256:"))
+        row = db.scalar(select(AIAdvisorNvidiaKey).where(AIAdvisorNvidiaKey.user_id == user.id))
+        self.assertIsNotNone(row)
+        self.assertNotIn(NVIDIA_KEY, row.encrypted_api_key)
+        self.assertEqual(decrypt_api_key(row.encrypted_api_key, SECRET, "NVIDIA API key"), NVIDIA_KEY)
+        self.assertTrue(get_nvidia_key_status(user, db).has_key)
+
+        deleted = delete_nvidia_key(user, db)
+        self.assertFalse(deleted.has_key)
+        self.assertFalse(get_nvidia_key_status(user, db).has_key)
+
     def test_key_validation_uses_responses_api(self) -> None:
         with patch("app.services.ai_advisor._openai_json_request", return_value={}) as request:
             validate_openai_api_key(PLAINTEXT_KEY)
@@ -79,6 +159,24 @@ class AIAdvisorTests(unittest.TestCase):
         self.assertEqual(request.call_args.args[0], "https://api.openai.com/v1/responses")
         self.assertEqual(request.call_args.kwargs["method"], "POST")
         self.assertEqual(request.call_args.kwargs["payload"]["model"], "gpt-5.4-mini")
+
+    def test_nvidia_response_uses_openai_compatible_chat_completions(self) -> None:
+        with patch(
+            "app.services.ai_advisor._provider_json_request",
+            return_value={"choices": [{"message": {"content": "NVIDIA answer"}}], "usage": {"total_tokens": 9}},
+        ) as request:
+            text, payload = create_nvidia_response(NVIDIA_KEY, "minimaxai/minimax-m2.7", "Rank these ideas.", instructions="Be concise.")
+
+        self.assertEqual(text, "NVIDIA answer")
+        self.assertEqual(payload["usage"]["provider"], "nvidia")
+        self.assertEqual(request.call_args.args[0], "https://integrate.api.nvidia.com/v1/chat/completions")
+        self.assertEqual(request.call_args.args[1], NVIDIA_KEY)
+        self.assertEqual(request.call_args.kwargs["method"], "POST")
+        self.assertEqual(request.call_args.kwargs["provider_label"], "NVIDIA NIM")
+        request_payload = request.call_args.kwargs["payload"]
+        self.assertEqual(request_payload["model"], "minimaxai/minimax-m2.7")
+        self.assertEqual(request_payload["messages"][0]["role"], "system")
+        self.assertEqual(request_payload["messages"][1]["content"], "Rank these ideas.")
 
     def test_retirement_run_rejects_missing_required_fields(self) -> None:
         db, user = self._seed_user()

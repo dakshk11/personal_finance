@@ -41,6 +41,8 @@ _quote_cache: dict[str, dict] = {}
 _contracts:   dict[str, Stock] = {}   # sym -> qualified contract
 _connected    = False
 _poll_task: Optional[asyncio.Task] = None
+_snapshot_lock: asyncio.Lock | None = None
+_connect_lock: asyncio.Lock | None = None
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -61,47 +63,101 @@ def get_contracts() -> dict:
     return dict(_contracts)
 
 
+def _get_snapshot_lock() -> asyncio.Lock:
+    global _snapshot_lock
+    if _snapshot_lock is None:
+        _snapshot_lock = asyncio.Lock()
+    return _snapshot_lock
+
+
+def _get_connect_lock() -> asyncio.Lock:
+    global _connect_lock
+    if _connect_lock is None:
+        _connect_lock = asyncio.Lock()
+    return _connect_lock
+
+
+async def refresh_quotes(symbols: list[str] | None = None) -> int:
+    """Force an immediate IBKR snapshot refresh for selected symbols.
+
+    Returns the number of symbols with cached quote rows after the refresh.
+    """
+    if not is_connected():
+        return 0
+
+    requested = [sym.strip().upper() for sym in symbols or _contracts.keys() if sym.strip()]
+    requested = list(dict.fromkeys(requested))
+    pairs = [(sym, _contracts[sym]) for sym in requested if sym in _contracts]
+    if not pairs:
+        return 0
+
+    async with _get_snapshot_lock():
+        for i in range(0, len(pairs), SNAPSHOT_BATCH):
+            batch = pairs[i : i + SNAPSHOT_BATCH]
+            batch_syms = [sym for sym, _ in batch]
+            batch_cons = [contract for _, contract in batch]
+            try:
+                tickers = await _ib.reqTickersAsync(*batch_cons, regulatorySnapshot=False)
+                for sym, ticker in zip(batch_syms, tickers):
+                    _update_cache_from_ticker(sym, ticker)
+            except Exception as exc:
+                log.debug("Forced snapshot batch error: %s", exc)
+            if i + SNAPSHOT_BATCH < len(pairs):
+                await asyncio.sleep(_BATCH_PAUSE)
+
+        missing = [(sym, contract) for sym, contract in pairs if sym not in _quote_cache]
+        for sym, contract in missing:
+            await _update_cache_from_latest_daily_bar(sym, contract)
+
+    return sum(1 for sym, _ in pairs if sym in _quote_cache)
+
+
 async def connect() -> bool:
     """Connect to TWS, qualify contracts, start snapshot poll loop."""
     global _connected, _poll_task
 
-    try:
-        if _ib.isConnected():
-            _ib.disconnect()
+    async with _get_connect_lock():
+        try:
+            if is_connected() and _contracts:
+                return True
 
-        await _ib.connectAsync(
-            settings.tws_host,
-            settings.tws_port,
-            clientId=settings.tws_client_id,
-            readonly=True,
-        )
+            if _ib.isConnected():
+                _ib.disconnect()
 
-        await _resolve_contracts()
+            await _ib.connectAsync(
+                settings.tws_host,
+                settings.tws_port,
+                clientId=settings.tws_client_id,
+                readonly=True,
+            )
 
-        if not _contracts:
-            log.warning("No contracts qualified — IBKR quotes unavailable")
-            _ib.disconnect()
+            await _resolve_contracts()
+
+            if not _contracts:
+                log.warning("No contracts qualified — IBKR quotes unavailable")
+                _ib.disconnect()
+                return False
+
+            # Use delayed IBKR market data so accounts without live subscriptions
+            # still populate scanner prices through TWS.
+            # 1=live, 2=frozen, 3=delayed, 4=delayed-frozen.
+            _ib.reqMarketDataType(3)
+
+            _connected = True
+            if _poll_task is None or _poll_task.done():
+                _poll_task = asyncio.create_task(_poll_loop())
+
+            log.info(
+                "IBKR TWS connected (port %d) · delayed market data · "
+                "%d/%d contracts qualified · snapshot batch=%d interval=%ds",
+                settings.tws_port, len(_contracts), len(ALL_TICKERS),
+                SNAPSHOT_BATCH, POLL_INTERVAL,
+            )
+            return True
+
+        except Exception as exc:
+            log.warning("IBKR TWS connect error: %s", exc)
             return False
-
-        # Use delayed market data (15-20 min delay, free subscription tier)
-        # 1=live, 2=frozen, 3=delayed, 4=delayed-frozen
-        _ib.reqMarketDataType(3)
-
-        _connected = True
-        if _poll_task is None or _poll_task.done():
-            _poll_task = asyncio.create_task(_poll_loop())
-
-        log.info(
-            "IBKR TWS connected (port %d) · %d/%d contracts qualified · "
-            "snapshot batch=%d interval=%ds",
-            settings.tws_port, len(_contracts), len(ALL_TICKERS),
-            SNAPSHOT_BATCH, POLL_INTERVAL,
-        )
-        return True
-
-    except Exception as exc:
-        log.warning("IBKR TWS connect error: %s", exc)
-        return False
 
 
 async def disconnect() -> None:
@@ -215,11 +271,12 @@ def _update_cache_from_ticker(sym: str, ticker: Ticker) -> None:
     ask   = _pf(ticker.ask)
     last  = _pf(ticker.last)
     close = _pf(ticker.close)
+    market_price = _pf(ticker.marketPrice()) if hasattr(ticker, "marketPrice") else None
 
-    price = ((bid + ask) / 2) if (bid and ask) else last
+    price = ((bid + ask) / 2) if (bid and ask) else last or market_price or close
 
-    # Skip if no price data arrived yet (ib_insync uses NaN as uninitialised sentinel)
-    if price is None and last is None:
+    # Skip if no price data arrived yet (ib_insync uses NaN as uninitialised sentinel).
+    if price is None:
         return
 
     change = change_pct = None
@@ -240,6 +297,53 @@ def _update_cache_from_ticker(sym: str, ticker: Ticker) -> None:
         "iv_rank":    None,
         "hv30":       None,
         "source":     "ibkr",
+    }
+
+
+async def _update_cache_from_latest_daily_bar(sym: str, contract: Stock) -> None:
+    """Use IBKR daily bars when live snapshot fields are unavailable."""
+    try:
+        bars = await _ib.reqHistoricalDataAsync(
+            contract,
+            endDateTime="",
+            durationStr="1 M",
+            barSizeSetting="1 day",
+            whatToShow="TRADES",
+            useRTH=True,
+        )
+    except Exception as exc:
+        log.debug("Historical quote fallback %s: %s", sym, exc)
+        return
+
+    clean = [bar for bar in bars if _pf(bar.close) is not None]
+    if not clean:
+        return
+
+    latest = clean[-1]
+    previous = clean[-2] if len(clean) >= 2 else None
+    price = _pf(latest.close)
+    prior_close = _pf(previous.close) if previous else None
+    if price is None:
+        return
+
+    change = change_pct = None
+    if prior_close:
+        change = round(price - prior_close, 2)
+        change_pct = round((change / prior_close) * 100, 2)
+
+    _quote_cache[sym] = {
+        "symbol":     sym,
+        "price":      price,
+        "bid":        None,
+        "ask":        None,
+        "last":       price,
+        "close":      prior_close,
+        "change":     change,
+        "change_pct": change_pct,
+        "volume":     _pi(latest.volume),
+        "iv_rank":    None,
+        "hv30":       None,
+        "source":     "ibkr_historical",
     }
 
 

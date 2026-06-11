@@ -72,11 +72,11 @@ export function PersonalCFOTool({
   const [dashboard, setDashboard] = useState<PersonalCFODashboard | null>(null);
   const [model, setModel] = useState<CFOModelPicker>("gpt-5.4");
   const [ollamaModelName, setOllamaModelName] = useState("llama3");
-  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://127.0.0.1:11434");
   const [useGoose, setUseGoose] = useState(false);
   const isOllama = model === "ollama";
   const activeModelId = effectiveModelId(model, ollamaModelName, useGoose);
-  const ollamaPayload = isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://localhost:11434" } : {};
+  const ollamaPayload = isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://127.0.0.1:11434" } : {};
   const [messageInput, setMessageInput] = useState("");
   const [refineInput, setRefineInput] = useState("");
   const [activeFileId, setActiveFileId] = useState<number | null>(null);

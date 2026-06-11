@@ -37,6 +37,51 @@ class AIAdvisorOpenAIKeyOut(BaseModel):
     updated_at: datetime | None = None
 
 
+class AIAdvisorTipRanksKeyIn(BaseModel):
+    api_key: str = Field(min_length=8, max_length=512)
+
+
+class AIAdvisorTipRanksKeyOut(BaseModel):
+    has_key: bool
+    key_fingerprint: str | None = None
+    validated_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class AIAdvisorLunarCrushKeyIn(BaseModel):
+    api_key: str = Field(min_length=8, max_length=512)
+
+
+class AIAdvisorLunarCrushKeyOut(BaseModel):
+    has_key: bool
+    key_fingerprint: str | None = None
+    validated_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class AIAdvisorNvidiaKeyIn(BaseModel):
+    api_key: str = Field(min_length=8, max_length=512)
+
+
+class AIAdvisorNvidiaKeyOut(BaseModel):
+    has_key: bool
+    key_fingerprint: str | None = None
+    validated_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class AIAdvisorAlpacaKeyIn(BaseModel):
+    api_key: str = Field(min_length=8, max_length=512)
+    api_secret: str = Field(min_length=8, max_length=512)
+
+
+class AIAdvisorAlpacaKeyOut(BaseModel):
+    has_key: bool
+    key_fingerprint: str | None = None
+    validated_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
 class AIAdvisorRetirementRunRequest(BaseModel):
     module_id: str = Field(min_length=1, max_length=80)
     model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
@@ -58,6 +103,80 @@ class AIAdvisorReportOut(AIAdvisorReportSummaryOut):
     response_text: str
     usage: dict[str, Any] = Field(default_factory=dict)
     error: dict[str, Any] | None = None
+
+
+class AIAdvisorResearchPromptRunRequest(BaseModel):
+    template_id: str = Field(min_length=1, max_length=80)
+    provider: Literal["openai_web", "goose"] = "openai_web"
+    model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    ollama_base_url: str | None = Field(default=None, max_length=200)
+
+
+class AIAdvisorResearchPromptSourceOut(BaseModel):
+    title: str | None = None
+    url: str
+    source_type: str | None = None
+
+
+class AIAdvisorResearchPromptRunSummaryOut(BaseModel):
+    id: int
+    template_id: str
+    template_title: str
+    provider: str
+    model: str
+    created_at: datetime
+
+
+class AIAdvisorResearchPromptRunOut(AIAdvisorResearchPromptRunSummaryOut):
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    prompt_text: str
+    response_text: str
+    sources: list[AIAdvisorResearchPromptSourceOut] = Field(default_factory=list)
+    usage: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+
+
+class RecommendationAgentRunRequest(BaseModel):
+    model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
+    model_mode: Literal["ollama", "foundation", "nvidia"] | None = None
+    ollama_base_url: str | None = Field(default=None, max_length=200)
+    max_candidates: int = Field(default=25, ge=5, le=60)
+    finalist_count: int = Field(default=8, ge=1, le=15)
+    include_tipranks: bool = True
+    tipranks_api_key: str | None = Field(default=None, max_length=512)
+    include_lunarcrush: bool = True
+    lunarcrush_api_key: str | None = Field(default=None, max_length=512)
+    user_context: str | None = Field(default=None, max_length=4000)
+    current_portfolio: str | None = Field(default=None, max_length=4000)
+
+
+class RecommendationAgentIdeaOut(BaseModel):
+    rank: int
+    symbol: str
+    verdict: str = ""
+    rationale: str = ""
+    source_agents: list[str] = Field(default_factory=list)
+    strategy_tags: list[str] = Field(default_factory=list)
+    scanner_scores: dict[str, float] = Field(default_factory=dict)
+    context: dict[str, Any] = Field(default_factory=dict)
+    evidence: list[str] = Field(default_factory=list)
+    tipranks: dict[str, Any] | None = None
+    lunarcrush: dict[str, Any] | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class RecommendationAgentRunOut(BaseModel):
+    generated_at: datetime
+    model: str
+    model_routing: dict[str, Any] = Field(default_factory=dict)
+    ranked_ideas: list[RecommendationAgentIdeaOut]
+    scanner_summary: dict[str, Any] = Field(default_factory=dict)
+    tipranks_status: dict[str, Any] = Field(default_factory=dict)
+    lunarcrush_status: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    raw_llm_markdown: str = ""
+    usage: dict[str, Any] = Field(default_factory=dict)
 
 
 class WheelScannerChatMessageIn(BaseModel):
@@ -168,6 +287,7 @@ class EarningsAgentRunOut(EarningsAgentRunSummaryOut):
 class StockAnalysisRunRequest(BaseModel):
     query: str = Field(min_length=1, max_length=160)
     model: str = Field(default="gpt-5.4", min_length=1, max_length=200)
+    model_mode: Literal["ollama", "foundation"] | None = None
     ollama_base_url: str | None = Field(default=None, max_length=200)
 
 
@@ -277,6 +397,7 @@ class StockAnalysisRunOut(StockAnalysisRunSummaryOut):
     sector: str | None = None
     industry: str | None = None
     model: str
+    model_routing: dict[str, Any] = Field(default_factory=dict)
     reused_from_cache: bool = False
     cache_message: str | None = None
     sources: list[StockAnalysisSourceOut] = Field(default_factory=list)
@@ -396,6 +517,7 @@ class BreakoutBacktestOut(BaseModel):
 
 
 SmartCandleColorLiteral = Literal["blue", "pink", "red", "neutral"]
+SmartCandleTradeActionLiteral = Literal["buy", "sell"]
 
 
 class SmartCandleScanRequest(BaseModel):
@@ -477,6 +599,8 @@ class SmartCandleScanOut(BaseModel):
 class SmartCandleBacktestRequest(SmartCandleScanRequest):
     candle_color: SmartCandleColorLiteral = "blue"
     years: int = Field(default=5, ge=1, le=10)
+    min_signal_score: float = Field(default=0, ge=0, le=100)
+    trade_action: SmartCandleTradeActionLiteral = "buy"
 
 
 class SmartCandleBacktestHorizonOut(BaseModel):
@@ -492,6 +616,7 @@ class SmartCandleBacktestHorizonOut(BaseModel):
 
 class SmartCandleBacktestOut(BaseModel):
     candle_color: SmartCandleColorLiteral
+    trade_action: SmartCandleTradeActionLiteral
     evaluated_years: int
     signal_count: int
     config: dict[str, Any]
@@ -1674,6 +1799,86 @@ class SectorRotationAcceptedAllocationOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     trades: list[SectorRotationAcceptedTradeOut]
+
+
+class SimulatedPortfolioTradeIn(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    name: str = Field(default="", max_length=160)
+    sleeve: Literal["income", "growth"] | str = Field(max_length=32)
+    category: str = Field(default="", max_length=80)
+    yield_pct: float = Field(default=0, ge=0)
+    target_weight: float = Field(default=0, ge=0)
+    target_amount: float = Field(default=0, ge=0)
+    shares: float = Field(gt=0)
+    cost_basis_per_share: float = Field(gt=0)
+    current_price: float = Field(gt=0)
+    purchase_date: date
+
+
+class SimulatedPortfolioIn(BaseModel):
+    name: str = Field(default="$420K Master Portfolio Plan", min_length=1, max_length=160)
+    cash_amount: float = Field(gt=0)
+    target_value: float = Field(default=420_000, gt=0)
+    notes: str | None = Field(default=None, max_length=1000)
+    trades: list[SimulatedPortfolioTradeIn] = Field(min_length=1)
+
+
+class SimulatedPortfolioPriceIn(BaseModel):
+    ticker: str = Field(min_length=1, max_length=16)
+    current_price: float = Field(gt=0)
+
+
+class SimulatedPortfolioPriceUpdate(BaseModel):
+    prices: list[SimulatedPortfolioPriceIn] = Field(min_length=1)
+
+
+class SimulatedPortfolioTradeOut(BaseModel):
+    id: int
+    ticker: str
+    name: str
+    sleeve: str
+    category: str
+    yield_pct: float
+    target_weight: float
+    target_amount: float
+    shares: float
+    cost_basis_per_share: float
+    current_price: float
+    purchase_date: date
+    market_value: float
+    cost_basis: float
+    gain_loss: float
+    return_pct: float
+    annual_income: float
+
+
+class SimulatedPortfolioOut(BaseModel):
+    id: int
+    name: str
+    cash_amount: float
+    target_value: float
+    cost_basis: float
+    market_value: float
+    gain_loss: float
+    return_pct: float
+    annual_income: float
+    notes: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    trades: list[SimulatedPortfolioTradeOut]
+
+
+class YahooQuoteOut(BaseModel):
+    symbol: str
+    price: float | None = None
+    last: float | None = None
+    close: float | None = None
+    source: str
+    warning: str | None = None
+
+
+class YahooQuotesOut(BaseModel):
+    tickers: list[YahooQuoteOut]
 
 
 class SelectionHistoryRowOut(BaseModel):

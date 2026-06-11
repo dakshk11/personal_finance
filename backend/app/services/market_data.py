@@ -31,6 +31,15 @@ class SecurityDailySnapshot:
     warning: str | None = None
 
 
+@dataclass(frozen=True)
+class YahooQuoteSnapshot:
+    symbol: str
+    price: float | None
+    close: float | None
+    source: str
+    warning: str | None = None
+
+
 def normalize_symbol(symbol: str) -> str:
     return symbol.upper().strip().replace("/", ".")
 
@@ -247,6 +256,23 @@ def _fetch_yfinance_latest_prices(symbols: list[str]) -> dict[str, float]:
         except Exception:
             continue
     return prices
+
+
+def fetch_yahoo_quote_snapshots(symbols: list[str]) -> list[YahooQuoteSnapshot]:
+    normalized_symbols = sorted({normalize_symbol(symbol) for symbol in symbols if symbol.strip()})
+    if len(normalized_symbols) > 50:
+        normalized_symbols = normalized_symbols[:50]
+    prices = _fetch_yfinance_latest_prices(normalized_symbols)
+    return [
+        YahooQuoteSnapshot(
+            symbol=symbol,
+            price=prices.get(symbol),
+            close=prices.get(symbol),
+            source="Yahoo Finance via yfinance" if prices.get(symbol) else "Yahoo Finance unavailable",
+            warning=None if prices.get(symbol) else "Yahoo Finance did not return a recent close.",
+        )
+        for symbol in normalized_symbols
+    ]
 
 
 def _cached_security_metric(db: Session, symbol: str, metric_date: date) -> SecurityMetricSnapshot | None:

@@ -36,7 +36,7 @@ export function EarningsAgentTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
   const [query, setQuery] = useState("");
   const [model, setModel] = useState<ModelPicker>("gpt-5.4");
   const [ollamaModelName, setOllamaModelName] = useState("llama3");
-  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://127.0.0.1:11434");
   const [useGoose, setUseGoose] = useState(false);
   const isOllama = model === "ollama";
   const [activeRun, setActiveRun] = useState<EarningsAgentRun | null>(null);
@@ -100,7 +100,7 @@ export function EarningsAgentTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIKey
         body: JSON.stringify({
           query: cleanQuery,
           model: effectiveModelId(model, ollamaModelName, useGoose),
-          ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://localhost:11434" } : {})
+          ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://127.0.0.1:11434" } : {})
         })
       });
       setActiveRun(result);

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text
 
-from app.api import advisor, ai_advisor, auth, backtests, breakout_scanner, data, diversification, earnings_agent, filings, indices, market_history, option_strategy, personal_cfo, portfolio_analysis, portfolio_sync, portfolios, retirement_analyzer, rsi_playbook, sector_rotation, smart_candles, stock_analysis, wheel_scanner_chat
+from app.api import advisor, ai_advisor, alpaca_quotes, auth, backtests, breakout_scanner, data, diversification, earnings_agent, filings, indices, market_history, option_strategy, optitrade_lab, personal_cfo, portfolio_analysis, portfolio_sync, portfolios, recommendation_agent, research_prompts, retirement_analyzer, rsi_playbook, sector_rotation, simulated_portfolios, smart_candles, stock_analysis, wheel_scanner_chat
 from app.core.config import get_settings, local_cors_origins
 from app.db.session import Base, SessionLocal, engine
 from app.models import entities  # noqa: F401
@@ -72,6 +72,9 @@ def health() -> dict[str, str]:
 
 app.include_router(auth.router)
 app.include_router(ai_advisor.router)
+app.include_router(research_prompts.router)
+app.include_router(alpaca_quotes.router)
+app.include_router(optitrade_lab.router)
 app.include_router(earnings_agent.router)
 app.include_router(stock_analysis.router)
 app.include_router(personal_cfo.router, prefix="/ai-advisor")
@@ -92,4 +95,6 @@ app.include_router(retirement_analyzer.router)
 app.include_router(rsi_playbook.router)
 app.include_router(diversification.router)
 app.include_router(sector_rotation.router)
+app.include_router(simulated_portfolios.router)
 app.include_router(wheel_scanner_chat.router)
+app.include_router(recommendation_agent.router)
