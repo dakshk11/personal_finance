@@ -20,8 +20,8 @@ import {
   X
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AIAdvisorAlpacaKeyStatus, AIAdvisorOpenAIKeyStatus, AlpacaRecommendationQuoteSession, apiFetch, apiUrl } from "@/lib/api";
-import { OllamaConfigStrip, OllamaModelButton, effectiveModelId } from "@/components/OllamaModelPicker";
+import { AIAdvisorAlpacaKeyStatus, AIAdvisorNvidiaKeyStatus, AIAdvisorOpenAIKeyStatus, AlpacaRecommendationQuoteSession, apiFetch, apiUrl } from "@/lib/api";
+import { OllamaConfigStrip, OllamaModelButton } from "@/components/OllamaModelPicker";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,7 +89,7 @@ type SortDir = "asc" | "desc";
 type SubTab = "watchlist" | "wheel-hub";
 type HubFilter = "all" | "csp" | "cc" | "leap";
 type OptionsTab = "P" | "C";
-type WheelChatModel = "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "ollama";
+type WheelChatModel = "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "nvidia" | "ollama";
 type WheelChatMessage = { role: "user" | "assistant"; content: string };
 
 type WheelScannerChatResponse = {
@@ -170,10 +170,18 @@ const WATCHLIST_COLS = [
   { key: "signals",     label: "Signals",   right: false },
 ];
 
-const OPENAI_MODELS: Array<{ id: Exclude<WheelChatModel, "ollama">; label: string; helper: string }> = [
+const OPENAI_MODELS: Array<{ id: Exclude<WheelChatModel, "nvidia" | "ollama">; label: string; helper: string }> = [
   { id: "gpt-5.5", label: "Quality", helper: "gpt-5.5" },
   { id: "gpt-5.4", label: "Balanced", helper: "gpt-5.4" },
   { id: "gpt-5.4-mini", label: "Cost", helper: "gpt-5.4-mini" },
+];
+
+const NVIDIA_MODELS = [
+  "minimaxai/minimax-m2.7",
+  "zhipuai/glm-5.1",
+  "moonshot-ai/kimi-2.5",
+  "deepseek-ai/deepseek-v4-flash",
+  "nvidia/nemotron-3-ultra-550b-a55b",
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -232,6 +240,17 @@ function changeClass(v: number | null): string {
   if (v > 0) return "wheel-green";
   if (v < 0) return "wheel-red";
   return "wheel-dim";
+}
+
+function wheelChatModelId(chatModel: WheelChatModel, ollamaModelName: string, nvidiaModel: string): string {
+  if (chatModel === "ollama") {
+    return `ollama:${ollamaModelName.trim() || "llama3"}`;
+  }
+  if (chatModel === "nvidia") {
+    const model = NVIDIA_MODELS.includes(nvidiaModel) ? nvidiaModel : NVIDIA_MODELS[0];
+    return `nvidia:${model}`;
+  }
+  return chatModel;
 }
 
 // Score option by proximity to 30Δ at 30 DTE
@@ -558,10 +577,12 @@ function ChartModal({ symbol, quote, onClose }: { symbol: string; quote: WheelQu
 
 export function WheelScannerTool({
   keyStatus,
+  nvidiaKeyStatus,
   alpacaKeyStatus,
   isActive = true,
 }: {
   keyStatus: AIAdvisorOpenAIKeyStatus | null;
+  nvidiaKeyStatus: AIAdvisorNvidiaKeyStatus | null;
   alpacaKeyStatus: AIAdvisorAlpacaKeyStatus | null;
   isActive?: boolean;
 }) {
@@ -579,6 +600,7 @@ export function WheelScannerTool({
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [chartSymbol, setChartSymbol]     = useState<string | null>(null);
   const [chatModel, setChatModel] = useState<WheelChatModel>("gpt-5.4");
+  const [nvidiaModel, setNvidiaModel] = useState(NVIDIA_MODELS[0]);
   const [ollamaModelName, setOllamaModelName] = useState("llama3");
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://127.0.0.1:11434");
   const [chatInput, setChatInput] = useState("");
@@ -1053,7 +1075,8 @@ export function WheelScannerTool({
     const query = chatInput.trim();
     const rows = selectedQuotes();
     const isOllama = chatModel === "ollama";
-    if (!query || !rows.length || (!isOllama && !keyStatus?.has_key)) return;
+    const isNvidia = chatModel === "nvidia";
+    if (!query || !rows.length || (!isOllama && (isNvidia ? !nvidiaKeyStatus?.has_key : !keyStatus?.has_key))) return;
 
     setChatLoading(true);
     setChatError("");
@@ -1065,7 +1088,7 @@ export function WheelScannerTool({
         method: "POST",
         body: JSON.stringify({
           query,
-          model: effectiveModelId(chatModel, ollamaModelName, false),
+          model: wheelChatModelId(chatModel, ollamaModelName, nvidiaModel),
           ...(isOllama ? { ollama_base_url: ollamaBaseUrl.trim() || "http://127.0.0.1:11434" } : {}),
           context: {
             status,
@@ -1102,7 +1125,8 @@ export function WheelScannerTool({
   }
 
   const isChatOllama = chatModel === "ollama";
-  const canSendChat = Boolean(chatInput.trim() && selectedSymbols.size && (isChatOllama || keyStatus?.has_key) && !chatLoading);
+  const isChatNvidia = chatModel === "nvidia";
+  const canSendChat = Boolean(chatInput.trim() && selectedSymbols.size && (isChatOllama || (isChatNvidia ? nvidiaKeyStatus?.has_key : keyStatus?.has_key)) && !chatLoading);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1170,8 +1194,12 @@ export function WheelScannerTool({
             <p className="eyebrow">Wheel Scanner AI Chat</p>
             <h3><MessageSquare size={16} /> Ask about selected wheel setups</h3>
           </div>
-          <span className={isChatOllama || keyStatus?.has_key ? "status-pill" : "risk-pill"}>
-            {isChatOllama ? `Ollama · ${ollamaModelName || "llama3"}` : keyStatus?.has_key ? "OpenAI key ready" : "OpenAI key required"}
+          <span className={isChatOllama || (isChatNvidia ? nvidiaKeyStatus?.has_key : keyStatus?.has_key) ? "status-pill" : "risk-pill"}>
+            {isChatOllama
+              ? `Ollama · ${ollamaModelName || "llama3"}`
+              : isChatNvidia
+                ? nvidiaKeyStatus?.has_key ? "NVIDIA key ready" : "NVIDIA key required"
+                : keyStatus?.has_key ? "OpenAI key ready" : "OpenAI key required"}
           </span>
         </div>
 
@@ -1194,8 +1222,23 @@ export function WheelScannerTool({
               <span>{item.helper}</span>
             </button>
           ))}
+          <button type="button" className={isChatNvidia ? "active" : ""} onClick={() => setChatModel("nvidia")}>
+            <strong>NVIDIA</strong>
+            <span>Hosted open-source NIM</span>
+          </button>
           <OllamaModelButton active={isChatOllama} onClick={() => setChatModel("ollama")} />
         </div>
+        {isChatNvidia && (
+          <label className="stock-analysis-override-input">
+            <span>NVIDIA hosted model</span>
+            <select value={nvidiaModel} onChange={(event) => setNvidiaModel(event.target.value)}>
+              {NVIDIA_MODELS.map((item) => (
+                <option value={item} key={item}>{item}</option>
+              ))}
+            </select>
+            <small>Defaults to the first hosted open-source model and stays within the approved NVIDIA NIM list.</small>
+          </label>
+        )}
         {isChatOllama && (
           <OllamaConfigStrip
             modelName={ollamaModelName}
@@ -1231,7 +1274,8 @@ export function WheelScannerTool({
             Send
           </button>
         </div>
-        {!isChatOllama && !keyStatus?.has_key && <div className="error">Save an OpenAI key before using OpenAI chat, or switch to Ollama.</div>}
+        {!isChatOllama && !isChatNvidia && !keyStatus?.has_key && <div className="error">Save an OpenAI key before using OpenAI chat, or switch provider.</div>}
+        {isChatNvidia && !nvidiaKeyStatus?.has_key && <div className="error">Save an NVIDIA API key before using Wheel Scanner chat with hosted NVIDIA models, or switch provider.</div>}
         {!selectedSymbols.size && <p className="fine-print">No rows selected. Use the checkboxes in Watchlist or Wheel Hub.</p>}
         {chatError && <div className="error">{chatError}</div>}
       </section>

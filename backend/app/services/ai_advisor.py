@@ -33,6 +33,10 @@ NVIDIA_RECOMMENDATION_MODELS = (
     "deepseek-ai/deepseek-v4-flash",
     "nvidia/nemotron-3-ultra-550b-a55b",
 )
+NVIDIA_NIM_MODEL_ALIASES = {
+    "zhipuai/glm-5.1": "z-ai/glm-5.1",
+    "moonshot-ai/kimi-2.5": "moonshotai/kimi-k2.6",
+}
 _GOOSE_SESSIONS_DB = os.path.expanduser("~/.local/share/goose/sessions/sessions.db")
 _GOOSE_HEADER_END = "goose is ready"
 
@@ -210,12 +214,17 @@ def nvidia_model_name(model: str) -> str:
     return model[len("nvidia:"):]
 
 
+def nvidia_nim_model_name(model: str) -> str:
+    return NVIDIA_NIM_MODEL_ALIASES.get(model, model)
+
+
 def valid_ai_advisor_model(model: str) -> bool:
     return (
         model in AI_ADVISOR_OPENAI_MODELS
         or (is_ollama_model(model) and bool(ollama_model_name(model)))
         or (is_goose_model(model) and bool(goose_model_name(model)))
         or (is_nvidia_model(model) and nvidia_model_name(model) in NVIDIA_RECOMMENDATION_MODELS)
+        or (is_nvidia_model(model) and nvidia_model_name(model) in NVIDIA_NIM_MODEL_ALIASES.values())
     )
 
 
@@ -313,14 +322,15 @@ def create_openai_web_search_response(api_key: str, model: str, prompt: str, *, 
 
 
 def create_nvidia_response(api_key: str, model: str, prompt: str, *, instructions: str | None = None, timeout_seconds: int = 180) -> tuple[str, dict[str, Any]]:
-    if model not in NVIDIA_RECOMMENDATION_MODELS:
+    if model not in NVIDIA_RECOMMENDATION_MODELS and model not in NVIDIA_NIM_MODEL_ALIASES.values():
         raise AIAdvisorProviderError("Unsupported NVIDIA model.", status_code=400)
+    api_model = nvidia_nim_model_name(model)
     messages = []
     if instructions:
         messages.append({"role": "system", "content": instructions})
     messages.append({"role": "user", "content": prompt})
     payload = {
-        "model": model,
+        "model": api_model,
         "messages": messages,
         "temperature": 0.2,
         "max_tokens": 5000,
@@ -336,7 +346,7 @@ def create_nvidia_response(api_key: str, model: str, prompt: str, *, instruction
     text = _extract_chat_completion_text(response)
     if not text:
         raise AIAdvisorProviderError("NVIDIA NIM response did not include any text.", status_code=502)
-    return text, {**response, "usage": {"provider": "nvidia", "model": model, **response_usage(response)}}
+    return text, {**response, "usage": {"provider": "nvidia", "model": api_model, "requested_model": model, **response_usage(response)}}
 
 
 def create_ollama_response(model_name: str, prompt: str, base_url: str | None = None, timeout_seconds: int = 120) -> tuple[str, dict[str, Any]]:
@@ -683,13 +693,27 @@ def _openai_ssl_context() -> ssl.SSLContext:
 
 
 def _provider_error_message(exc: HTTPError, provider_label: str = "OpenAI") -> str:
+    raw = ""
     try:
-        payload = json.loads(exc.read().decode("utf-8", errors="ignore") or "{}")
+        raw = exc.read().decode("utf-8", errors="ignore")
+        payload = json.loads(raw or "{}")
     except json.JSONDecodeError:
+        if raw.strip():
+            return f"{provider_label} request failed: {raw.strip()[:500]}"
         return f"{provider_label} request failed."
     error = payload.get("error")
     if isinstance(error, dict) and isinstance(error.get("message"), str):
         return error["message"]
+    if isinstance(error, str) and error.strip():
+        return error.strip()
+    detail = payload.get("detail")
+    if isinstance(detail, str) and detail.strip():
+        return detail.strip()
+    if isinstance(detail, dict) and isinstance(detail.get("message"), str):
+        return detail["message"]
+    message = payload.get("message")
+    if isinstance(message, str) and message.strip():
+        return message.strip()
     return f"{provider_label} request failed."
 
 

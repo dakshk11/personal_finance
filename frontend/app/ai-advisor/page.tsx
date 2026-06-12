@@ -762,7 +762,7 @@ export default function AIAdvisorPage() {
                 </button>
               )}
             </form>
-            <p className="fine-print">{nvidiaKeyMessage || "Used for Recommendation Agent hosted open-source NVIDIA NIM models. Keys are encrypted in the database and never shown again after save."}</p>
+            <p className="fine-print">{nvidiaKeyMessage || "Used for hosted open-source NVIDIA NIM models in Recommendation Agent and Wheel Scanner. Keys are encrypted in the database and never shown again after save."}</p>
             {nvidiaKeyStatus?.validated_at && <p className="fine-print">Saved {formatDateTime(nvidiaKeyStatus.validated_at)}</p>}
           </section>
 
@@ -983,7 +983,7 @@ export default function AIAdvisorPage() {
           ) : activeTab === "equity-research" ? (
             <StockAnalysisTool keyStatus={keyStatus} />
           ) : activeTab === "wheel-scanner" ? (
-            <WheelScannerTool keyStatus={keyStatus} alpacaKeyStatus={alpacaKeyStatus} isActive={activeTab === "wheel-scanner"} />
+            <WheelScannerTool keyStatus={keyStatus} nvidiaKeyStatus={nvidiaKeyStatus} alpacaKeyStatus={alpacaKeyStatus} isActive={activeTab === "wheel-scanner"} />
           ) : activeTab === "sector-rotation" ? (
             <SectorRotationTool />
           ) : (

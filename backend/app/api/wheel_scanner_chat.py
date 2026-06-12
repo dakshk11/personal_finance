@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.models.entities import AIAdvisorOpenAIKey, User
+from app.models.entities import AIAdvisorNvidiaKey, AIAdvisorOpenAIKey, User
 from app.schemas.common import WheelScannerChatOut, WheelScannerChatRequest
 from app.services.ai_advisor import (
     AIAdvisorConfigurationError,
@@ -15,6 +15,7 @@ from app.services.ai_advisor import (
     decrypt_api_key,
     generate_text,
     is_goose_model,
+    is_nvidia_model,
     is_ollama_model,
     response_usage,
     valid_ai_advisor_model,
@@ -43,7 +44,16 @@ def chat(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Select at least one Wheel Scanner row before asking AI chat.")
 
     api_key: str | None = None
-    if not is_ollama_model(payload.model):
+    if is_nvidia_model(payload.model):
+        key_row = db.scalar(select(AIAdvisorNvidiaKey).where(AIAdvisorNvidiaKey.user_id == user.id))
+        if not key_row:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save an NVIDIA API key before using Wheel Scanner AI chat with NVIDIA.")
+        api_key = decrypt_api_key(
+            key_row.encrypted_api_key,
+            get_settings().ai_advisor_key_encryption_secret,
+            "NVIDIA API key",
+        )
+    elif not is_ollama_model(payload.model):
         key_row = db.scalar(select(AIAdvisorOpenAIKey).where(AIAdvisorOpenAIKey.user_id == user.id))
         if not key_row:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Save an OpenAI API key before using Wheel Scanner AI chat.")

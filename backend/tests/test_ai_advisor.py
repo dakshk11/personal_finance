@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
+from io import BytesIO
 
 from fastapi import HTTPException
 from sqlalchemy import create_engine, func, select
@@ -18,6 +20,7 @@ from app.services.ai_advisor import (
     encrypt_api_key,
     required_field_ids,
     validate_openai_api_key,
+    _provider_error_message,
 )
 
 
@@ -177,6 +180,41 @@ class AIAdvisorTests(unittest.TestCase):
         self.assertEqual(request_payload["model"], "minimaxai/minimax-m2.7")
         self.assertEqual(request_payload["messages"][0]["role"], "system")
         self.assertEqual(request_payload["messages"][1]["content"], "Rank these ideas.")
+
+    def test_nvidia_response_maps_requested_alias_to_nim_model_id(self) -> None:
+        with patch(
+            "app.services.ai_advisor._provider_json_request",
+            return_value={"choices": [{"message": {"content": "GLM answer"}}]},
+        ) as request:
+            text, payload = create_nvidia_response(NVIDIA_KEY, "zhipuai/glm-5.1", "Compare setups.")
+
+        self.assertEqual(text, "GLM answer")
+        self.assertEqual(payload["usage"]["requested_model"], "zhipuai/glm-5.1")
+        self.assertEqual(payload["usage"]["model"], "z-ai/glm-5.1")
+        self.assertEqual(request.call_args.kwargs["payload"]["model"], "z-ai/glm-5.1")
+
+    def test_nvidia_response_maps_kimi_alias_to_current_nim_endpoint(self) -> None:
+        with patch(
+            "app.services.ai_advisor._provider_json_request",
+            return_value={"choices": [{"message": {"content": "Kimi answer"}}]},
+        ) as request:
+            text, payload = create_nvidia_response(NVIDIA_KEY, "moonshot-ai/kimi-2.5", "Compare setups.")
+
+        self.assertEqual(text, "Kimi answer")
+        self.assertEqual(payload["usage"]["requested_model"], "moonshot-ai/kimi-2.5")
+        self.assertEqual(payload["usage"]["model"], "moonshotai/kimi-k2.6")
+        self.assertEqual(request.call_args.kwargs["payload"]["model"], "moonshotai/kimi-k2.6")
+
+    def test_provider_error_message_includes_detail_payload(self) -> None:
+        exc = HTTPError(
+            "https://integrate.api.nvidia.com/v1/chat/completions",
+            400,
+            "Bad Request",
+            {},
+            BytesIO(b'{"detail":"model not available"}'),
+        )
+
+        self.assertEqual(_provider_error_message(exc, "NVIDIA NIM"), "model not available")
 
     def test_retirement_run_rejects_missing_required_fields(self) -> None:
         db, user = self._seed_user()

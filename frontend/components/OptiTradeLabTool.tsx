@@ -154,6 +154,13 @@ export function OptiTradeLabTool({ alpacaKeyStatus }: { alpacaKeyStatus: AIAdvis
   }), [result]);
   const canRefresh = !loading && (dataSource === "ibkr" || Boolean(alpacaKeyStatus?.has_key));
 
+  // True when the displayed backtest was computed with default scan settings but user's current settings differ.
+  const backtestIsStale = !settingsBacktest && Boolean(selected) && (
+    settings.tpMode !== "multi" ||
+    (numericInput(settings.atrMultiplier) || 2.5) !== 2.5 ||
+    settings.stopModel !== "atr"
+  );
+
   useEffect(() => {
     void loadSignals();
   }, [dataSource]);
@@ -306,6 +313,12 @@ export function OptiTradeLabTool({ alpacaKeyStatus }: { alpacaKeyStatus: AIAdvis
             </button>
           </div>
           {backtestError && <p className="opti-backtest-error">{backtestError}</p>}
+          {backtestIsStale && (
+            <div className="opti-backtest-stale-notice">
+              <AlertTriangle size={14} />
+              Results below use default scan settings. Click &ldquo;Run backtest with current settings&rdquo; to apply your TP mode, stop model, and ATR multiplier.
+            </div>
+          )}
           <div className="opti-backtest-context">
             <span>ETF: <strong>{selected?.symbol ?? "N/A"}</strong></span>
             <span>Underlying: <strong>{selected?.underlying ?? "N/A"}</strong></span>
