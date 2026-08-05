@@ -13,7 +13,7 @@ import {
   TrendingUp,
   X
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   AIAdvisorAlpacaKeyStatus,
   AIAdvisorLunarCrushKeyStatus,
@@ -24,8 +24,10 @@ import {
   RecommendationOptionRow,
   RecommendationAgentRun,
   RecommendationAgentRunRequest,
+  RecommendationAgentStageEvent,
   RecommendationQuoteRow,
-  apiFetch
+  apiFetch,
+  apiUrl
 } from "@/lib/api";
 
 type AgentModelMode = "foundation" | "nvidia" | "ollama";
@@ -36,15 +38,19 @@ const MODEL_MODES: Array<{ id: AgentModelMode; label: string; helper: string }> 
   { id: "ollama", label: "Ollama", helper: "Auto-selects a local model" },
 ];
 
-const NVIDIA_MODELS = [
-  "minimaxai/minimax-m2.7",
-  "zhipuai/glm-5.1",
-  "moonshot-ai/kimi-2.5",
-  "deepseek-ai/deepseek-v4-flash",
-  "nvidia/nemotron-3-ultra-550b-a55b",
+const NVIDIA_MODEL_OPTIONS: Array<{ id: string; label: string }> = [
+  { id: "nvidia/nemotron-3-super-120b-a12b", label: "Nemotron 3 Super 120B — reasoning + tool use, fast" },
+  { id: "qwen/qwen3.5-397b-a17b", label: "Qwen 3.5 397B — flagship reasoning" },
+  { id: "moonshot-ai/kimi-2.5", label: "Kimi 2.5 — long context, fastest" },
+  { id: "minimaxai/minimax-m2.7", label: "MiniMax M2.7 — agentic tool use, slower" },
+  { id: "zhipuai/glm-5.1", label: "GLM-5.1 — agentic generalist" },
+  { id: "deepseek-ai/deepseek-v4-flash", label: "DeepSeek V4 Flash — light reasoning" },
+  { id: "nvidia/nemotron-3-ultra-550b-a55b", label: "Nemotron 3 Ultra 550B — largest, slowest" },
 ];
 
-const STAGES = ["Scanners", "Model Router", "First LLM", "TipRanks", "Final LLM"];
+const NVIDIA_MODELS = NVIDIA_MODEL_OPTIONS.map((option) => option.id);
+
+const STAGES = ["Scanners", "Wheel Scanner", "Breakout Scanner", "Smart Candles", "OptiTrade Lab", "Model Router", "First LLM", "TipRanks", "LunarCrush", "Final LLM"];
 
 export function RecommendationAgentTool({
   keyStatus,
@@ -75,24 +81,37 @@ export function RecommendationAgentTool({
   const [quoteViewOpen, setQuoteViewOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [stageEvents, setStageEvents] = useState<RecommendationAgentStageEvent[]>([]);
+  const ollamaOverrideInputRef = useRef<HTMLInputElement | null>(null);
 
   const isOllama = modelMode === "ollama";
   const isNvidia = modelMode === "nvidia";
   const canRun = !loading && (isOllama || (isNvidia ? Boolean(nvidiaKeyStatus?.has_key) : Boolean(keyStatus?.has_key)));
 
-  const activeStages = useMemo(() => {
-    if (!loading) return result ? STAGES : [];
-    return STAGES;
-  }, [loading, result]);
+  const latestStageEvents = useMemo(() => {
+    const events = new Map<string, RecommendationAgentStageEvent>();
+    for (const event of result?.stage_details ?? stageEvents) {
+      events.set(event.stage, event);
+    }
+    return events;
+  }, [result, stageEvents]);
 
   async function runAgent() {
     if (!canRun) return;
     setLoading(true);
     setError("");
     setResult(null);
+    setStageEvents([{
+      stage: "Scanners",
+      status: "running",
+      message: "Starting Recommendation Agent run.",
+      elapsed_seconds: 0,
+      details: { max_candidates: maxCandidates, finalist_count: Math.min(finalistCount, maxCandidates), provider: modelMode }
+    }]);
     try {
+      const effectiveOllamaOverride = ollamaOverrideInputRef.current?.value ?? ollamaModelOverride;
       const payload: RecommendationAgentRunRequest = {
-        ...recommendationAgentModelPayload(modelMode, ollamaModelOverride, nvidiaModel),
+        ...recommendationAgentModelPayload(modelMode, effectiveOllamaOverride, nvidiaModel),
         max_candidates: maxCandidates,
         finalist_count: Math.min(finalistCount, maxCandidates),
         include_tipranks: includeTipRanks,
@@ -101,10 +120,10 @@ export function RecommendationAgentTool({
         ...(decisionContext.trim() ? { user_context: decisionContext.trim() } : {}),
         ...(currentPortfolio.trim() ? { current_portfolio: currentPortfolio.trim() } : {}),
       };
-      setResult(await apiFetch<RecommendationAgentRun>("/ai-advisor/recommendation-agent/run", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }));
+      const streamed = await streamRecommendationAgentRun(payload, (event) => {
+        setStageEvents((current) => [...current, event].slice(-120));
+      });
+      setResult(streamed);
       setQuoteViewOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not run Recommendation Agent.");
@@ -149,6 +168,8 @@ export function RecommendationAgentTool({
           <label className="stock-analysis-override-input">
             <span>Local model override</span>
             <input
+              ref={ollamaOverrideInputRef}
+              data-testid="recommendation-ollama-override"
               value={ollamaModelOverride}
               onChange={(event) => setOllamaModelOverride(event.target.value)}
               placeholder="llama3.1:8b or qwen2.5:7b"
@@ -160,11 +181,11 @@ export function RecommendationAgentTool({
           <label className="stock-analysis-override-input">
             <span>NVIDIA hosted model</span>
             <select value={nvidiaModel} onChange={(event) => setNvidiaModel(event.target.value)}>
-              {NVIDIA_MODELS.map((item) => (
-                <option value={item} key={item}>{item}</option>
+              {NVIDIA_MODEL_OPTIONS.map((item) => (
+                <option value={item.id} key={item.id}>{item.label}</option>
               ))}
             </select>
-            <small>Defaults to the first hosted open-source model and stays within the approved NVIDIA NIM list.</small>
+            <small>Defaults to Nemotron 3 Super for reasoning and tool use. All options are free NVIDIA NIM preview endpoints verified against this account.</small>
           </label>
         )}
         <div className="recommendation-control-grid">
@@ -204,16 +225,40 @@ export function RecommendationAgentTool({
       </section>
 
       <section className="recommendation-stage-grid">
-        {STAGES.map((stage) => (
-          <div className="dashboard-panel recommendation-stage" key={stage}>
-            {activeStages.includes(stage) ? loading ? <Loader2 size={16} className="spin-icon" /> : <CheckCircle2 size={16} /> : <CircleDashed size={16} />}
+        {STAGES.map((stage) => {
+          const event = latestStageEvents.get(stage);
+          const statusName = event?.status ?? "pending";
+          return (
+          <div className={`dashboard-panel recommendation-stage ${statusName}`} key={stage}>
+            {statusName === "running" ? <Loader2 size={16} className="spin-icon" /> : statusName === "complete" ? <CheckCircle2 size={16} /> : <CircleDashed size={16} />}
             <span>
               {stage}
-              {stage === "Model Router" && <em>{routerStageDetail(result, modelMode, loading)}</em>}
+              <em>{event?.message ?? (stage === "Model Router" ? routerStageDetail(result, modelMode, loading) : "Waiting")}</em>
+              {typeof event?.elapsed_seconds === "number" && <em>{formatDuration(event.elapsed_seconds)}</em>}
             </span>
           </div>
-        ))}
+        );
+        })}
       </section>
+
+      {(loading || stageEvents.length > 0 || (result?.stage_details?.length ?? 0) > 0) && (
+        <section className="dashboard-panel recommendation-progress-log">
+          <div className="panel-header">
+            <h2>Run progress</h2>
+            <Gauge size={18} />
+          </div>
+          <div>
+            {(result?.stage_details ?? stageEvents).slice(-16).map((event, index) => (
+              <p key={`${event.stage}-${event.elapsed_seconds}-${index}`}>
+                <strong>{event.stage}</strong>
+                <span>{event.status}</span>
+                {event.message}
+                {typeof event.elapsed_seconds === "number" && <em>{formatDuration(event.elapsed_seconds)}</em>}
+              </p>
+            ))}
+          </div>
+        </section>
+      )}
 
       {result && (
         <>
@@ -228,10 +273,11 @@ export function RecommendationAgentTool({
                 <div key={name}>
                   <span>{name}</span>
                   <strong>{String(summary.status ?? "unknown")}</strong>
-                  <em>{String(summary.candidate_count ?? 0)} candidates</em>
+                  <em>{String(summary.candidate_count ?? 0)} candidates · {formatStatValue(summary.duration_seconds)}s</em>
                 </div>
               ))}
             </div>
+            <StatsGrid title="Candidate statistics" values={result.candidate_statistics} />
             <button className="primary-button" type="button" onClick={() => setQuoteViewOpen(true)} disabled={!alpacaKeyStatus?.has_key}>
               <TrendingUp size={16} />
               Open quote pull
@@ -262,16 +308,18 @@ export function RecommendationAgentTool({
                   {idea.strategy_tags.slice(0, 5).map((tag) => <span key={tag}><Gauge size={13} /> {tag}</span>)}
                 </div>
                 <div className="recommendation-evidence">
-                  {idea.evidence.slice(0, 4).map((line) => <p key={line}>{line}</p>)}
+                  {idea.evidence.map((line) => <p key={line}>{line}</p>)}
                 </div>
-                <div className="recommendation-context-grid">
-                  {Object.entries(idea.scanner_scores).map(([key, value]) => (
-                    <div key={key}><span>{labelize(key)}</span><strong>{formatNumber(value)}</strong></div>
-                  ))}
-                </div>
+                <StatsGrid title="Scanner scores" values={idea.scanner_scores} />
+                <StatsGrid title="Scanner context" values={idea.context} />
                 <TipRanksBlock value={idea.tipranks} />
                 <LunarCrushBlock value={idea.lunarcrush} />
-                {idea.warnings.length > 0 && <p className="fine-print">{idea.warnings.join(" ")}</p>}
+                {idea.warnings.length > 0 && (
+                  <div className="recommendation-evidence">
+                    <strong>Warnings</strong>
+                    {idea.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+                  </div>
+                )}
               </article>
             ))}
           </section>}
@@ -523,12 +571,12 @@ function TipRanksBlock({ value }: { value?: Record<string, unknown> | null }) {
   if (!value) {
     return <div className="recommendation-tipranks muted">TipRanks enrichment unavailable for this idea.</div>;
   }
-  const rows = Object.entries(value).slice(0, 6);
+  const rows = Object.entries(value);
   return (
     <div className="recommendation-tipranks">
       <strong>TipRanks</strong>
       <div>
-        {rows.map(([key, item]) => <span key={key}>{labelize(key)}: {String(item)}</span>)}
+        {rows.map(([key, item]) => <span key={key}>{labelize(key)}: {formatStatValue(item)}</span>)}
       </div>
     </div>
   );
@@ -538,16 +586,105 @@ function LunarCrushBlock({ value }: { value?: Record<string, unknown> | null }) 
   if (!value) {
     return <div className="recommendation-tipranks muted">LunarCrush enrichment unavailable for this idea.</div>;
   }
-  const rows = Object.entries(value).slice(0, 8);
+  const rows = Object.entries(value);
   return (
     <div className="recommendation-tipranks">
       <strong>LunarCrush</strong>
       <div>
-        {rows.map(([key, item]) => <span key={key}>{labelize(key)}: {String(item)}</span>)}
+        {rows.map(([key, item]) => <span key={key}>{labelize(key)}: {formatStatValue(item)}</span>)}
       </div>
     </div>
   );
 }
+
+function StatsGrid({ title, values }: { title: string; values?: Record<string, unknown> | null }) {
+  const rows = Object.entries(values ?? {}).filter(([, value]) => value !== null && value !== undefined && value !== "");
+  if (rows.length === 0) {
+    return null;
+  }
+  return (
+    <div className="recommendation-stat-block">
+      <strong>{title}</strong>
+      <div className="recommendation-context-grid">
+        {rows.map(([key, value]) => (
+          <div key={key}>
+            <span>{labelize(key)}</span>
+            <strong>{formatStatValue(value)}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function streamRecommendationAgentRun(
+  payload: RecommendationAgentRunRequest,
+  onStage: (event: RecommendationAgentStageEvent) => void
+) {
+  const response = await fetch(`${apiUrl()}/ai-advisor/recommendation-agent/run-stream`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    let message = `Request failed with ${response.status}`;
+    try {
+      const body = await response.json();
+      message = typeof body.detail === "string" ? body.detail : body.detail ? JSON.stringify(body.detail) : message;
+    } catch {
+      // Keep default message.
+    }
+    throw new Error(message);
+  }
+  if (!response.body) {
+    return apiFetch<RecommendationAgentRun>("/ai-advisor/recommendation-agent/run", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: RecommendationAgentRun | null = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const event = JSON.parse(line) as RecommendationStreamEvent;
+      if (event.type === "stage") {
+        onStage(event);
+      } else if (event.type === "result") {
+        result = event.result;
+      } else if (event.type === "error") {
+        throw new Error(event.detail || `Recommendation Agent failed with ${event.status_code}`);
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+    const event = JSON.parse(buffer) as RecommendationStreamEvent;
+    if (event.type === "stage") onStage(event);
+    if (event.type === "result") result = event.result;
+    if (event.type === "error") throw new Error(event.detail || `Recommendation Agent failed with ${event.status_code}`);
+  }
+  if (!result) {
+    throw new Error("Recommendation Agent stream ended before returning a result.");
+  }
+  return result;
+}
+
+type RecommendationStreamEvent =
+  | RecommendationAgentStageEvent
+  | { type: "result"; result: RecommendationAgentRun }
+  | { type: "error"; status_code: number; detail: string }
+  | { type: "done" };
 
 function clampInt(value: string, min: number, max: number) {
   const parsed = Number.parseInt(value, 10);
@@ -561,6 +698,38 @@ function labelize(value: string) {
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+}
+
+function formatStatValue(value: unknown): string {
+  if (typeof value === "number") {
+    return formatNumber(value);
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "None";
+    if (value.every((item) => Array.isArray(item) && item.length === 2)) {
+      return value.map((item) => `${String(item[0])}: ${String(item[1])}`).join(" · ");
+    }
+    return value.map((item) => typeof item === "object" ? JSON.stringify(item) : String(item)).join(" · ");
+  }
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => `${labelize(key)}: ${formatStatValue(item)}`)
+      .join(" · ");
+  }
+  return "N/A";
+}
+
+function formatDuration(value: number) {
+  if (value < 60) return `${formatNumber(value)}s`;
+  const minutes = Math.floor(value / 60);
+  const seconds = Math.round(value % 60);
+  return `${minutes}m ${seconds}s`;
 }
 
 function normalizeSymbols(values: string[]) {

@@ -16,6 +16,8 @@ type ResearchField = {
   label: string;
   placeholder?: string;
   required?: boolean;
+  kind?: "text" | "select";
+  options?: string[];
 };
 
 type ResearchTemplate = {
@@ -67,6 +69,85 @@ const templates: ResearchTemplate[] = [
     title: "Sentiment/Fundamental Divergence",
     summary: "Find negative sentiment where fundamentals appear stronger than the narrative.",
     fields: [{ id: "sector_or_watchlist", label: "Optional sector or watchlist", placeholder: "Software, banks, AAPL MSFT NVDA" }]
+  },
+  {
+    id: "best-entry-point",
+    title: "Best Entry Point",
+    summary: "Valuation, price action, and support analysis to decide: buy now, wait for a pullback, or set a limit.",
+    fields: [
+      { id: "tickers", label: "Stock ticker(s)", placeholder: "e.g. AAPL  or  AAPL MSFT NVDA", required: true }
+    ]
+  },
+  {
+    id: "trading-plan-architect",
+    title: "Trading Plan Architect",
+    summary: "Personalized trading plan with strategy, daily routine, rules, KPIs, 3/6/12-month roadmap, and mistake prevention.",
+    fields: [
+      {
+        id: "level",
+        label: "Experience level",
+        required: true,
+        kind: "select",
+        options: ["Beginner (< 1 year)", "Intermediate (1–3 years)", "Advanced (3–5 years)", "Professional (5+ years)"]
+      },
+      { id: "amount", label: "Available capital", placeholder: "e.g. $5,000 or €10,000", required: true },
+      { id: "time_available", label: "Daily time available", placeholder: "e.g. 1h in the evening", required: true },
+      { id: "markets", label: "Markets", placeholder: "e.g. crypto, forex, U.S. equities", required: true },
+      {
+        id: "style",
+        label: "Preferred style",
+        required: true,
+        kind: "select",
+        options: ["Scalping", "Day trading", "Swing trading", "Position trading"]
+      },
+      { id: "goal", label: "12-month goal", placeholder: "e.g. +30% or extra income of $500/month", required: true },
+      { id: "weakness", label: "Main identified weakness", placeholder: "e.g. I close my profits too early", required: true }
+    ]
+  },
+  {
+    id: "institutional-flow-decoder",
+    title: "Institutional Flow Decoder",
+    summary: "Decode order flow and market microstructure to identify institutional accumulation, distribution, and liquidity zones.",
+    fields: [
+      { id: "asset", label: "Asset", placeholder: "BTC/USDT, ETH/USDT, ES futures", required: true },
+      { id: "oi_data", label: "Open Interest", placeholder: "e.g. $18.4B, up 3.2% in 24h", required: true },
+      { id: "funding", label: "Funding rate", placeholder: "e.g. +0.012% (positive/neutral/negative)", required: true },
+      { id: "delta", label: "Volume Delta 24h", placeholder: "e.g. +$420M buy delta", required: true },
+      { id: "liquidations", label: "Recent liquidations", placeholder: "e.g. $180M longs liquidated in last 4h", required: true },
+      { id: "cvd_trend", label: "CVD trend", placeholder: "e.g. declining for 3 days despite price rising", required: true }
+    ]
+  },
+  {
+    id: "weekly-macro-radar",
+    title: "Weekly Macro Radar",
+    summary: "Hedge-fund-style weekly macro briefing: risk map, correlations, sentiment, market impact, and bias challenge.",
+    fields: [
+      { id: "markets", label: "Markets you trade", placeholder: "crypto, major forex pairs, U.S. indices", required: true },
+      { id: "date", label: "Week of (date)", placeholder: "e.g. June 23, 2026", required: true },
+      { id: "bias", label: "Your current bias", placeholder: "e.g. bullish on BTC, short DXY", required: true }
+    ]
+  },
+  {
+    id: "setup-scanner",
+    title: "Setup Scanner",
+    summary: "Technical price-action analysis with market structure, S/R zones, long/short setups, and confluence score.",
+    fields: [
+      {
+        id: "strategy",
+        label: "Analysis strategy",
+        required: true,
+        kind: "select",
+        options: ["Price Action", "Smart Money Concepts", "ICT (Inner Circle Trader)", "Elliott Wave", "Wyckoff Method", "Volume Spread Analysis", "Order Flow"]
+      },
+      { id: "asset", label: "Asset / ticker", placeholder: "BTC/USDT, EUR/USD, AAPL", required: true },
+      {
+        id: "timeframe",
+        label: "Timeframe",
+        required: true,
+        kind: "select",
+        options: ["M5", "M15", "M30", "H1", "H4", "D1", "W1"]
+      }
+    ]
   }
 ];
 
@@ -240,12 +321,23 @@ export function ResearchPromptsTool({ keyStatus }: { keyStatus: AIAdvisorOpenAIK
             {activeTemplate.fields.map((field) => (
               <div className="field" key={`${activeTemplate.id}-${field.id}`}>
                 <label htmlFor={`${activeTemplate.id}-${field.id}`}>{field.label}{field.required ? " *" : ""}</label>
-                <input
-                  id={`${activeTemplate.id}-${field.id}`}
-                  value={templateInputs[field.id] ?? ""}
-                  placeholder={field.placeholder}
-                  onChange={(event) => updateInput(field.id, event.target.value)}
-                />
+                {field.kind === "select" ? (
+                  <select
+                    id={`${activeTemplate.id}-${field.id}`}
+                    value={templateInputs[field.id] ?? ""}
+                    onChange={(event) => updateInput(field.id, event.target.value)}
+                  >
+                    <option value="">Select…</option>
+                    {field.options?.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    id={`${activeTemplate.id}-${field.id}`}
+                    value={templateInputs[field.id] ?? ""}
+                    placeholder={field.placeholder}
+                    onChange={(event) => updateInput(field.id, event.target.value)}
+                  />
+                )}
               </div>
             ))}
           </div>

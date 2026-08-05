@@ -163,6 +163,157 @@ RESEARCH_PROMPT_TEMPLATES: tuple[ResearchPromptTemplate, ...] = (
         ),
         fields=(ResearchPromptField("sector_or_watchlist", "Optional sector or watchlist"),),
     ),
+    ResearchPromptTemplate(
+        id="best-entry-point",
+        title="Best Entry Point",
+        prompt=(
+            "I want to buy {tickers}, but I want to enter at the best possible price. "
+            "For each ticker, analyze its current valuation, recent price action, and key support levels "
+            "to tell me if I should buy now, wait for a pullback, or set a target entry price. "
+            "Include: current price vs. fair value estimate, nearest strong support level, "
+            "recommended entry price or zone, stop-loss level, and a one-line rationale."
+        ),
+        output_requirements=(
+            "ticker and current price",
+            "valuation: current price vs. fair value or analyst consensus",
+            "recent price action summary",
+            "key support levels with specific prices",
+            "recommendation: buy now / wait for pullback / set limit — with target entry price or zone",
+            "stop-loss level",
+            "one-line rationale",
+        ),
+        fields=(
+            ResearchPromptField("tickers", "Stock ticker(s)", required=True),
+        ),
+    ),
+    ResearchPromptTemplate(
+        id="trading-plan-architect",
+        title="Trading Plan Architect",
+        prompt=(
+            "You are a high-level trading mentor. Create my personalized trading plan.\n\n"
+            "My profile:\n"
+            "— Experience: {level}\n"
+            "— Available capital: {amount}\n"
+            "— Daily time available: {time_available}\n"
+            "— Markets: {markets}\n"
+            "— Preferred style: {style}\n"
+            "— 12-month goal: {goal}\n"
+            "— Main identified weakness: {weakness}\n\n"
+            "Build a complete plan with:\n"
+            "1. Strategy tailored to my profile (with justification)\n"
+            "2. Sample daily routine: before, during, and after the session\n"
+            "3. The 5 non-negotiable rules of MY trading\n"
+            "4. Tracking system and weekly KPIs\n"
+            "5. Realistic roadmap at 3 / 6 / 12 months with concrete milestones\n"
+            "6. The 3 most likely mistakes I will make and how to prevent them"
+        ),
+        output_requirements=(
+            "strategy recommendation with justification tied to the stated profile",
+            "sample daily routine: pre-session, during session, post-session",
+            "5 non-negotiable personal trading rules",
+            "tracking system and weekly KPIs",
+            "3 / 6 / 12 month roadmap with concrete milestones",
+            "3 most likely mistakes and specific prevention tactics",
+        ),
+        fields=(
+            ResearchPromptField("level", "Experience level", required=True),
+            ResearchPromptField("amount", "Available capital", required=True),
+            ResearchPromptField("time_available", "Daily time available", required=True),
+            ResearchPromptField("markets", "Markets", required=True),
+            ResearchPromptField("style", "Preferred style", required=True),
+            ResearchPromptField("goal", "12-month goal", required=True),
+            ResearchPromptField("weakness", "Main identified weakness", required=True),
+        ),
+    ),
+    ResearchPromptTemplate(
+        id="institutional-flow-decoder",
+        title="Institutional Flow Decoder",
+        prompt=(
+            "You are an expert in order flow, market microstructure, and institutional analysis.\n\n"
+            "Current context in {asset}:\n"
+            "— Open Interest: {oi_data}\n"
+            "— Funding rate: {funding}\n"
+            "— Volume Delta 24h: {delta}\n"
+            "— Recent liquidations: {liquidations}\n"
+            "— CVD (Cumulative Volume Delta): {cvd_trend}\n\n"
+            "Analyze:\n"
+            "1. Who controls the market: institutional buyers or sellers?\n"
+            "2. Is there silent accumulation, distribution, or liquidity manipulation?\n"
+            "3. Main liquidity zones above and below (probable stop hunts)\n"
+            "4. 'Smart money' favorite scenario according to this data\n"
+            "5. Alert signal: What change in these metrics would invalidate your analysis?"
+        ),
+        output_requirements=(
+            "institutional control: buyers or sellers, with supporting data from the inputs",
+            "accumulation / distribution / manipulation read with reasoning",
+            "liquidity zones above and below with probable stop-hunt levels",
+            "smart money preferred scenario with entry rationale",
+            "invalidation alert: specific metric change that flips the thesis",
+        ),
+        fields=(
+            ResearchPromptField("asset", "Asset", required=True),
+            ResearchPromptField("oi_data", "Open Interest", required=True),
+            ResearchPromptField("funding", "Funding rate", required=True),
+            ResearchPromptField("delta", "Volume Delta 24h", required=True),
+            ResearchPromptField("liquidations", "Recent liquidations", required=True),
+            ResearchPromptField("cvd_trend", "CVD trend", required=True),
+        ),
+    ),
+    ResearchPromptTemplate(
+        id="weekly-macro-radar",
+        title="Weekly Macro Radar",
+        prompt=(
+            "You are a senior macro strategist at a hedge fund. I mainly trade {markets}.\n\n"
+            "For the week of {date}, build my macro briefing:\n\n"
+            "1. Risk map: Top 3 macro events, including estimated probability and likely market direction.\n"
+            "2. Key correlations to monitor (DXY, 10-year yields, VIX, oil, etc.).\n"
+            "3. Current market sentiment: Is it risk-on or risk-off? Support your view with data.\n"
+            "4. Potential impact on each of my markets.\n"
+            "5. Macro trade of the week: Thesis in 3 lines, catalyst, timing, and invalidation level.\n\n"
+            "My current bias is {bias}. Challenge it using the macro data and tell me whether I should reconsider it."
+        ),
+        output_requirements=(
+            "risk map: top 3 macro events with probability estimate and likely market direction",
+            "key correlations to monitor this week (DXY, yields, VIX, oil, etc.)",
+            "risk-on / risk-off sentiment call with supporting data",
+            "impact assessment for each specified market",
+            "macro trade of the week: thesis, catalyst, timing, and invalidation level",
+            "bias challenge: whether the stated bias holds or should be reconsidered given macro data",
+            "sources",
+        ),
+        fields=(
+            ResearchPromptField("markets", "Markets you trade", required=True),
+            ResearchPromptField("date", "Week of (date)", required=True),
+            ResearchPromptField("bias", "Your current bias", required=True),
+        ),
+    ),
+    ResearchPromptTemplate(
+        id="setup-scanner",
+        title="Setup Scanner",
+        prompt=(
+            "You are a senior technical analyst specialized in {strategy}.\n\n"
+            "Analyze the recent price action of {asset} on the {timeframe} timeframe.\n\n"
+            "Provide:\n"
+            "1. Precise market structure (HH/HL, LL/LH, range)\n"
+            "2. Key support and resistance zones with strength rating (1-10)\n"
+            "3. Most probable long and short setups for the next 48 hours\n"
+            "4. Exact invalidation level for each scenario\n"
+            "5. Overall confluence score for the best setup (with justification)\n\n"
+            "Be precise, use specific price levels. No generalizations."
+        ),
+        output_requirements=(
+            "market structure label (HH/HL, LL/LH, or range) with current key swing levels",
+            "support and resistance zones with specific price levels and strength rating 1-10",
+            "most probable long setup: entry zone, target, invalidation level",
+            "most probable short setup: entry zone, target, invalidation level",
+            "confluence score for best setup with justification",
+        ),
+        fields=(
+            ResearchPromptField("strategy", "Analysis strategy", required=True),
+            ResearchPromptField("asset", "Asset / ticker", required=True),
+            ResearchPromptField("timeframe", "Timeframe", required=True),
+        ),
+    ),
 )
 
 TEMPLATE_BY_ID = {template.id: template for template in RESEARCH_PROMPT_TEMPLATES}

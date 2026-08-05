@@ -83,6 +83,14 @@ interface WheelStatus {
   quotes_cached: number;
   cboe_prices_cached: number;
   price_source: "alpaca" | "ibkr" | "ibkr_delayed" | "cboe_delayed" | "none";
+  quote_cache_age_seconds?: number | null;
+  quote_cache_oldest_at?: string | null;
+  quote_cache_latest_at?: string | null;
+  quote_cache_stale?: boolean;
+  cboe_cache_age_seconds?: number | null;
+  cboe_cache_oldest_at?: string | null;
+  cboe_cache_latest_at?: string | null;
+  cboe_cache_stale?: boolean;
 }
 
 type SortDir = "asc" | "desc";
@@ -90,6 +98,7 @@ type SubTab = "watchlist" | "wheel-hub";
 type HubFilter = "all" | "csp" | "cc" | "leap";
 type OptionsTab = "P" | "C";
 type WheelChatModel = "gpt-5.5" | "gpt-5.4" | "gpt-5.4-mini" | "nvidia" | "ollama";
+type WheelQuoteSource = "ibkr" | "alpaca";
 type WheelChatMessage = { role: "user" | "assistant"; content: string };
 
 type WheelScannerChatResponse = {
@@ -219,6 +228,15 @@ function fmtVol(v: number | null | undefined): string {
   if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
   if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
   return String(v);
+}
+
+function formatQuoteCacheAge(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
 }
 
 function rsiClass(v: number | null): string {
@@ -591,6 +609,7 @@ export function WheelScannerTool({
   const [subTab, setSubTab]         = useState<SubTab>("watchlist");
   const [hubFilter, setHubFilter]   = useState<HubFilter>("all");
   const [sort, setSort]             = useState<{ key: string; dir: SortDir }>({ key: "symbol", dir: "asc" });
+  const [quoteSource, setQuoteSource] = useState<WheelQuoteSource>("ibkr");
   const [search, setSearch]         = useState("");
   const [selectedSymbols, setSelectedSymbols] = useState<Set<string>>(new Set());
   const [customSymbols, setCustomSymbols] = useState<Set<string>>(new Set());
@@ -668,7 +687,7 @@ export function WheelScannerTool({
         wheelGet<{ tickers: WheelQuote[] }>(`/api/watchlist${forceLive ? "?force_live=true" : ""}`),
       ]);
       setStatus((current) => {
-        const alpacaConnected = current?.alpaca_connected || alpacaWsRef.current?.readyState === WebSocket.OPEN;
+        const alpacaConnected = quoteSource === "alpaca" && (current?.alpaca_connected || alpacaWsRef.current?.readyState === WebSocket.OPEN);
         return {
           ...statusData,
           alpaca_connected: alpacaConnected,
@@ -683,7 +702,7 @@ export function WheelScannerTool({
       setLastUpdated(new Date());
       setError("");
     } catch (err) {
-      if (alpacaKeyStatus?.has_key) {
+      if (quoteSource === "alpaca" && alpacaKeyStatus?.has_key) {
         const seededSymbols = wheelSymbolList(
           DEFAULT_ALPACA_WHEEL_SYMBOLS.map((symbol) => ({
             symbol,
@@ -754,7 +773,7 @@ export function WheelScannerTool({
     } finally {
       setLoading(false);
     }
-  }, [alpacaKeyStatus?.has_key]);
+  }, [alpacaKeyStatus?.has_key, quoteSource]);
 
   async function fetchCustom(symbols: string[], forceLive = false) {
     if (!isActiveRef.current) return;
@@ -836,6 +855,7 @@ export function WheelScannerTool({
   const connectAlpacaWs = useCallback(async () => {
     if (
       !isActiveRef.current ||
+      quoteSource !== "alpaca" ||
       !alpacaKeyStatus?.has_key ||
       alpacaConnectingRef.current ||
       alpacaWsRef.current?.readyState === WebSocket.OPEN ||
@@ -932,7 +952,7 @@ export function WheelScannerTool({
       alpacaConnectingRef.current = false;
       setAlpacaStatus(err instanceof Error ? err.message : "Could not connect Alpaca live quotes.");
     }
-  }, [alpacaKeyStatus?.has_key, closeAlpacaWs]);
+  }, [alpacaKeyStatus?.has_key, closeAlpacaWs, quoteSource]);
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -954,14 +974,22 @@ export function WheelScannerTool({
     setLoading(true);
     void loadWatchlist().then(() => {
       connectWs();
-      if (alpacaStartRef.current) clearTimeout(alpacaStartRef.current);
-      alpacaStartRef.current = setTimeout(() => {
-        alpacaStartRef.current = null;
-        void connectAlpacaWs();
-      }, 500);
+      if (quoteSource === "alpaca") {
+        if (alpacaStartRef.current) clearTimeout(alpacaStartRef.current);
+        alpacaStartRef.current = setTimeout(() => {
+          alpacaStartRef.current = null;
+          void connectAlpacaWs();
+        }, 500);
+      } else {
+        closeAlpacaWs();
+        setAlpacaStatus("");
+        setStatus((current) => current ? { ...current, alpaca_connected: false, price_source: current.price_source === "alpaca" ? "none" : current.price_source } : current);
+      }
     });
     const pollId = setInterval(() => {
-      void loadWatchlist().then(() => { void connectAlpacaWs(); });
+      void loadWatchlist().then(() => {
+        if (quoteSource === "alpaca") void connectAlpacaWs();
+      });
     }, 30_000);
     return () => {
       isActiveRef.current = false;
@@ -975,7 +1003,7 @@ export function WheelScannerTool({
       wsRef.current = null;
       closeAlpacaWs();
     };
-  }, [closeAlpacaWs, connectAlpacaWs, connectWs, isActive, loadWatchlist]);
+  }, [closeAlpacaWs, connectAlpacaWs, connectWs, isActive, loadWatchlist, quoteSource]);
 
   // ── Sorted + filtered quotes ───────────────────────────────────────────────
 
@@ -1127,6 +1155,7 @@ export function WheelScannerTool({
   const isChatOllama = chatModel === "ollama";
   const isChatNvidia = chatModel === "nvidia";
   const canSendChat = Boolean(chatInput.trim() && selectedSymbols.size && (isChatOllama || (isChatNvidia ? nvidiaKeyStatus?.has_key : keyStatus?.has_key)) && !chatLoading);
+  const quoteSourceLabel = quoteSource === "ibkr" ? "IBKR delayed/full universe" : `Alpaca live overlay/${ALPACA_WHEEL_SYMBOL_LIMIT}`;
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1140,21 +1169,60 @@ export function WheelScannerTool({
             <>
               <span className={`wheel-conn ${status.ibkr_connected ? "connected" : ""}`}>
                 {status.ibkr_connected ? <Wifi size={13} /> : <WifiOff size={13} />}
-                {status.alpaca_connected ? "Alpaca Live" : status.ibkr_connected ? "IBKR Delayed" : "IBKR Offline"}
+                {quoteSource === "alpaca" && status.alpaca_connected ? "Alpaca Live" : status.ibkr_connected ? "IBKR Delayed" : "IBKR Offline"}
               </span>
               <span className="fine-print">
-                Source: {status.price_source === "alpaca" ? "Alpaca real-time overlay" : status.price_source === "ibkr" ? "IBKR real-time" : status.price_source === "ibkr_delayed" ? "IBKR delayed" : status.price_source === "cboe_delayed" ? "CBOE 15-min delayed" : "—"}
+                Source: {quoteSourceLabel} · {status.price_source === "alpaca" ? "Alpaca real-time overlay" : status.price_source === "ibkr" ? "IBKR real-time" : status.price_source === "ibkr_delayed" ? "IBKR delayed" : status.price_source === "cboe_delayed" ? "CBOE 15-min delayed" : "—"}
               </span>
               <span className="fine-print">·</span>
               <span className="fine-print">{status.quotes_cached} quotes cached</span>
+              {status.quote_cache_age_seconds != null && (
+                <>
+                  <span className="fine-print">·</span>
+                  <span className={status.quote_cache_stale ? "risk-pill" : "fine-print"}>
+                    cache age {formatQuoteCacheAge(status.quote_cache_age_seconds)}
+                  </span>
+                </>
+              )}
+              {status.quote_cache_age_seconds == null && status.cboe_cache_age_seconds != null && (
+                <>
+                  <span className="fine-print">·</span>
+                  <span className={status.cboe_cache_stale ? "risk-pill" : "fine-print"}>
+                    CBOE age {formatQuoteCacheAge(status.cboe_cache_age_seconds)}
+                  </span>
+                </>
+              )}
             </>
           ) : (
             <span className="fine-print wheel-muted">{error || "Connecting to backend…"}</span>
           )}
         </div>
         <div className="wheel-status-right">
+          <div className="wheel-source-toggle" role="radiogroup" aria-label="Wheel Scanner quote source">
+            <button
+              type="button"
+              className={quoteSource === "ibkr" ? "active" : ""}
+              onClick={() => {
+                setQuoteSource("ibkr");
+                setAlpacaStatus("");
+                closeAlpacaWs();
+              }}
+            >
+              IBKR delayed/full
+            </button>
+            <button
+              type="button"
+              className={quoteSource === "alpaca" ? "active" : ""}
+              onClick={() => {
+                setQuoteSource("alpaca");
+                if (!alpacaKeyStatus?.has_key) setAlpacaStatus("Save an Alpaca key to use Alpaca live quotes.");
+              }}
+            >
+              Alpaca live/30
+            </button>
+          </div>
           {lastUpdated && <span className="fine-print">Updated {lastUpdated.toLocaleTimeString()}</span>}
-          {alpacaKeyStatus?.has_key && alpacaStatus && <span className="fine-print">{alpacaStatus}</span>}
+          {quoteSource === "alpaca" && alpacaStatus && <span className="fine-print">{alpacaStatus}</span>}
           <button
             type="button"
             className="ghost-button"
@@ -1285,7 +1353,9 @@ export function WheelScannerTool({
       )}
       {status && !status.ibkr_connected && quotes.length > 0 && (
         <p className="fine-print" style={{ margin: "0 0 12px" }}>
-          Alpaca is filling live prices. Stage, SATA, RSI, BB%, and option-yield columns need the Wheel analytics backend.
+          {quoteSource === "alpaca"
+            ? "Alpaca is filling live prices. Stage, SATA, RSI, BB%, and option-yield columns need the Wheel analytics backend."
+            : "IBKR Wheel backend is offline. Start the IBKR backend to refresh the full Wheel universe, or switch to Alpaca live/30."}
         </p>
       )}
 

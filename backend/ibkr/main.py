@@ -36,6 +36,7 @@ from data.tickers import ALL_TICKERS
 from services.cboe_service import (
     get_option_chain, _is_cached_today,
     find_30delta_metrics, get_atm_iv,
+    cache_stats as cboe_cache_stats,
 )
 from services.scanner_service import run_csp_scan, run_cc_scan
 from services.breakout_router import router as breakout_router
@@ -263,15 +264,18 @@ async def _ibkr_reconnect_loop():
 async def _cboe_metrics_loop():
     """Pre-warm CBOE daily cache, then compute 30Δ metrics + signals for all symbols.
 
-    Runs immediately at startup (hits disk cache if warm), then every 6 hours
-    to refresh after midnight or if IBKR was offline during the initial fill.
+    Runs immediately at startup, then every 20 minutes so delayed CBOE
+    fallback prices do not remain stale all day when IBKR is offline.
     """
     while True:
+        # Keep any disk-loaded fallback prices usable while stale symbols refresh.
+        _populate_cboe_price_cache_from_chain_cache()
+
         # ── 1. Pre-fill CBOE chain cache ──────────────────────────────────
         missing = [s for s in ALL_TICKERS if not _is_cached_today(s)]
         if missing:
             log.info(
-                "CBOE pre-fill: %d symbols need fetching (%d already cached today)",
+                "CBOE pre-fill: %d symbols need fetching (%d fresh within 20 min)",
                 len(missing), len(ALL_TICKERS) - len(missing),
             )
             for sym in missing:
@@ -285,21 +289,24 @@ async def _cboe_metrics_loop():
                     pass
             log.info("CBOE pre-fill complete")
         else:
-            log.info("CBOE daily cache warm — all %d symbols cached", len(ALL_TICKERS))
+            log.info("CBOE cache warm — all %d symbols fresh within 20 min", len(ALL_TICKERS))
 
-        # Populate price fallback from in-memory cache (includes disk-loaded entries)
-        from services.cboe_service import _cache as _cboe_cache
-        for sym in ALL_TICKERS:
-            entry = _cboe_cache.get(sym)
-            if entry and entry[1]:
-                price = entry[1][0].get("stock_price")
-                if price:
-                    _cboe_price_cache[sym] = price
+        _populate_cboe_price_cache_from_chain_cache()
 
         # ── 2. Compute 30Δ metrics + signals from chain data ──────────────
         _recompute_metrics()
 
-        await asyncio.sleep(6 * 3600)
+        await asyncio.sleep(20 * 60)
+
+
+def _populate_cboe_price_cache_from_chain_cache() -> None:
+    from services.cboe_service import _cache as _cboe_cache
+    for sym in ALL_TICKERS:
+        entry = _cboe_cache.get(sym)
+        if entry and entry[1]:
+            price = entry[1][0].get("stock_price")
+            if price:
+                _cboe_price_cache[sym] = price
 
 
 def _seconds_until_market_close_refresh() -> float:
@@ -1072,7 +1079,7 @@ async def _build_optitrade_signal(symbol: str) -> dict[str, Any]:
 # ─────────────────────────────────────────────────────────────
 
 @app.get("/api/status")
-def get_status():
+async def get_status():
     ibkr_on = ibkr.is_connected()
     ibkr_quote_count = len(ibkr.get_all_quotes())
     cboe_prices = len(_cboe_price_cache)
@@ -1083,6 +1090,8 @@ def get_status():
         "cboe_prices_cached": cboe_prices,
         "price_source": "ibkr_delayed" if ibkr_quote_count else ("cboe_delayed" if cboe_prices else "none"),
         "metrics_computed": len(_metrics_cache),
+        **ibkr.quote_cache_stats(),
+        **cboe_cache_stats(),
     }
 
 
@@ -1090,8 +1099,10 @@ def get_status():
 async def get_watchlist(force_live: bool = Query(False, description="Force an immediate IBKR quote snapshot before returning rows.")):
     if force_live and ibkr.is_connected():
         await ibkr.refresh_quotes()
+    elif ibkr.is_connected():
+        await ibkr.ensure_recent_quotes()
     rows = list(_build_watchlist_rows().values())
-    return {"tickers": rows, "count": len(rows)}
+    return {"tickers": rows, "count": len(rows), **ibkr.quote_cache_stats(), **cboe_cache_stats()}
 
 
 @app.get("/api/composite-signal")
@@ -1233,6 +1244,8 @@ async def get_custom_quotes(
 
     if force_live and ibkr.is_connected():
         await ibkr.refresh_quotes(syms)
+    elif ibkr.is_connected():
+        await ibkr.ensure_recent_quotes()
 
     existing = _build_watchlist_rows()
     results: list[dict] = []

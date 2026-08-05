@@ -5,7 +5,7 @@ Uses the free CBOE CDN endpoint for 15-minute delayed option chains.
 Caching strategy:
   - Daily disk cache: persisted to data/cboe_daily_cache.json.
     On startup the file is loaded into memory — restarts are instant.
-    Entries are considered fresh for the whole calendar day they were fetched.
+    Entries are considered fresh for 20 minutes on the same calendar day.
     Once midnight passes the stale file is ignored and symbols are re-fetched.
   - In-process LRU layer: _cache keeps the parsed chains so repeated calls
     within the same process never hit disk again.
@@ -53,6 +53,7 @@ _DAILY_CACHE_FILE = os.path.join(
 
 # ── In-process cache: symbol → (fetched_epoch, parsed_chain) ─────────────────
 _cache: dict[str, tuple[float, list[dict]]] = {}
+CBOE_CHAIN_TTL_SECONDS = 20 * 60
 
 
 def _get_client() -> httpx.AsyncClient:
@@ -80,9 +81,16 @@ def load_daily_cache_from_disk() -> None:
             log.info("CBOE daily cache is stale (dated %s) — will refetch today", data.get("date"))
             return
         chains = data.get("chains", {})
-        now = time.time()
-        for sym, chain in chains.items():
-            _cache[sym] = (now, chain)
+        file_mtime = os.path.getmtime(_DAILY_CACHE_FILE)
+        for sym, saved in chains.items():
+            if isinstance(saved, dict):
+                fetched_epoch = float(saved.get("fetched_epoch") or 0)
+                chain = saved.get("chain") or []
+            else:
+                fetched_epoch = file_mtime
+                chain = saved
+            if isinstance(chain, list):
+                _cache[sym] = (fetched_epoch, chain)
         log.info("CBOE daily cache loaded from disk: %d symbols", len(chains))
     except Exception as exc:
         log.debug("Could not load CBOE daily cache: %s", exc)
@@ -91,7 +99,7 @@ def load_daily_cache_from_disk() -> None:
 def _save_daily_cache_to_disk() -> None:
     """Persist current in-memory cache to the daily disk file."""
     try:
-        chains = {sym: chain for sym, (_, chain) in _cache.items()}
+        chains = {sym: {"fetched_epoch": fetched, "chain": chain} for sym, (fetched, chain) in _cache.items()}
         os.makedirs(os.path.dirname(_DAILY_CACHE_FILE), exist_ok=True)
         with open(_DAILY_CACHE_FILE, "w") as f:
             json.dump({"date": date.today().isoformat(), "chains": chains}, f)
@@ -100,11 +108,32 @@ def _save_daily_cache_to_disk() -> None:
 
 
 def _is_cached_today(symbol: str) -> bool:
-    """Return True if symbol has a cache entry from today (full-day freshness)."""
+    """Return True if symbol has a same-day cache entry younger than the TTL."""
     cached = _cache.get(symbol)
     if not cached:
         return False
-    return datetime.fromtimestamp(cached[0]).date() == date.today()
+    fetched_epoch = cached[0]
+    return datetime.fromtimestamp(fetched_epoch).date() == date.today() and (time.time() - fetched_epoch) <= CBOE_CHAIN_TTL_SECONDS
+
+
+def cache_stats() -> dict[str, object]:
+    timestamps = [fetched for fetched, chain in _cache.values() if chain and fetched > 0]
+    if not timestamps:
+        return {
+            "cboe_cache_age_seconds": None,
+            "cboe_cache_oldest_at": None,
+            "cboe_cache_latest_at": None,
+            "cboe_cache_stale": True,
+        }
+    oldest = min(timestamps)
+    latest = max(timestamps)
+    age = max(0.0, time.time() - oldest)
+    return {
+        "cboe_cache_age_seconds": round(age, 1),
+        "cboe_cache_oldest_at": _iso_from_epoch(oldest),
+        "cboe_cache_latest_at": _iso_from_epoch(latest),
+        "cboe_cache_stale": age > CBOE_CHAIN_TTL_SECONDS,
+    }
 
 
 # ── Core fetch with retry ─────────────────────────────────────────────────────
@@ -161,7 +190,7 @@ def _parse_occ(occ: str) -> tuple[str, date, str, float]:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 async def get_option_chain(symbol: str) -> list[dict]:
-    """Return parsed option chain for *symbol*. Cached for the full trading day."""
+    """Return parsed option chain for *symbol*. Cached for 20 minutes intraday."""
     if _is_cached_today(symbol):
         return _cache[symbol][1]
 
@@ -246,6 +275,10 @@ async def get_option_chain(symbol: str) -> list[dict]:
     _cache[symbol] = (time.time(), parsed)
     _save_daily_cache_to_disk()   # persist after every new fetch
     return parsed
+
+
+def _iso_from_epoch(value: float) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(value))
 
 
 def find_30delta_metrics(symbol: str) -> dict:

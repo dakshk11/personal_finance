@@ -62,6 +62,12 @@ cboe_stub.get_option_chain = lambda _symbol: []
 cboe_stub._is_cached_today = lambda _symbol: True
 cboe_stub.find_30delta_metrics = lambda _symbol: {"csp_30d": None, "cc_30d": None}
 cboe_stub.get_atm_iv = lambda _symbol: None
+cboe_stub.cache_stats = lambda: {
+    "cboe_cache_age_seconds": None,
+    "cboe_cache_oldest_at": None,
+    "cboe_cache_latest_at": None,
+    "cboe_cache_stale": True,
+}
 sys.modules.setdefault("services.cboe_service", cboe_stub)
 
 scanner_stub = types.ModuleType("services.scanner_service")

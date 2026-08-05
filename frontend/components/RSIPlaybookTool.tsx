@@ -13,10 +13,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Area,
   CartesianGrid,
   ComposedChart,
-  Legend,
   Line,
   ReferenceLine,
   ResponsiveContainer,
@@ -26,14 +24,13 @@ import {
 } from "recharts";
 import { RSIPlaybookScan, RSIPlaybookSignal, apiFetch, percent } from "@/lib/api";
 
-type FilterKey = "all" | "cash" | "puts" | "stock" | "leap" | "watch";
+type FilterKey = "all" | "sell_puts" | "sell_puts_otm" | "sell_puts_itm" | "wait" | "watch";
 
 const ruleCards = [
-  { level: "RSI 70+", action: "Go to cash", tone: "cash" },
-  { level: "RSI 55-65", action: "Sell puts far OTM", tone: "puts_far_otm" },
-  { level: "RSI 45-55", action: "Sell puts ATM", tone: "puts_atm" },
-  { level: "RSI 30-45", action: "Buy the stock", tone: "stock" },
-  { level: "RSI 30 and below", action: "Buy LEAP aggressively", tone: "leap" }
+  { level: "Rule 1", action: "Only sell puts when RSI is under 50", tone: "sell_puts" },
+  { level: "Rule 2", action: "Moving averages must confirm a bullish trend", tone: "wait" },
+  { level: "Rule 3", action: "Target 5% return in 30 days", tone: "watch" },
+  { level: "Exit", action: "Close at 50% profit, usually 5-7 days", tone: "watch" }
 ];
 
 export function RSIPlaybookTool() {
@@ -57,14 +54,15 @@ export function RSIPlaybookTool() {
   const selected = signals.find((signal) => signal.symbol === selectedSymbol) ?? signals[0] ?? null;
   const filteredSignals = useMemo(() => {
     if (filter === "all") return signals;
-    if (filter === "puts") return signals.filter((signal) => signal.action_tone === "puts_far_otm" || signal.action_tone === "puts_atm");
+    if (filter === "sell_puts_otm") return signals.filter(isOtmPutCandidate);
+    if (filter === "sell_puts_itm") return signals.filter(isItmPutCandidate);
     return signals.filter((signal) => signal.action_tone === filter);
   }, [filter, signals]);
   const counts = useMemo(() => ({
-    cash: signals.filter((signal) => signal.action_tone === "cash").length,
-    puts: signals.filter((signal) => signal.action_tone === "puts_far_otm" || signal.action_tone === "puts_atm").length,
-    stock: signals.filter((signal) => signal.action_tone === "stock").length,
-    leap: signals.filter((signal) => signal.action_tone === "leap").length,
+    sellPuts: signals.filter((signal) => signal.action_tone === "sell_puts").length,
+    otmPuts: signals.filter(isOtmPutCandidate).length,
+    itmPuts: signals.filter(isItmPutCandidate).length,
+    wait: signals.filter((signal) => signal.action_tone === "wait").length,
     watch: signals.filter((signal) => signal.action_tone === "watch").length
   }), [signals]);
 
@@ -87,16 +85,16 @@ export function RSIPlaybookTool() {
       <section className="dashboard-panel rsi-playbook-head">
         <div>
           <p className="eyebrow">RSI Playbook</p>
-          <h2>Wheel Strategy and Portfolio Sync symbols mapped to RSI action zones.</h2>
+          <h2>RSI entry timing plus moving-average trend confirmation.</h2>
           <div className="rsi-source-line">
             <span><Gauge size={14} /> RSI 14</span>
-            <span><Activity size={14} /> EMA 8 / 21 / 55</span>
+            <span><Activity size={14} /> Bullish EMA trend</span>
             <span><WalletCards size={14} /> Wheel + Portfolio Sync</span>
           </div>
         </div>
         <div className="rsi-actions">
           <span className="status-pill">{scan ? `${scan.universe_count} symbols` : "Loading"}</span>
-          <button className="ghost-button" type="button" onClick={() => loadScan(false)} disabled={Boolean(loading)}>
+          <button className="ghost-button rsi-refresh-button" type="button" onClick={() => loadScan(false)} disabled={Boolean(loading)}>
             {loading === "initial" ? <Loader2 size={16} className="spin-icon" /> : <RefreshCw size={16} />}
             Refresh
           </button>
@@ -109,17 +107,17 @@ export function RSIPlaybookTool() {
 
       <section className="dashboard-panel rsi-playbook-notice">
         <ShieldCheck size={18} />
-        <p>Educational playbook output only. The action labels follow the requested RSI rules and still require manual verification of news, earnings, liquidity, tax impact, and position sizing.</p>
+        <p>Educational playbook output only. Sell-put setups require both conditions: RSI under 50 and a bullish moving-average trend. Target/exit notes are planning rules, not guaranteed outcomes.</p>
       </section>
 
       {error && <div className="error">{error}</div>}
 
       <section className="rsi-stat-grid stat-grid">
-        <Stat label="Go to cash" value={counts.cash} tone="cash" />
-        <Stat label="Sell puts" value={counts.puts} tone="puts" />
-        <Stat label="Buy stock" value={counts.stock} tone="stock" />
-        <Stat label="Buy LEAP" value={counts.leap} tone="leap" />
-        <Stat label="Watch gap" value={counts.watch} tone="watch" />
+        <Stat label="Sell puts" value={counts.sellPuts} tone="puts" />
+        <Stat label="OTM puts" value={counts.otmPuts} tone="puts" />
+        <Stat label="ITM puts" value={counts.itmPuts} tone="puts" />
+        <Stat label="Wait" value={counts.wait} tone="watch" />
+        <Stat label="Data watch" value={counts.watch} tone="watch" />
       </section>
 
       <section className="dashboard-panel rsi-rule-panel">
@@ -145,8 +143,8 @@ export function RSIPlaybookTool() {
               <p className="fine-print">{scan ? `${scan.wheel_symbol_count} Wheel symbols and ${scan.portfolio_symbol_count} Portfolio Sync symbols` : "Loading combined universe"}</p>
             </div>
             <div className="rsi-filter-tabs">
-              {(["all", "cash", "puts", "stock", "leap", "watch"] as FilterKey[]).map((item) => (
-                <button className={filter === item ? "active" : ""} type="button" key={item} onClick={() => setFilter(item)}>
+              {(["all", "sell_puts", "sell_puts_otm", "sell_puts_itm", "wait", "watch"] as FilterKey[]).map((item) => (
+                <button className={filter === item ? "active" : ""} type="button" key={item} onClick={() => setFilter(item)} data-tooltip={filterTooltip(item)}>
                   {filterLabel(item)}
                 </button>
               ))}
@@ -171,7 +169,7 @@ export function RSIPlaybookTool() {
                 <span>{signal.level}<small>{signal.rsi == null ? "RSI N/A" : `${signal.rsi.toFixed(1)} | ${signal.trend}`}</small></span>
                 <span>
                   <i className={`rsi-action-dot ${signal.action_tone}`} />{signal.action}
-                  <small>{signal.window_return_3m == null ? "3M N/A" : `${percent(signal.window_return_3m)} 3M`} | {signal.sources.join(" + ")}</small>
+                  <small>{putFilterContext(signal, filter)}{signal.window_return_3m == null ? "3M N/A" : `${percent(signal.window_return_3m)} 3M`} | {signal.sources.join(" + ")}</small>
                 </span>
               </button>
             ))}
@@ -221,25 +219,7 @@ function SignalDetails({ signal }: { signal: RSIPlaybookSignal }) {
       </div>
       <div className="rsi-chart-stack">
         <div className="rsi-price-chart">
-          <ResponsiveContainer width="100%" height={360}>
-            <ComposedChart data={signal.chart} margin={{ left: 4, right: 14, top: 10, bottom: 8 }}>
-              <defs>
-                <linearGradient id={`rsiClose-${signal.symbol}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#5eead4" stopOpacity={0.44} />
-                  <stop offset="95%" stopColor="#5eead4" stopOpacity={0.04} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="#17352d" strokeDasharray="3 3" />
-              <XAxis dataKey="date" minTickGap={42} tickFormatter={formatMonthDay} tick={{ fontSize: 11, fill: "#8da99e" }} axisLine={{ stroke: "#24463c" }} tickLine={{ stroke: "#24463c" }} />
-              <YAxis width={64} tickFormatter={(value) => compactCurrency(Number(value))} tick={{ fontSize: 11, fill: "#8da99e" }} axisLine={{ stroke: "#24463c" }} tickLine={{ stroke: "#24463c" }} />
-              <Tooltip content={<RSIChartTooltip />} />
-              <Legend wrapperStyle={{ color: "#b6d9cb", fontSize: 12 }} />
-              <Area type="monotone" dataKey="close" name="Close" stroke="#5eead4" fill={`url(#rsiClose-${signal.symbol})`} fillOpacity={1} strokeWidth={2.6} dot={false} activeDot={{ r: 4, fill: "#f8fffd" }} />
-              <Line type="monotone" dataKey="ema8" name="EMA 8" stroke="#38bdf8" strokeWidth={1.5} dot={false} connectNulls />
-              <Line type="monotone" dataKey="ema21" name="EMA 21" stroke="#f59e0b" strokeWidth={1.7} dot={false} connectNulls />
-              <Line type="monotone" dataKey="ema55" name="EMA 55" stroke="#c084fc" strokeWidth={1.7} dot={false} connectNulls />
-            </ComposedChart>
-          </ResponsiveContainer>
+          <CandlestickPriceChart signal={signal} />
         </div>
         <div className="rsi-oscillator-chart">
           <ResponsiveContainer width="100%" height={190}>
@@ -259,6 +239,84 @@ function SignalDetails({ signal }: { signal: RSIPlaybookSignal }) {
         </div>
       </div>
     </>
+  );
+}
+
+function CandlestickPriceChart({ signal }: { signal: RSIPlaybookSignal }) {
+  const width = 920;
+  const height = 360;
+  const padding = { top: 18, right: 58, bottom: 34, left: 12 };
+  const rows = signal.chart;
+  if (!rows.length) {
+    return <div className="rsi-empty-chart">No price history available.</div>;
+  }
+
+  const candles = rows.map((row, index) => {
+    const open = index > 0 ? rows[index - 1].close : row.close;
+    const high = Math.max(open, row.close);
+    const low = Math.min(open, row.close);
+    return { ...row, open, high, low };
+  });
+  const values = candles.flatMap((row) => [row.high, row.low, row.ema8, row.ema21, row.ema55].filter((value): value is number => typeof value === "number"));
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const pad = Math.max((maxValue - minValue) * 0.08, maxValue * 0.01);
+  const domainMin = minValue - pad;
+  const domainMax = maxValue + pad;
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const xFor = (index: number) => padding.left + (rows.length <= 1 ? chartWidth / 2 : (index / (rows.length - 1)) * chartWidth);
+  const yFor = (value: number) => padding.top + ((domainMax - value) / (domainMax - domainMin)) * chartHeight;
+  const candleWidth = Math.max(2, Math.min(9, (chartWidth / Math.max(rows.length, 1)) * 0.58));
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => domainMin + (domainMax - domainMin) * ratio);
+  const xTickIndexes = Array.from(new Set([0, 0.25, 0.5, 0.75, 1].map((ratio) => Math.round((rows.length - 1) * ratio))));
+  const emaLine = (key: "ema8" | "ema21" | "ema55") =>
+    rows
+      .map((row, index) => (typeof row[key] === "number" ? `${xFor(index)},${yFor(row[key])}` : ""))
+      .filter(Boolean)
+      .join(" ");
+
+  return (
+    <svg className="rsi-candlestick-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${signal.symbol} candlestick chart with EMA overlays`}>
+      <rect className="rsi-candle-bg" x="0" y="0" width={width} height={height} rx="12" />
+      {yTicks.map((tick) => {
+        const y = yFor(tick);
+        return (
+          <g key={tick}>
+            <line className="rsi-candle-grid" x1={padding.left} x2={width - padding.right} y1={y} y2={y} />
+            <text className="rsi-candle-axis" x={width - padding.right + 10} y={y + 4}>{compactCurrency(tick)}</text>
+          </g>
+        );
+      })}
+      {xTickIndexes.map((index) => (
+        <text className="rsi-candle-axis" key={index} x={xFor(index)} y={height - 9} textAnchor={index === 0 ? "start" : index === rows.length - 1 ? "end" : "middle"}>
+          {formatMonthDay(rows[index].date)}
+        </text>
+      ))}
+      {candles.map((row, index) => {
+        const x = xFor(index);
+        const openY = yFor(row.open);
+        const closeY = yFor(row.close);
+        const highY = yFor(row.high);
+        const lowY = yFor(row.low);
+        const up = row.close >= row.open;
+        return (
+          <g className={up ? "rsi-candle up" : "rsi-candle down"} key={row.date}>
+            <line x1={x} x2={x} y1={highY} y2={lowY} />
+            <rect x={x - candleWidth / 2} y={Math.min(openY, closeY)} width={candleWidth} height={Math.max(2, Math.abs(closeY - openY))} rx="1.5" />
+          </g>
+        );
+      })}
+      <polyline className="rsi-ema-line ema8" points={emaLine("ema8")} />
+      <polyline className="rsi-ema-line ema21" points={emaLine("ema21")} />
+      <polyline className="rsi-ema-line ema55" points={emaLine("ema55")} />
+      <g className="rsi-candle-legend">
+        <text x={padding.left} y="16">Candles</text>
+        <text x={padding.left + 82} y="16">EMA 8</text>
+        <text x={padding.left + 142} y="16">EMA 21</text>
+        <text x={padding.left + 214} y="16">EMA 55</text>
+      </g>
+    </svg>
   );
 }
 
@@ -296,11 +354,34 @@ function RSIChartTooltip({ active, payload, label }: { active?: boolean; payload
 
 function filterLabel(value: FilterKey) {
   if (value === "all") return "All";
-  if (value === "cash") return "Cash";
-  if (value === "puts") return "Puts";
-  if (value === "stock") return "Stock";
-  if (value === "leap") return "LEAP";
-  return "Watch";
+  if (value === "sell_puts") return "Sell puts";
+  if (value === "sell_puts_otm") return "OTM puts";
+  if (value === "sell_puts_itm") return "ITM puts";
+  if (value === "wait") return "Wait";
+  return "Data watch";
+}
+
+function filterTooltip(value: FilterKey) {
+  if (value === "sell_puts") {
+    return "Rule 1: Only sell puts on red days (RSI <50)\nRule 2: Target 5% return in 30 days\nRule 3: Close at 50% profit (5-7 days)";
+  }
+  if (value === "sell_puts_otm") return "OTM put filter only: RSI <50 red-day candidates. Does not require the bullish-trend rule.";
+  if (value === "sell_puts_itm") return "ITM put filter only: RSI <40 deeper-red candidates. Does not require the bullish-trend rule.";
+  return undefined;
+}
+
+function isOtmPutCandidate(signal: RSIPlaybookSignal) {
+  return typeof signal.rsi === "number" && signal.rsi < 50;
+}
+
+function isItmPutCandidate(signal: RSIPlaybookSignal) {
+  return typeof signal.rsi === "number" && signal.rsi < 40;
+}
+
+function putFilterContext(signal: RSIPlaybookSignal, filter: FilterKey) {
+  if (filter === "sell_puts_otm" && isOtmPutCandidate(signal)) return "OTM put filter: RSI <50, trend not required | ";
+  if (filter === "sell_puts_itm" && isItmPutCandidate(signal)) return "ITM put filter: RSI <40, trend not required | ";
+  return "";
 }
 
 function currencyCents(value: number) {

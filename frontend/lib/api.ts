@@ -319,7 +319,7 @@ export type RSIPlaybookSignal = {
   rsi?: number | null;
   level: string;
   action: string;
-  action_tone: "cash" | "puts_far_otm" | "puts_atm" | "stock" | "leap" | "watch" | string;
+  action_tone: "sell_puts" | "wait" | "watch" | string;
   summary: string;
   trend: string;
   ema8?: number | null;
@@ -1083,11 +1083,23 @@ export type RecommendationAgentRun = {
   model_routing: Record<string, unknown>;
   ranked_ideas: RecommendationAgentIdea[];
   scanner_summary: Record<string, Record<string, unknown>>;
+  stage_details: RecommendationAgentStageEvent[];
+  candidate_statistics: Record<string, unknown>;
   tipranks_status: Record<string, unknown>;
   lunarcrush_status: Record<string, unknown>;
+  market_context: Record<string, unknown>;
   warnings: string[];
   raw_llm_markdown: string;
   usage: Record<string, unknown>;
+};
+
+export type RecommendationAgentStageEvent = {
+  type?: "stage";
+  stage: string;
+  status: "running" | "complete" | "skipped" | "unavailable" | "error";
+  message: string;
+  elapsed_seconds?: number;
+  details?: Record<string, unknown>;
 };
 
 export type RecommendationOptionRow = {

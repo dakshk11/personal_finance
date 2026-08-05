@@ -172,8 +172,11 @@ class RecommendationAgentRunOut(BaseModel):
     model_routing: dict[str, Any] = Field(default_factory=dict)
     ranked_ideas: list[RecommendationAgentIdeaOut]
     scanner_summary: dict[str, Any] = Field(default_factory=dict)
+    stage_details: list[dict[str, Any]] = Field(default_factory=list)
+    candidate_statistics: dict[str, Any] = Field(default_factory=dict)
     tipranks_status: dict[str, Any] = Field(default_factory=dict)
     lunarcrush_status: dict[str, Any] = Field(default_factory=dict)
+    market_context: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     raw_llm_markdown: str = ""
     usage: dict[str, Any] = Field(default_factory=dict)

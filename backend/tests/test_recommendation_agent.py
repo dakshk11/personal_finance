@@ -2,6 +2,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import app.services.recommendation_agent as recommendation_agent
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -12,7 +13,7 @@ from app.db.session import Base
 from app.models.entities import AIAdvisorLunarCrushKey, AIAdvisorNvidiaKey, AIAdvisorOpenAIKey, AIAdvisorTipRanksKey, User
 from app.schemas.common import RecommendationAgentRunRequest
 from app.services.ai_advisor import encrypt_api_key
-from app.services.recommendation_agent import CandidateIdea, LunarCrushEnricher, TipRanksEnricher, _breakout_idea, _extension_warnings, _parse_portfolio_input, _ranking_prompt, run_recommendation_agent
+from app.services.recommendation_agent import CandidateIdea, LunarCrushEnricher, TipRanksEnricher, _breakout_idea, _extension_warnings, _fetch_cboe_vix_close, _fetch_stockanalysis_etf_metrics, _parse_portfolio_input, _ranking_prompt, _vix_active_suggestion, run_recommendation_agent
 
 
 SECRET = "test-secret-for-recommendation-agent-key"
@@ -20,6 +21,29 @@ PLAINTEXT_KEY = "sess-test-valid-openai-key-value"
 TIPRANKS_TEST_KEY = "test-tipranks-placeholder"
 LUNARCRUSH_TEST_KEY = "test-lunarcrush-placeholder"
 NVIDIA_TEST_KEY = "test-nvidia-placeholder"
+
+
+def _fake_market_context() -> dict:
+    return {
+        "status": "available",
+        "source": "StockAnalysis ETF pages + Cboe VIX historical CSV",
+        "etfs": [
+            {"symbol": "QQQ", "forward_pe": None, "earnings_growth": None, "pe_ratio": 32.3, "pe_ratio_type": "trailing"},
+            {"symbol": "SPY", "forward_pe": None, "earnings_growth": None, "pe_ratio": 26.55, "pe_ratio_type": "trailing"},
+            {"symbol": "SMH", "forward_pe": None, "earnings_growth": None, "pe_ratio": 51.12, "pe_ratio_type": "trailing"},
+            {"symbol": "SOXX", "forward_pe": None, "earnings_growth": None, "pe_ratio": 57.08, "pe_ratio_type": "trailing"},
+        ],
+        "vix": {
+            "symbol": "^VIX",
+            "value": 22.4,
+            "active_suggestion": "sell puts aggressively",
+            "action_guide": [
+                {"condition": "VIX under 20", "suggestion": "sell puts normally"},
+                {"condition": "VIX above 20", "suggestion": "sell puts aggressively"},
+            ],
+        },
+        "warnings": [],
+    }
 
 
 class FailingTipRanks(TipRanksEnricher):
@@ -125,9 +149,15 @@ class RecommendationAgentTests(unittest.TestCase):
         self.assertIn("Wheel Scanner", result["ranked_ideas"][0]["source_agents"])
         self.assertIn("Breakout Scanner", result["ranked_ideas"][0]["source_agents"])
         self.assertEqual(result["scanner_summary"]["Wheel Scanner"]["status"], "ok")
+        self.assertGreater(len(result["stage_details"]), 0)
+        self.assertEqual(result["candidate_statistics"]["candidate_count"], 2)
+        self.assertIn("AAPL", result["candidate_statistics"]["finalist_symbols"])
         self.assertIn('"symbol": "NVDA"', generate.call_args_list[0].args[1])
+        self.assertIn('"symbol": "QQQ"', generate.call_args_list[1].args[1])
+        self.assertIn('"active_suggestion": "sell puts aggressively"', generate.call_args_list[1].args[1])
         self.assertEqual(generate.call_args_list[0].kwargs["ollama_timeout_seconds"], 420)
         self.assertEqual(generate.call_args_list[1].kwargs["ollama_timeout_seconds"], 420)
+        self.assertEqual(result["market_context"]["vix"]["active_suggestion"], "sell puts aggressively")
 
     def test_ollama_endpoint_does_not_require_openai_key(self) -> None:
         db, user = self._seed_user()
@@ -209,12 +239,12 @@ class RecommendationAgentTests(unittest.TestCase):
 
         with patch("app.api.recommendation_agent.get_settings", return_value=SimpleNamespace(ai_advisor_key_encryption_secret=SECRET)), patch(
             "app.api.recommendation_agent.run_recommendation_agent",
-            return_value=self._empty_result("nvidia:minimaxai/minimax-m2.7"),
+            return_value=self._empty_result("nvidia:nvidia/nemotron-3-super-120b-a12b"),
         ) as service:
             run_endpoint(RecommendationAgentRunRequest(model="auto", model_mode="nvidia"), user, db)
 
         payload = service.call_args.args[2]
-        self.assertEqual(payload.model, "nvidia:minimaxai/minimax-m2.7")
+        self.assertEqual(payload.model, "nvidia:nvidia/nemotron-3-super-120b-a12b")
         self.assertEqual(payload.model_mode, "nvidia")
         self.assertEqual(service.call_args.kwargs.get("api_key"), NVIDIA_TEST_KEY)
 
@@ -449,6 +479,7 @@ class RecommendationAgentTests(unittest.TestCase):
             phase="final-pass",
             user_context="Prefer durable cash flow and avoid earnings binary risk.",
             portfolio=[{"symbol": "NVDA", "shares": 10}],
+            market_context=_fake_market_context(),
         )
 
         self.assertIn("Wall Street-style research discipline", prompt)
@@ -463,13 +494,98 @@ class RecommendationAgentTests(unittest.TestCase):
         self.assertIn("research_stance", prompt)
         self.assertIn("Prefer durable cash flow", prompt)
         self.assertIn("NVDA", prompt)
+        self.assertIn("ETF valuation, earnings-growth, and VIX context", prompt)
+        self.assertIn("forward_pe", prompt)
+        self.assertIn("VIX above 20", prompt)
+        self.assertIn("market-regime context only", prompt)
         self.assertIn("40-DMA", prompt)
         self.assertIn("do not chase new money", prompt)
         self.assertIn("ranked_ideas", prompt)
         self.assertIn("compact labeled clauses", prompt)
         self.assertIn("Director: ... Quant: ... Sentiment: ... Risk: ... Execution-planning: ...", prompt)
+        self.assertIn("Final-pass detail guide", prompt)
+        self.assertIn("Director thesis", prompt)
+        self.assertIn("Quant/statistics", prompt)
+        self.assertIn("Educational execution-planning", prompt)
+        self.assertIn("Do not give orders", prompt)
         self.assertIn("no supplied sentiment evidence", prompt)
         self.assertIn("Do not include buy/sell/hold instructions or position sizing.", prompt)
+
+    def test_vix_active_suggestion_uses_requested_bands(self) -> None:
+        self.assertEqual(_vix_active_suggestion(19.9), "sell puts normally")
+        self.assertEqual(_vix_active_suggestion(20.1), "sell puts aggressively")
+        self.assertEqual(_vix_active_suggestion(30.1), "buy LEAPs")
+        self.assertEqual(_vix_active_suggestion(40.1), "go all in")
+        self.assertEqual(_vix_active_suggestion(50.1), "generational opportunity")
+
+    def test_stockanalysis_etf_metrics_reads_trailing_pe(self) -> None:
+        with patch("app.services.recommendation_agent._text_get", return_value='window.__data={peRatio:"32.30"}'):
+            metrics, warning = _fetch_stockanalysis_etf_metrics("QQQ")
+
+        self.assertIsNone(warning)
+        self.assertEqual(metrics["pe_ratio"], 32.3)
+        self.assertEqual(metrics["source"], "StockAnalysis ETF page")
+
+    def test_cboe_vix_close_reads_latest_csv_row(self) -> None:
+        csv_payload = "DATE,OPEN,HIGH,LOW,CLOSE\n06/11/2026,18,19,17,18.25\n06/12/2026,17,18,16,17.68\n"
+        with patch("app.services.recommendation_agent._text_get", return_value=csv_payload):
+            close, as_of, warning = _fetch_cboe_vix_close()
+
+        self.assertIsNone(warning)
+        self.assertEqual(close, 17.68)
+        self.assertEqual(as_of, "06/12/2026")
+
+    def test_json_get_uses_certifi_ssl_context(self) -> None:
+        captured: dict[str, object] = {}
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"status":"ok"}'
+
+        def fake_urlopen(request, *, timeout, context):
+            captured["request"] = request
+            captured["timeout"] = timeout
+            captured["context"] = context
+            return FakeResponse()
+
+        with patch("app.services.recommendation_agent.urlopen", side_effect=fake_urlopen):
+            result = recommendation_agent._json_get("https://example.com/api/test", headers={"Authorization": "Bearer test"})
+
+        self.assertEqual(result, {"status": "ok"})
+        self.assertEqual(captured["timeout"], 45)
+        self.assertIs(captured["context"], recommendation_agent.URLLIB_SSL_CONTEXT)
+
+    def test_json_post_uses_certifi_ssl_context(self) -> None:
+        captured: dict[str, object] = {}
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"result":"ok"}'
+
+        def fake_urlopen(request, *, timeout, context):
+            captured["request"] = request
+            captured["timeout"] = timeout
+            captured["context"] = context
+            return FakeResponse()
+
+        with patch("app.services.recommendation_agent.urlopen", side_effect=fake_urlopen):
+            result = recommendation_agent._json_post("https://example.com/api/test", {"hello": "world"})
+
+        self.assertEqual(result, {"result": "ok"})
+        self.assertEqual(captured["timeout"], 45)
+        self.assertIs(captured["context"], recommendation_agent.URLLIB_SSL_CONTEXT)
 
     def test_portfolio_input_parser_accepts_symbol_share_pairs(self) -> None:
         self.assertEqual(
@@ -512,6 +628,7 @@ class RecommendationAgentTests(unittest.TestCase):
             BreakoutScannerAdapter=FakeDbAdapter.factory(breakout or [], "Breakout Scanner"),
             SmartCandlesAdapter=FakeDbOnlyAdapter.factory(smart or [], "Smart Candles"),
             OptiTradeLabAdapter=FakeAdapter.factory(opti or [], "OptiTrade Lab"),
+            fetch_recommendation_market_context=_fake_market_context,
         )
 
     def _empty_result(self, model: str) -> dict:
@@ -525,6 +642,7 @@ class RecommendationAgentTests(unittest.TestCase):
             "scanner_summary": {},
             "tipranks_status": {"status": "skipped"},
             "lunarcrush_status": {"status": "skipped"},
+            "market_context": {},
             "warnings": [],
             "raw_llm_markdown": "",
             "usage": {},

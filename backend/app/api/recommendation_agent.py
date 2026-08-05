@@ -1,10 +1,16 @@
+import json
+from queue import Queue
+from threading import Thread
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
 from app.core.config import get_settings
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.models.entities import AIAdvisorLunarCrushKey, AIAdvisorNvidiaKey, AIAdvisorOpenAIKey, AIAdvisorTipRanksKey, User
 from app.schemas.common import RecommendationAgentRunOut, RecommendationAgentRunRequest
 from app.services.ai_advisor import (
@@ -30,6 +36,68 @@ def run(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> RecommendationAgentRunOut:
+    payload, api_key = _prepare_payload(payload, user, db)
+
+    try:
+        result = run_recommendation_agent(db, user.id, payload, api_key=api_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    except AIAdvisorConfigurationError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+    except AIAdvisorProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Recommendation Agent failed unexpectedly: {type(exc).__name__}: {exc}",
+        ) from exc
+
+    return RecommendationAgentRunOut(**result)
+
+
+@router.post("/run-stream")
+def run_stream(
+    payload: RecommendationAgentRunRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    payload, api_key = _prepare_payload(payload, user, db)
+    user_id = user.id
+
+    def events():
+        queue: Queue[dict[str, Any]] = Queue()
+
+        def progress(event: dict[str, Any]) -> None:
+            queue.put({"type": "stage", **event})
+
+        def worker() -> None:
+            worker_db = SessionLocal()
+            try:
+                result = run_recommendation_agent(worker_db, user_id, payload, api_key=api_key, progress_callback=progress)
+                queue.put({"type": "result", "result": RecommendationAgentRunOut(**result).model_dump(mode="json")})
+            except ValueError as exc:
+                queue.put({"type": "error", "status_code": status.HTTP_503_SERVICE_UNAVAILABLE, "detail": str(exc)})
+            except AIAdvisorConfigurationError as exc:
+                queue.put({"type": "error", "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR, "detail": str(exc)})
+            except AIAdvisorProviderError as exc:
+                queue.put({"type": "error", "status_code": exc.status_code, "detail": str(exc)})
+            except Exception as exc:
+                queue.put({"type": "error", "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR, "detail": f"Recommendation Agent failed unexpectedly: {type(exc).__name__}: {exc}"})
+            finally:
+                worker_db.close()
+                queue.put({"type": "done"})
+
+        Thread(target=worker, daemon=True).start()
+        while True:
+            event = queue.get()
+            yield f"{json.dumps(event, default=str)}\n"
+            if event.get("type") == "done":
+                break
+
+    return StreamingResponse(events(), media_type="application/x-ndjson")
+
+
+def _prepare_payload(payload: RecommendationAgentRunRequest, user: User, db: Session) -> tuple[RecommendationAgentRunRequest, str | None]:
     if payload.model_mode is None and payload.model == "auto":
         payload = payload.model_copy(update={"model_mode": "foundation"})
     if payload.model_mode is None and (not valid_ai_advisor_model(payload.model) or is_goose_model(payload.model)):
@@ -83,13 +151,4 @@ def run(
                 }
             )
 
-    try:
-        result = run_recommendation_agent(db, user.id, payload, api_key=api_key)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-    except AIAdvisorConfigurationError as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
-    except AIAdvisorProviderError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
-
-    return RecommendationAgentRunOut(**result)
+    return payload, api_key

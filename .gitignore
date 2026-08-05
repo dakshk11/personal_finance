@@ -22,3 +22,9 @@ backend/ibkr/data/history/
 backend/app/services/diversify_price_cache/
 artifacts/
 AGENTS.md
+# Local browser / Playwright inspection artifacts
+.playwright-cli/
+output/playwright/
+
+# Scratch workspace
+tmp/

@@ -15,6 +15,7 @@ Architecture:
 
 import asyncio
 import logging
+import time
 from typing import Optional
 
 from ib_insync import IB, Stock, Ticker
@@ -25,6 +26,7 @@ from data.tickers import ALL_TICKERS, IBKR_SYMBOL_MAP
 log = logging.getLogger(__name__)
 
 POLL_INTERVAL   = 30   # seconds between full snapshot cycles
+QUOTE_STALE_SECONDS = 20 * 60
 # Keep simultaneous IBKR market-data lines well below TWS limits.
 # reqTickersAsync opens one market-data line per contract; cancel only happens
 # after all data arrives, so TWS can see SNAPSHOT_BATCH lines open at once.
@@ -34,6 +36,8 @@ _QUALIFY_BATCH  = 10   # contracts per qualifyContractsAsync call
 # Pause between snapshot batches — gives TWS time to fully process cancellations
 # from the previous batch before the next one opens.
 _BATCH_PAUSE    = 2.0  # seconds between snapshot batches
+_SNAPSHOT_TIMEOUT = 15.0
+_HISTORICAL_TIMEOUT = 12.0
 
 # ── Shared state ──────────────────────────────────────────────────────────────
 _ib: IB = IB()
@@ -52,7 +56,63 @@ def is_connected() -> bool:
 
 
 def get_all_quotes() -> dict[str, dict]:
-    return dict(_quote_cache)
+    return {
+        sym: dict(row)
+        for sym, row in _quote_cache.items()
+        if _is_quote_fresh(row)
+    }
+
+
+def quote_cache_age_seconds() -> float | None:
+    timestamps = [
+        row.get("updated_at_epoch")
+        for row in _quote_cache.values()
+        if _is_quote_fresh(row)
+    ]
+    if not timestamps:
+        return None
+    return max(0.0, time.time() - min(timestamps))
+
+
+def quote_cache_stats() -> dict[str, object]:
+    timestamps = [
+        float(row["updated_at_epoch"])
+        for row in _quote_cache.values()
+        if _is_quote_fresh(row)
+    ]
+    if not timestamps:
+        return {
+            "quote_cache_age_seconds": None,
+            "quote_cache_oldest_at": None,
+            "quote_cache_latest_at": None,
+            "quote_cache_stale": True,
+            "quote_cache_stale_count": len(_quote_cache),
+        }
+    oldest = min(timestamps)
+    latest = max(timestamps)
+    age = max(0.0, time.time() - oldest)
+    return {
+        "quote_cache_age_seconds": round(age, 1),
+        "quote_cache_oldest_at": _iso_from_epoch(oldest),
+        "quote_cache_latest_at": _iso_from_epoch(latest),
+        "quote_cache_stale": age > QUOTE_STALE_SECONDS,
+        "quote_cache_stale_count": sum(1 for row in _quote_cache.values() if not _is_quote_fresh(row)),
+    }
+
+
+async def ensure_recent_quotes(max_age_seconds: int = QUOTE_STALE_SECONDS) -> bool:
+    """Refresh the full quote cache when it is empty or older than max_age_seconds."""
+    if not is_connected():
+        return False
+    age = quote_cache_age_seconds()
+    if age is not None and age <= max_age_seconds:
+        return False
+    if _snapshot_lock is not None and _snapshot_lock.locked():
+        log.debug("IBKR quote refresh already running; skipping duplicate request")
+        return False
+    log.info("IBKR quote cache stale or empty (age=%s); refreshing snapshots", None if age is None else round(age, 1))
+    await refresh_quotes()
+    return True
 
 
 def get_ib() -> IB:
@@ -97,7 +157,10 @@ async def refresh_quotes(symbols: list[str] | None = None) -> int:
             batch_syms = [sym for sym, _ in batch]
             batch_cons = [contract for _, contract in batch]
             try:
-                tickers = await _ib.reqTickersAsync(*batch_cons, regulatorySnapshot=False)
+                tickers = await asyncio.wait_for(
+                    _ib.reqTickersAsync(*batch_cons, regulatorySnapshot=False),
+                    timeout=_SNAPSHOT_TIMEOUT,
+                )
                 for sym, ticker in zip(batch_syms, tickers):
                     _update_cache_from_ticker(sym, ticker)
             except Exception as exc:
@@ -124,12 +187,26 @@ async def connect() -> bool:
             if _ib.isConnected():
                 _ib.disconnect()
 
-            await _ib.connectAsync(
-                settings.tws_host,
-                settings.tws_port,
-                clientId=settings.tws_client_id,
-                readonly=True,
-            )
+            connected_client_id = None
+            last_error: Exception | None = None
+            for client_id in range(settings.tws_client_id, settings.tws_client_id + 5):
+                try:
+                    await _ib.connectAsync(
+                        settings.tws_host,
+                        settings.tws_port,
+                        clientId=client_id,
+                        readonly=True,
+                    )
+                    connected_client_id = client_id
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    if _ib.isConnected():
+                        _ib.disconnect()
+                    log.warning("IBKR TWS connect failed with clientId %d: %s", client_id, exc)
+
+            if connected_client_id is None:
+                raise last_error or RuntimeError("IBKR TWS connect failed")
 
             await _resolve_contracts()
 
@@ -149,8 +226,8 @@ async def connect() -> bool:
 
             log.info(
                 "IBKR TWS connected (port %d) · delayed market data · "
-                "%d/%d contracts qualified · snapshot batch=%d interval=%ds",
-                settings.tws_port, len(_contracts), len(ALL_TICKERS),
+                "clientId=%d · %d/%d contracts qualified · snapshot batch=%d interval=%ds",
+                settings.tws_port, connected_client_id, len(_contracts), len(ALL_TICKERS),
                 SNAPSHOT_BATCH, POLL_INTERVAL,
             )
             return True
@@ -237,8 +314,9 @@ async def _poll_loop() -> None:
                 batch_num  = i // SNAPSHOT_BATCH + 1
 
                 try:
-                    tickers = await _ib.reqTickersAsync(
-                        *batch_cons, regulatorySnapshot=False
+                    tickers = await asyncio.wait_for(
+                        _ib.reqTickersAsync(*batch_cons, regulatorySnapshot=False),
+                        timeout=_SNAPSHOT_TIMEOUT,
                     )
                     for sym, ticker in zip(batch_syms, tickers):
                         _update_cache_from_ticker(sym, ticker)
@@ -284,6 +362,7 @@ def _update_cache_from_ticker(sym: str, ticker: Ticker) -> None:
         change     = round(price - close, 2)
         change_pct = round((change / close) * 100, 2)
 
+    updated_at = time.time()
     _quote_cache[sym] = {
         "symbol":     sym,
         "price":      price,
@@ -297,19 +376,24 @@ def _update_cache_from_ticker(sym: str, ticker: Ticker) -> None:
         "iv_rank":    None,
         "hv30":       None,
         "source":     "ibkr",
+        "updated_at_epoch": updated_at,
+        "updated_at": _iso_from_epoch(updated_at),
     }
 
 
 async def _update_cache_from_latest_daily_bar(sym: str, contract: Stock) -> None:
     """Use IBKR daily bars when live snapshot fields are unavailable."""
     try:
-        bars = await _ib.reqHistoricalDataAsync(
-            contract,
-            endDateTime="",
-            durationStr="1 M",
-            barSizeSetting="1 day",
-            whatToShow="TRADES",
-            useRTH=True,
+        bars = await asyncio.wait_for(
+            _ib.reqHistoricalDataAsync(
+                contract,
+                endDateTime="",
+                durationStr="1 M",
+                barSizeSetting="1 day",
+                whatToShow="TRADES",
+                useRTH=True,
+            ),
+            timeout=_HISTORICAL_TIMEOUT,
         )
     except Exception as exc:
         log.debug("Historical quote fallback %s: %s", sym, exc)
@@ -331,6 +415,7 @@ async def _update_cache_from_latest_daily_bar(sym: str, contract: Stock) -> None
         change = round(price - prior_close, 2)
         change_pct = round((change / prior_close) * 100, 2)
 
+    updated_at = time.time()
     _quote_cache[sym] = {
         "symbol":     sym,
         "price":      price,
@@ -344,6 +429,8 @@ async def _update_cache_from_latest_daily_bar(sym: str, contract: Stock) -> None
         "iv_rank":    None,
         "hv30":       None,
         "source":     "ibkr_historical",
+        "updated_at_epoch": updated_at,
+        "updated_at": _iso_from_epoch(updated_at),
     }
 
 
@@ -363,3 +450,14 @@ def _pf(val) -> Optional[float]:
 def _pi(val) -> Optional[int]:
     f = _pf(val)
     return int(f) if f is not None else None
+
+
+def _is_quote_fresh(row: dict) -> bool:
+    updated_at = row.get("updated_at_epoch")
+    if not isinstance(updated_at, (int, float)):
+        return False
+    return (time.time() - float(updated_at)) <= QUOTE_STALE_SECONDS
+
+
+def _iso_from_epoch(value: float) -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(value))

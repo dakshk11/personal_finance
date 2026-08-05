@@ -61,47 +61,36 @@ def scan_rsi_playbook(
     }
 
 
-def classify_rsi(rsi: float | None) -> dict[str, str]:
+def classify_rsi(rsi: float | None, trend: str = "Limited data") -> dict[str, str]:
     if rsi is None:
         return {
             "level": "RSI unavailable",
             "action": "Wait for data",
             "action_tone": "watch",
         }
+    bullish = trend == "Bullish trend"
+    if not bullish:
+        return {
+            "level": "Trend not bullish",
+            "action": "Wait: moving averages are not bullish",
+            "action_tone": "watch",
+        }
+    if rsi < 50:
+        return {
+            "level": "RSI <50 + bullish trend",
+            "action": "Sell puts on red day",
+            "action_tone": "sell_puts",
+        }
     if rsi >= 70:
         return {
             "level": "RSI 70+",
-            "action": "Go to cash",
-            "action_tone": "cash",
-        }
-    if rsi > 65:
-        return {
-            "level": "RSI 65-70",
-            "action": "Wait / cash watch",
-            "action_tone": "watch",
-        }
-    if rsi >= 55:
-        return {
-            "level": "RSI 55-65",
-            "action": "Sell puts far OTM",
-            "action_tone": "puts_far_otm",
-        }
-    if rsi >= 45:
-        return {
-            "level": "RSI 45-55",
-            "action": "Sell puts ATM",
-            "action_tone": "puts_atm",
-        }
-    if rsi >= 30:
-        return {
-            "level": "RSI 30-45",
-            "action": "Buy the stock",
-            "action_tone": "stock",
+            "action": "Wait: overbought",
+            "action_tone": "wait",
         }
     return {
-        "level": "RSI 30 and below",
-        "action": "Buy LEAP aggressively",
-        "action_tone": "leap",
+        "level": "RSI >=50 + bullish trend",
+        "action": "Wait for RSI <50 red day",
+        "action_tone": "wait",
     }
 
 
@@ -115,11 +104,11 @@ def _signal_for_item(item: RSIUniverseItem, history: MarketHistory) -> dict[str,
     latest_index = len(values) - 1
     latest_price = round(values[-1], 4) if values else 0
     latest_rsi = _round_or_none(rsi_values[latest_index]) if values else None
-    classification = classify_rsi(latest_rsi)
     latest_ema8 = _round_or_none(ema8[latest_index]) if values else None
     latest_ema21 = _round_or_none(ema21[latest_index]) if values else None
     latest_ema55 = _round_or_none(ema55[latest_index]) if values else None
     trend = _trend_label(latest_price, latest_ema8, latest_ema21, latest_ema55)
+    classification = classify_rsi(latest_rsi, trend)
     distance_to_ema21 = round((latest_price / latest_ema21) - 1, 6) if latest_price > 0 and latest_ema21 else None
     window_return_3m = _window_return(values, 63)
     chart = _chart_points(ordered, ema8, ema21, ema55, rsi_values)
@@ -263,26 +252,25 @@ def _rsi_series(values: list[float], period: int) -> list[float | None]:
 def _trend_label(price: float, ema8: float | None, ema21: float | None, ema55: float | None) -> str:
     if not ema8 or not ema21 or not ema55:
         return "Limited data"
-    if price >= ema21 and ema8 >= ema21 >= ema55:
-        return "Bullish EMA stack"
-    if price < ema21 and ema8 < ema21 < ema55:
-        return "Bearish EMA stack"
-    return "Mixed EMA stack"
+    if price >= ema21 and ema8 >= ema21 and ema21 >= ema55:
+        return "Bullish trend"
+    if price < ema21 and ema8 < ema21 and ema21 < ema55:
+        return "Bearish trend"
+    return "Mixed trend"
 
 
 def _summary(symbol: str, rsi: float | None, level: str, action: str, trend: str) -> str:
     rsi_text = "unavailable" if rsi is None else f"{rsi:.1f}"
-    return f"{symbol} is in {level} with RSI {rsi_text}; playbook action is {action}. EMA context: {trend}. Manually verify news, earnings, liquidity, and position sizing before acting."
+    if action == "Sell puts on red day":
+        return f"{symbol} has RSI {rsi_text} with a bullish moving-average trend; playbook action is {action}. Target 5% return in 30 days and plan to close at 50% profit, typically 5-7 days, if the setup behaves. Manually verify news, earnings, liquidity, and position sizing before acting."
+    return f"{symbol} is in {level} with RSI {rsi_text}; playbook action is {action}. Moving-average context: {trend}. Wait for both conditions before selling puts: RSI under 50 and bullish trend."
 
 
 def _signal_sort_key(signal: dict[str, Any]) -> tuple[int, str]:
     order = {
-        "leap": 0,
-        "stock": 1,
-        "puts_atm": 2,
-        "puts_far_otm": 3,
-        "cash": 4,
-        "watch": 5,
+        "sell_puts": 0,
+        "wait": 1,
+        "watch": 2,
     }
     return (order.get(str(signal.get("action_tone")), 9), str(signal.get("symbol")))
 

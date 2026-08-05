@@ -32,6 +32,7 @@ class RecommendationModelRouter:
         ollama_base_url: str | None = None,
         *,
         prefer_fast_local: bool = False,
+        prefer_fast_foundation: bool = False,
     ) -> RecommendationModelDecision:
         if mode == "ollama":
             decision = self.router.route(prompt, mode="local")
@@ -72,7 +73,7 @@ class RecommendationModelRouter:
 
         decision = self.router.route(prompt, mode="frontier", provider="openai", cost_preference="balanced")
         routed = decision.decision
-        app_model = self._openai_model_for_app(routed)
+        app_model = self._openai_model_for_app(routed, prefer_fast=prefer_fast_foundation)
         logger.info(
             "Model router selected foundation model %s (%s routed from %s): %s",
             decision.display_name,
@@ -95,9 +96,13 @@ class RecommendationModelRouter:
             },
         )
 
-    def _openai_model_for_app(self, decision: FrontierRoutingDecision) -> str:
+    def _openai_model_for_app(self, decision: FrontierRoutingDecision, *, prefer_fast: bool = False) -> str:
         if decision.model in {"gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}:
+            if prefer_fast and decision.model == "gpt-5.5":
+                return "gpt-5.4-mini"
             return decision.model
+        if prefer_fast:
+            return "gpt-5.4-mini"
         if decision.complexity in {"hard", "expert"} or decision.thinking_mode in {"high", "extended"}:
             return "gpt-5.5"
         if decision.complexity == "simple":

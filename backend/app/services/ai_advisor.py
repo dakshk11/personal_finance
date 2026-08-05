@@ -27,9 +27,11 @@ AIAdvisorModel = Literal["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"]
 OLLAMA_DEFAULT_BASE_URL = "http://127.0.0.1:11434"
 NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 NVIDIA_RECOMMENDATION_MODELS = (
+    "nvidia/nemotron-3-super-120b-a12b",
+    "qwen/qwen3.5-397b-a17b",
+    "moonshot-ai/kimi-2.5",
     "minimaxai/minimax-m2.7",
     "zhipuai/glm-5.1",
-    "moonshot-ai/kimi-2.5",
     "deepseek-ai/deepseek-v4-flash",
     "nvidia/nemotron-3-ultra-550b-a55b",
 )
@@ -294,7 +296,7 @@ def validate_openai_api_key(api_key: str) -> None:
     )
 
 
-def create_openai_response(api_key: str, model: str, prompt: str, *, instructions: str | None = None) -> tuple[str, dict[str, Any]]:
+def create_openai_response(api_key: str, model: str, prompt: str, *, instructions: str | None = None, timeout_seconds: int = 120) -> tuple[str, dict[str, Any]]:
     payload = {
         "model": model,
         "input": prompt,
@@ -302,7 +304,7 @@ def create_openai_response(api_key: str, model: str, prompt: str, *, instruction
     }
     if instructions:
         payload["instructions"] = instructions
-    response = _openai_json_request("https://api.openai.com/v1/responses", api_key, method="POST", payload=payload)
+    response = _openai_json_request("https://api.openai.com/v1/responses", api_key, method="POST", payload=payload, timeout=timeout_seconds)
     return _extract_response_text(response), response
 
 
@@ -591,7 +593,7 @@ def generate_text(
         return create_ollama_response(ollama_model_name(model), prompt, base_url=ollama_base_url, timeout_seconds=ollama_timeout_seconds)
     if is_nvidia_model(model):
         return create_nvidia_response(api_key or "", nvidia_model_name(model), prompt, instructions=instructions, timeout_seconds=ollama_timeout_seconds)
-    return create_openai_response(api_key or "", model, prompt, instructions=instructions)
+    return create_openai_response(api_key or "", model, prompt, instructions=instructions, timeout_seconds=ollama_timeout_seconds)
 
 
 def response_usage(response_payload: dict[str, Any]) -> dict[str, Any]:

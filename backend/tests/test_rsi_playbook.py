@@ -32,12 +32,11 @@ class RSIPlaybookTests(unittest.TestCase):
         return db, user
 
     def test_rsi_classification_rules_match_playbook(self) -> None:
-        self.assertEqual(rsi_playbook.classify_rsi(72)["action"], "Go to cash")
-        self.assertEqual(rsi_playbook.classify_rsi(60)["action"], "Sell puts far OTM")
-        self.assertEqual(rsi_playbook.classify_rsi(50)["action"], "Sell puts ATM")
-        self.assertEqual(rsi_playbook.classify_rsi(38)["action"], "Buy the stock")
-        self.assertEqual(rsi_playbook.classify_rsi(25)["action"], "Buy LEAP aggressively")
-        self.assertEqual(rsi_playbook.classify_rsi(67)["action"], "Wait / cash watch")
+        self.assertEqual(rsi_playbook.classify_rsi(49, "Bullish trend")["action"], "Sell puts on red day")
+        self.assertEqual(rsi_playbook.classify_rsi(50, "Bullish trend")["action"], "Wait for RSI <50 red day")
+        self.assertEqual(rsi_playbook.classify_rsi(72, "Bullish trend")["action"], "Wait: overbought")
+        self.assertEqual(rsi_playbook.classify_rsi(38, "Mixed trend")["action"], "Wait: moving averages are not bullish")
+        self.assertEqual(rsi_playbook.classify_rsi(None, "Bullish trend")["action"], "Wait for data")
 
     def test_combined_universe_includes_wheel_and_portfolio_sync_symbols(self) -> None:
         db, user = self._seed_user()
