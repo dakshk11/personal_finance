@@ -12,7 +12,7 @@ BACKEND_PORT="${BACKEND_PORT:-8000}"
 IBKR_PORT="${IBKR_PORT:-8002}"
 HOST="${HOST:-localhost}"
 
-FRONTEND_URL="${FRONTEND_URL:-http://$HOST:$FRONTEND_PORT/ai-advisor}"
+FRONTEND_URL="${FRONTEND_URL:-http://$HOST:$FRONTEND_PORT/studio}"
 BACKEND_URL="${BACKEND_URL:-http://127.0.0.1:$BACKEND_PORT}"
 IBKR_URL="${IBKR_URL:-http://127.0.0.1:$IBKR_PORT}"
 FRONTEND_ORIGIN="${FRONTEND_ORIGIN:-http://$HOST:$FRONTEND_PORT}"
@@ -46,7 +46,7 @@ Checks and repairs the local FinanceOS dev stack:
   - main FastAPI backend on port $BACKEND_PORT
   - IBKR research backend on port $IBKR_PORT
   - Next frontend on port $FRONTEND_PORT
-  - /ai-advisor page and frontend-to-backend API proxy
+  - /studio page and frontend-to-backend API proxy
 
 Options:
   --check-only       Only report status; do not install, start, stop, or restart.

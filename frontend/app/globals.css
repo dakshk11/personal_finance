@@ -3087,7 +3087,9 @@ select {
   padding: 14px clamp(16px, 4vw, 36px) 0;
 }
 
-.ai-tabbar button {
+.ai-tabbar button,
+.ai-tabbar a {
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -3101,7 +3103,8 @@ select {
   cursor: pointer;
 }
 
-.ai-tabbar button.active {
+.ai-tabbar button.active,
+.ai-tabbar a.active {
   background: var(--mint);
   border-color: rgba(20, 61, 42, 0.1);
 }
@@ -10995,4 +10998,246 @@ button.breakout-row.active {
   .recommendation-option-modal {
     padding: 12px;
   }
+}
+
+/* ============================================================
+   Two-lane home page: hero, lane doors, agent pipeline, modules
+   ============================================================ */
+
+.lane-hero {
+  display: grid;
+  justify-items: start;
+  gap: 0;
+  padding: clamp(40px, 7vw, 84px) clamp(20px, 5vw, 72px) clamp(28px, 4vw, 44px);
+}
+
+.lane-hero h1 {
+  max-width: 12ch;
+  margin: 0;
+  font-size: clamp(2.9rem, 7.5vw, 5.6rem);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  background: linear-gradient(120deg, var(--ink) 30%, #1d5e54 78%, #14998e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.lane-hero-copy {
+  max-width: 62ch;
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: clamp(1rem, 1.6vw, 1.16rem);
+  line-height: 1.55;
+}
+
+.lane-hero-pill {
+  margin-top: 22px;
+}
+
+/* ---- the two doors ---- */
+
+.lane-doors {
+  display: grid;
+  gap: 16px;
+  padding: 0 clamp(20px, 5vw, 72px) clamp(34px, 5vw, 56px);
+}
+
+@media (min-width: 860px) {
+  .lane-doors { grid-template-columns: 1fr 1fr; }
+}
+
+.lane-door {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--forest);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.lane-door.lane-trade { border-top-color: var(--amber); }
+
+.lane-door.remembered {
+  border-color: rgba(15, 118, 110, 0.4);
+  box-shadow: var(--shadow-lift);
+}
+
+.lane-door.lane-trade.remembered { border-color: rgba(217, 119, 6, 0.42); }
+
+.lane-door-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 22px 0;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--forest-deep);
+}
+
+.lane-door.lane-trade .lane-door-kicker { color: #92400e; }
+
+.lane-door-kicker em {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  font-style: normal;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  background: var(--mint);
+  border-radius: 999px;
+}
+
+.lane-door.lane-trade .lane-door-kicker em { background: #fef3c7; }
+
+.lane-door-main {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px 22px 20px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.lane-door-main svg { color: var(--forest); }
+.lane-door.lane-trade .lane-door-main svg { color: var(--amber); }
+
+.lane-door-main strong {
+  font-size: clamp(1.3rem, 2.4vw, 1.68rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.lane-door-main > span {
+  color: var(--muted);
+  font-size: 0.96rem;
+  line-height: 1.5;
+}
+
+.lane-door-main .lane-door-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+  color: var(--forest-deep);
+  font-weight: 750;
+  font-size: 0.92rem;
+}
+
+.lane-door.lane-trade .lane-door-main .lane-door-cta { color: #92400e; }
+
+.lane-door-main:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+
+.lane-door-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.lane-door-links a {
+  padding: 5px 11px;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.lane-door-links a:hover { border-color: rgba(15, 118, 110, 0.4); color: var(--forest-deep); }
+
+/* ---- agent pipeline ---- */
+
+.pipeline {
+  display: grid;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+@media (min-width: 800px) {
+  .pipeline { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: start; }
+}
+
+.pipeline-phase {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.pipeline-group {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.pipeline-steps { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.pipeline-steps span {
+  padding: 5px 10px;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: var(--forest-deep);
+  background: var(--mint);
+  border-radius: 7px;
+}
+
+.pipeline-foot { margin: 22px 0 0; }
+
+/* ---- all-modules grid ---- */
+
+.module-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+@media (min-width: 700px) { .module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1080px) { .module-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+.module-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 18px;
+  color: inherit;
+  text-decoration: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.module-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(15, 118, 110, 0.3);
+  box-shadow: var(--shadow-lift);
+}
+
+.module-card .module-kicker { color: var(--forest); }
+
+.module-card strong { font-size: 1rem; line-height: 1.2; color: var(--ink); }
+
+.module-card p { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.45; }
+
+@media (prefers-reduced-motion: reduce) {
+  .module-card, .lane-door { transition: none; }
+  .module-card:hover { transform: none; }
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { PRIMARY_NAV_ITEMS, PRODUCT_MARK, PRODUCT_NAME } from "@/lib/brand";
+import { Lane, PRIMARY_NAV_ITEMS, PRODUCT_MARK, PRODUCT_NAME, orderNavForLane, readStoredLane } from "@/lib/brand";
 
 type AppHeaderProps = {
   actions?: ReactNode;
@@ -21,12 +22,20 @@ export function BrandLink() {
 }
 
 export function AppHeader({ actions, showPrimaryNav = true, title, variant = "dashboard" }: AppHeaderProps) {
+  const [lane, setLane] = useState<Lane | null>(null);
+
+  useEffect(() => {
+    setLane(readStoredLane());
+  }, []);
+
+  const navItems = useMemo(() => orderNavForLane(PRIMARY_NAV_ITEMS, lane), [lane]);
+
   if (variant === "site") {
     return (
       <header className="topbar">
         <BrandLink />
         <nav className="nav-actions" aria-label="Primary navigation">
-          {showPrimaryNav && PRIMARY_NAV_ITEMS.map((item) => (
+          {showPrimaryNav && navItems.map((item) => (
             <Link className="link-button" href={item.href} key={item.href}>
               {item.label}
             </Link>
