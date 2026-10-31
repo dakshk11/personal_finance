@@ -23,6 +23,8 @@ const DOORS: Array<{
     links: [
       { href: "/studio/wheel-scanner", label: "Wheel scanner" },
       { href: "/studio/breakout-scanner", label: "Breakout scanner" },
+      { href: "/studio/breakaway", label: "Breakaway" },
+      { href: "/studio/stage-desk", label: "Stage Desk" },
       { href: "/studio/optitrade-lab", label: "OptiTrade Lab" }
     ],
     Icon: Sparkles

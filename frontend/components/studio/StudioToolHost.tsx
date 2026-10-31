@@ -19,6 +19,7 @@ function ToolLoading() {
  * Previously all sixteen were static imports in one page component.
  */
 const AIPlannerTool = dynamic(() => import("@/components/AIPlannerTool").then((m) => m.AIPlannerTool), { loading: ToolLoading });
+const BreakawayTool = dynamic(() => import("@/components/BreakawayTool").then((m) => m.BreakawayTool), { loading: ToolLoading });
 const BreakoutScannerTool = dynamic(() => import("@/components/BreakoutScannerTool").then((m) => m.BreakoutScannerTool), { loading: ToolLoading });
 const CompositeSignalTool = dynamic(() => import("@/components/CompositeSignalTool").then((m) => m.CompositeSignalTool), { loading: ToolLoading });
 const EarningsAgentTool = dynamic(() => import("@/components/EarningsAgentTool").then((m) => m.EarningsAgentTool), { loading: ToolLoading });
@@ -31,6 +32,7 @@ const ResearchPromptsTool = dynamic(() => import("@/components/ResearchPromptsTo
 const RSIPlaybookTool = dynamic(() => import("@/components/RSIPlaybookTool").then((m) => m.RSIPlaybookTool), { loading: ToolLoading });
 const SectorRotationTool = dynamic(() => import("@/components/SectorRotationTool").then((m) => m.SectorRotationTool), { loading: ToolLoading });
 const SimulatedPortfolioTool = dynamic(() => import("@/components/SimulatedPortfolioTool").then((m) => m.SimulatedPortfolioTool), { loading: ToolLoading });
+const StageDeskTool = dynamic(() => import("@/components/StageDeskTool").then((m) => m.StageDeskTool), { loading: ToolLoading });
 const SmartCandleTool = dynamic(() => import("@/components/SmartCandleTool").then((m) => m.SmartCandleTool), { loading: ToolLoading });
 const StockAnalysisTool = dynamic(() => import("@/components/StockAnalysisTool").then((m) => m.StockAnalysisTool), { loading: ToolLoading });
 const WheelScannerTool = dynamic(() => import("@/components/WheelScannerTool").then((m) => m.WheelScannerTool), { loading: ToolLoading });
@@ -67,6 +69,10 @@ export function StudioToolHost({ slug }: { slug: StudioToolSlug }) {
       return <RSIPlaybookTool />;
     case "breakout-scanner":
       return <BreakoutScannerTool />;
+    case "breakaway":
+      return <BreakawayTool />;
+    case "stage-desk":
+      return <StageDeskTool />;
     case "smart-candles":
       return <SmartCandleTool />;
     case "composite-signal":

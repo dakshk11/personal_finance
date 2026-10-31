@@ -4,6 +4,7 @@ import {
   CandlestickChart,
   FolderArchive,
   Gauge,
+  Layers,
   LineChart,
   Newspaper,
   PieChart,
@@ -24,6 +25,8 @@ export type StudioToolSlug =
   | "simulated-portfolio"
   | "rsi-playbook"
   | "breakout-scanner"
+  | "breakaway"
+  | "stage-desk"
   | "smart-candles"
   | "composite-signal"
   | "optitrade-lab"
@@ -49,6 +52,8 @@ export const STUDIO_TOOLS: StudioTool[] = [
   { slug: "simulated-portfolio", label: "Simulated Portfolio", Icon: PieChart },
   { slug: "rsi-playbook", label: "RSI Playbook", Icon: Gauge },
   { slug: "breakout-scanner", label: "Breakout Scanner", Icon: CandlestickChart },
+  { slug: "breakaway", label: "Breakaway", Icon: Gauge },
+  { slug: "stage-desk", label: "Stage Desk", Icon: Layers },
   { slug: "smart-candles", label: "Smart Candles", Icon: CandlestickChart },
   { slug: "composite-signal", label: "Composite Signal Algorithm", Icon: Activity },
   { slug: "optitrade-lab", label: "OptiTrade Lab", Icon: CandlestickChart },

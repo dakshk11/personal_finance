@@ -40,6 +40,8 @@ from services.cboe_service import (
 )
 from services.scanner_service import run_csp_scan, run_cc_scan
 from services.breakout_router import router as breakout_router
+from services.breakaway_router import router as breakaway_router
+from services.stage_router import router as stage_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -54,6 +56,8 @@ app.add_middleware(
 )
 
 app.include_router(breakout_router)
+app.include_router(breakaway_router)
+app.include_router(stage_router)
 
 _ws_clients: list[WebSocket] = []
 
